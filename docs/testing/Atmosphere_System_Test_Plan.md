@@ -4,7 +4,7 @@
 
 This file describes what can be tested from the current `atmosphere_system` branch before renderer activation exists.
 
-The current branch is not expected to show aurora or generated atmosphere visuals yet. The goal of this test pass is to verify that the Flow data shape, legacy weather fallback, and non-rendering runtime snapshot path compile and do not break existing levels.
+The current branch is not expected to show aurora or generated atmosphere visuals yet. The goal of this test pass is to verify that the Flow data shape, legacy weather fallback, enum tables, and non-rendering runtime snapshot path compile and do not break existing levels.
 
 ## Expected Current Behavior
 
@@ -14,6 +14,7 @@ Expected visible behavior:
 - Existing legacy weather should still work.
 - Existing levels without level.atmosphere should behave like before.
 - level.atmosphere can be present in Flow/Lua without crashing script loading if the binding compiles.
+- WeatherQuality, AtmosphereEffectType, AtmosphereEffectScope, and AtmosphereEffectRenderMode should be available as Flow tables.
 - Aurora fields should load as data only. They are not rendered yet.
 - Local/nullmesh effects should load as data only. They are not rendered yet.
 ```
@@ -163,12 +164,12 @@ Expected result:
 Known likely failure points:
 
 ```text
-- parent.new_enum may not be supported in the current sol2 setup.
+- Flow table registration for WeatherQuality / AtmosphereEffectType / AtmosphereEffectScope / AtmosphereEffectRenderMode may need to move to FlowHandler MakeReadOnlyTable style.
 - std::vector<AtmosphereEffectProfile> assignment from Lua table may need a table-wrapper pattern.
 - TombEngine.vcxproj noisy diff may need local cleanup.
 ```
 
-If `new_enum` fails, switch to the existing TombEngine style:
+If atmosphere enum table registration fails, move it to the existing TombEngine style:
 
 ```text
 FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "WeatherQuality", WEATHER_QUALITIES)
@@ -185,5 +186,6 @@ This branch is ready for the next implementation step when:
 - TombEngine compiles locally.
 - Existing legacy weather scripts still load.
 - A level script with level.atmosphere loads.
+- WeatherQuality and AtmosphereEffect* tables are usable in Lua.
 - The .vcxproj diff is cleaned before PR.
 ```
