@@ -15,7 +15,7 @@ Implemented as a small, non-activating runtime base:
 - neutral object parameter value container
 - neutral object reference container
 - parameter entries keyed by provider, definition set, object reference and parameter id
-- lookup service for provider/object/parameter queries
+- lookup service for provider/object/definition-set/parameter queries
 - consumer registration hook filtered by provider id
 - explicit dispatch entry/provider methods for future systems
 
@@ -45,9 +45,11 @@ The current runtime-side model is intentionally generic:
 Future systems can register a consumer callback for their own provider id and process only their own entries.
 Example future consumers include sound, particles, light helpers, trap/puzzle helpers, AI helpers, camera helpers and atmosphere handlers.
 
-## Files added
+## Files changed
 
 - `TombEngine/Game/ObjectParameters/ObjectParameterRegistry.h`
+- `TombEngine/framework.h`
+- `Documentation/status/ObjectParameterRuntimeSystem.md`
 
 ## Integration notes
 
