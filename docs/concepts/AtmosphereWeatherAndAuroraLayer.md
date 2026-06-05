@@ -133,6 +133,34 @@ Custom
 
 The initial implementation should focus only on preparing the architecture and not attempt to finish every layer immediately.
 
+## Meshless and Volumetric Atmosphere Layers
+
+Some atmosphere effects should not require level builders to place visible objects or many nullmeshes. They should be defined as atmosphere layers and optionally use placed objects only as emitters, anchors, or zone markers.
+
+Recommended future layer examples:
+
+```text
+GroundFog
+DriftingMist
+SnowstormVeil
+SandstormVeil
+DustSheet
+AshFall
+LeafFall
+Fireflies
+MagicParticles
+```
+
+Renderer notes:
+
+- Keep these effects outside the general weather sprite sorting path where possible.
+- Support global layers and later room/zone-limited layers.
+- Allow nullmesh or trigger objects to act as optional emitters, not as mandatory visual meshes.
+- Keep quality budgets for density, update cost, and draw distance.
+- Prefer camera-facing quads, volume slices, instancing, or a later GPU path depending on effect type.
+
+This allows effects such as moving ground fog, heavy snowstorm haze, sandstorm sheets, ash fall, or localized magical atmosphere without forcing every effect into moveables, horizon meshes, or classic weather particles.
+
 ## Weather Budgets
 
 Dense weather needs explicit budgets. These budgets should be script-configurable, but safe defaults should exist.
@@ -211,6 +239,8 @@ Example:
 
 ```lua
 level.atmosphere = Flow.Atmosphere {
+	enabled = true,
+
 	weather = Flow.WeatherProfile {
 		type = WeatherType.Rain,
 		strength = 0.85,
@@ -254,7 +284,7 @@ level.weatherStrength = 1.0
 level.weatherClustering = true
 ```
 
-If `level.atmosphere` is not set, TombEngine should internally create an equivalent legacy atmosphere profile from the existing fields.
+The new profile is opt-in. As long as `level.atmosphere.enabled` remains false, TombEngine should continue to use the legacy `level.weather`, `level.weatherStrength`, and `level.weatherClustering` fields. When `level.atmosphere.enabled` is true, runtime code can read weather settings from the atmosphere profile while keeping the old fields available for compatibility.
 
 ## Proposed Enums
 
