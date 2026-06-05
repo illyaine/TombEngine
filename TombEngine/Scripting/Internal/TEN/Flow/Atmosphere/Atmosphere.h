@@ -109,7 +109,7 @@ namespace TEN::Scripting
 
 	struct Atmosphere
 	{
-		bool Enabled{ true };
+		bool Enabled{ false };
 		WeatherProfile Weather = {};
 		WindProfile Wind = {};
 		AuroraProfile Aurora = {};
