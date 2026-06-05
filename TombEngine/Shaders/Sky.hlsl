@@ -45,7 +45,7 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 {
 	// Temporary prototype mode. RendererDraw.cpp uses Color.w > 1.5 for the standalone aurora pass.
 	if (Color.w > 1.5f)
-		return float4(DoAuroraScreenWorldBands(input.Position.xy, InterpolatedFrame), 1.0f);
+		return float4(DoAuroraScreenWorldBands(input.Position.xy, Frame), 1.0f);
 
 	if (Animated && Type == 1)
 		input.UV = CalculateUVRotate(input.UV, 0);
