@@ -6,6 +6,8 @@ This document describes how the TombEngine atmosphere system should be exposed t
 
 The runtime-facing Flow/Lua API remains useful for compatibility, advanced builders, and generated gameflow output. The normal builder workflow should be editor-driven.
 
+The editor-side solution should be a reusable object parameter system, not an atmosphere-only panel. Other TombEngine and Tomb Editor developers should be able to build on the same mechanism for new emitters, effects, gameplay objects, traps, puzzles, and future plugin-defined object behavior.
+
 ## Naming
 
 The user-facing editor feature should not be named `OCB Editor`.
@@ -34,6 +36,46 @@ Recommended atmosphere-specific object type or panel title:
 ```text
 Atmosphere Emitter
 ```
+
+## Extensible Object Parameter System
+
+The long-term editor feature should be a generic object parameter system.
+
+It should not be tied to one effect, one object slot, or one legacy OCB number. Instead, each supported object or plugin should be able to provide a parameter definition that Tomb Editor can display as a normal property UI.
+
+Recommended goals:
+
+```text
+- One shared Object Parameters panel.
+- Object-specific parameter schemas.
+- Simple beginner-friendly groups.
+- Collapsed advanced groups.
+- Presets for common use cases.
+- Validation before export.
+- Export to Flow/Lua or runtime metadata.
+- Legacy OCB fallback where needed.
+- Future plugin/provider support.
+```
+
+Recommended parameter definition shape:
+
+```text
+parameterId
+displayName
+category
+type
+defaultValue
+minValue
+maxValue
+step
+allowedValues
+description
+advanced
+exportName
+legacyOcbMapping
+```
+
+This allows the same system to support atmosphere emitters, sound emitters, light helpers, particle sources, trap configuration, puzzle objects, AI helpers, camera helpers, and future custom object logic.
 
 ## Builder Workflow
 
@@ -239,6 +281,33 @@ Effects such as leaves, ash, mist, dust, and fog should not visibly pass through
 
 Special effects can later allow relaxed behavior, but this should be an advanced setting.
 
+## Developer Extension Direction
+
+Other developers should be able to extend the parameter system without changing the core UI for every new object.
+
+A future Tomb Editor side implementation could support providers such as:
+
+```text
+IObjectParameterProvider
+IObjectParameterPresetProvider
+IObjectParameterExporter
+```
+
+The exact interface names can be adapted to Tomb Editor's style. The important point is the architecture: object parameter definitions should be data-driven and reusable.
+
+Potential provider responsibilities:
+
+```text
+- Detect which object type or slot is selected.
+- Provide grouped parameter definitions.
+- Provide default values and presets.
+- Validate builder input.
+- Export to Flow/Lua, runtime metadata, or legacy OCB where required.
+- Hide advanced fields until the builder needs them.
+```
+
+This makes the system future-proof and useful beyond atmosphere effects.
+
 ## PR Positioning
 
 For the TombEngine PR, the first step should stay conservative:
@@ -248,5 +317,6 @@ For the TombEngine PR, the first step should stay conservative:
 - Keep legacy weather fields working.
 - Do not force new renderer behavior yet.
 - Document that Tomb Editor should later expose this through structured object parameters rather than raw OCB scripting.
+- Keep the editor workflow generic enough that other developers can build their own object parameter providers later.
 
 For the later Tomb Editor PR, the main feature should be an editor-side `Object Parameters` / `Atmosphere Emitter` workflow that generates the correct Flow data automatically.
