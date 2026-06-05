@@ -1,0 +1,44 @@
+Atmosphere Aurora / Dome status
+================================
+
+Branch: atmosphere_system
+
+Current test state
+------------------
+- Aurora is still rendered through the temporary sky shader prototype path.
+- The shader now samples aurora from per-pixel world sky direction instead of legacy horizon mesh position.
+- Animation uses the frame counter instead of interpolation frame data.
+- Aurora curtain movement and contrast have been increased for visible test feedback.
+- The legacy horizon mesh remains active and can still expose its square/box-like geometry.
+
+Why a dome is still needed
+--------------------------
+The existing TEN horizon is mesh/object based and can look box-shaped. Aurora, galaxy layers, planets, moons, comets, and atmospheric glow should not depend on that legacy horizon mesh. A dedicated Atmosphere Sky Dome or Atmosphere Sky Pass is the correct long-term solution.
+
+Desired render order
+--------------------
+1. Atmosphere background / sky dome
+2. Aurora layer
+3. Celestial bodies: moon, planets, stars, Milky Way, comets
+4. Optional legacy horizon for old levels
+5. Weather
+6. Rooms, objects, overlays
+
+Open work after the next visual test
+------------------------------------
+- Add a real Atmosphere Sky Dome or shader-only atmosphere background pass.
+- Replace the temporary Color.w > 1.5 prototype marker.
+- Add a proper render switch: legacy horizon, atmosphere dome, or both.
+- Add project-file deployment entry for Shaders/Aurora.hlsli if needed by the local Visual Studio/project deployment setup.
+- Move Aurora parameters into the Atmosphere profile instead of hard-coded shader constants.
+
+Test checklist
+--------------
+- Aurora should show visible wave/curtain movement.
+- Aurora should not rotate as a fixed screen overlay when the camera turns.
+- Horizon should no longer fully cut the aurora, but square horizon geometry may still be visible until the dome exists.
+- Rain is still the legacy TEN rain fallback and not yet the final Atmosphere rain renderer.
+
+Build/test status
+-----------------
+Build not run by assistant. Local build/test required.
