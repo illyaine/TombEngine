@@ -158,7 +158,7 @@ void Level::Register(sol::table& parent)
 		"levelFile", &Level::FileName,
 
 /// (string) Load screen image.
-// Path of the level's load screen file (.png or .jpg), relative to the location of the TombEngine executable.
+// Path of the level's load screen file (.png or .jpg), relative to the location of the Tomb Engine executable.
 //@mem loadScreenFile
 		"loadScreenFile", &Level::LoadScreenFileName,
 		
@@ -208,6 +208,14 @@ void Level::Register(sol::table& parent)
 /// (@{Flow.AtmosphereCelestialProfile}) Celestial sky stack for planets, moons, stars, comets, debris, and galaxy layers.
 //@mem atmosphereCelestial
 		"atmosphereCelestial", &Level::AtmosphereCelestial,
+
+/// (function) Returns whether atmosphere environment currently exposes a gameplay hazard.
+//@mem getAtmosphereHasGameplayHazard
+		"getAtmosphereHasGameplayHazard", &Level::GetAtmosphereHasGameplayHazard,
+
+/// (function) Returns the effective atmosphere hazard damage per second.
+//@mem getAtmosphereHazardDamagePerSecond
+		"getAtmosphereHazardDamagePerSecond", &Level::GetAtmosphereHazardDamagePerSecond,
 
 /// (bool) Enable flickering lightning in the sky.
 // Equivalent to classic TRLE's lightning setting, as in the TRC Ireland levels or TR4 Cairo levels.
@@ -457,6 +465,16 @@ bool Level::GetAtmosphereEnvironmentEnabled() const
 bool Level::GetAtmosphereCelestialEnabled() const
 {
 	return AtmosphereCelestial.Enabled && AtmosphereCelestial.HasEnabledBodies();
+}
+
+bool Level::GetAtmosphereHasGameplayHazard() const
+{
+	return AtmosphereEnvironment.HasGameplayHazard();
+}
+
+float Level::GetAtmosphereHazardDamagePerSecond() const
+{
+	return AtmosphereEnvironment.GetHazardDamagePerSecond();
 }
 
 int Level::GetAtmosphereCelestialBodyCount() const
