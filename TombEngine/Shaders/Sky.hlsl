@@ -30,7 +30,7 @@ PixelShaderInput VS(VertexShaderInput input)
 	output.Position = mul(worldPosition, ViewProjection);
 	output.Normal = input.Normal.xyz;
 	output.Color = input.Color;
-	output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffsetIndexHash(input.AnimationFrameOffsetIndexHash));
+	output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffset(input.AnimationFrameOffsetIndexHash));
 	output.FogBulbs = ApplyFogBulbs == 1 ? DoFogBulbsForSky(worldPosition) : 0;
 	output.WorldPosition = worldPosition.xyz;
 
@@ -50,7 +50,10 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 {
 	// Temporary prototype mode. RendererDraw.cpp uses Color.w > 1.5 for the standalone aurora pass.
 	if (Color.w > 1.5f)
-		return float4(DoAuroraScreenWorldBands(input.Position.xy, Frame) * 0.55f, 1.0f);
+	{
+		float3 aurora = DoAuroraScreenWorldBands(input.Position.xy, Frame);
+		return float4(aurora * 0.55f, 1.0f);
+	}
 
 	if (Animated && Type == 1)
 		input.UV = CalculateUVRotate(input.UV, 0);
