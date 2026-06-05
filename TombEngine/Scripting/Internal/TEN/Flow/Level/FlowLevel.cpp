@@ -18,6 +18,8 @@ These are things things which aren't present in the compiled level file itself.
 //@treturn Level a Level object.
 void Level::Register(sol::table& parent)
 {
+	TEN::Scripting::Atmosphere::Register(parent);
+
 	// Register type.
 	parent.new_usertype<Level>(
 		"Level",
