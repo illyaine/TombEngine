@@ -259,12 +259,12 @@ namespace TEN::Scripting
 
 	inline bool AtmosphereEnvironmentProfile::HasGameplayHazard() const
 	{
-		return AllowsHazardousPrecipitation() && !VisualOnlyHazards && GetHazardDamagePerSecond() > 0.0f;
+		return Enabled && AllowsHazardousPrecipitation() && !VisualOnlyHazards && GetHazardDamagePerSecond() > 0.0f;
 	}
 
 	inline float AtmosphereEnvironmentProfile::GetHazardDamagePerSecond() const
 	{
-		if (!HasHazardousPrecipitation())
+		if (!Enabled || !HasHazardousPrecipitation())
 			return 0.0f;
 
 		return DamagePerSecond > 0.0f ? DamagePerSecond : 0.0f;
