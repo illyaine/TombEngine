@@ -8,7 +8,7 @@ atmosphere_system
 
 ## Current Scope
 
-This branch currently prepares the data and documentation foundation for a TombEngine atmosphere system.
+This branch currently prepares the data, script, and non-rendering runtime foundation for a TombEngine atmosphere system.
 
 Implemented scope:
 
@@ -19,7 +19,10 @@ Implemented scope:
 - Flow.WindProfile data shape.
 - Flow.AuroraProfile data shape.
 - Flow.AtmosphereEffectProfile data shape.
+- AtmosphereRuntimeSnapshot resolved global runtime data.
+- Level::CreateAtmosphereRuntimeSnapshot() helper.
 - Backward-compatible Level weather fallback.
+- Enabled/local effect counting helpers.
 - Documentation for Tomb Editor / TombEngine boundary.
 - Documentation for generated effects and editor-driven local emitter configuration.
 ```
@@ -72,6 +75,40 @@ Flow.Atmosphere / generated atmosphere metadata
 TombEngine atmosphere runtime code
 ```
 
+## Runtime Snapshot
+
+The current branch now has a non-rendering snapshot helper:
+
+```cpp
+AtmosphereRuntimeSnapshot snapshot = level.CreateAtmosphereRuntimeSnapshot();
+```
+
+The snapshot resolves the active global runtime state without forcing renderer code to read Flow structures directly.
+
+Current snapshot data:
+
+```text
+Enabled
+Type
+Strength
+Clustering
+Quality
+Rain
+Wind
+Aurora
+EnabledEffectCount
+LocalEffectCount
+```
+
+Current fallback rule:
+
+```text
+If level.atmosphere.enabled is false, the snapshot uses legacy level.weather, level.weatherStrength, and level.weatherClustering.
+If level.atmosphere.enabled is true, the snapshot uses level.atmosphere.weather, level.atmosphere.wind, and level.atmosphere.aurora.
+```
+
+Local effect profiles are counted but not activated by runtime renderer code yet.
+
 ## Backward Compatibility
 
 Existing legacy script fields remain valid:
@@ -82,7 +119,7 @@ level.weatherStrength = 1.0
 level.weatherClustering = true
 ```
 
-Current fallback rule:
+Current fallback rule for existing getters:
 
 ```text
 If level.atmosphere.enabled is false, runtime getters continue to use legacy level.weather, level.weatherStrength, and level.weatherClustering.
@@ -100,6 +137,7 @@ Areas to check during local compile:
 ```text
 - sol::table::new_enum support in this TombEngine sol2 setup.
 - std::vector<AtmosphereEffectProfile> Lua binding behavior.
+- Inline AtmosphereRuntimeSnapshot helper compatibility with current include order.
 - Atmosphere file entries in TombEngine.vcxproj.
 - TombEngine.vcxproj line-ending/noisy diff cleanup before PR.
 ```
@@ -111,11 +149,10 @@ Recommended sequence after local compile is available:
 ```text
 1. Fix compile issues from the current Flow data shape if any.
 2. Clean TombEngine.vcxproj to avoid large noisy diff.
-3. Add non-rendering runtime read helpers for Atmosphere data.
-4. Add a disabled/non-activating AtmosphereController shell.
-5. Add Aurora renderer planning stubs only after Flow data is stable.
-6. Add one simple generated global layer before local/nullmesh runtime activation.
-7. Enable local/nullmesh emitters only after Tomb Editor can author object parameters cleanly.
+3. Wire AtmosphereRuntimeSnapshot into a disabled/non-activating AtmosphereController shell.
+4. Add Aurora renderer planning stubs only after Flow data is stable.
+5. Add one simple generated global layer before local/nullmesh runtime activation.
+6. Enable local/nullmesh emitters only after Tomb Editor can author object parameters cleanly.
 ```
 
 ## PR Positioning
@@ -127,6 +164,7 @@ Recommended wording:
 ```text
 - Adds an opt-in atmosphere profile data layer.
 - Preserves existing weather fields.
+- Adds a non-rendering runtime snapshot read path.
 - Documents the future editor-driven local emitter workflow.
 - Keeps local/nullmesh detailed tuning out of normal hand-written scripts.
 - Prepares generated effects and aurora without forcing renderer activation yet.
