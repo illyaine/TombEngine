@@ -65,5 +65,6 @@ using namespace DirectX::SimpleMath;
 
 #include "Types.h"
 #include "Game/Debug/Debug.h"
+#include "Game/ObjectParameters/ObjectParameterRegistry.h"
 
 using namespace TEN::Debug;
