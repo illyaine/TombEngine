@@ -81,6 +81,11 @@ namespace
 		return wind;
 	}
 
+	RainProfile GetEffectiveAtmosphereRain(Level const& level)
+	{
+		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Rain : RainProfile{};
+	}
+
 	void ApplyEnvironmentToSnapshot(AtmosphereEnvironmentProfile const& environment, AtmosphereRuntimeSnapshot& snapshot)
 	{
 		ApplyEnvironmentToWeather(environment, snapshot.Type, snapshot.Strength, snapshot.Clustering);
@@ -154,6 +159,26 @@ These are things things which aren't present in the compiled level file itself.
 @tenclass Flow.Level
 @pragma nostrip
 */
+
+Level::Level()
+{
+	Atmosphere.Enabled = true;
+	Atmosphere.Weather.Type = WeatherType::Rain;
+	Atmosphere.Weather.Strength = 1.0f;
+	Atmosphere.Weather.Clustering = true;
+	Atmosphere.Weather.Quality = WeatherQuality::Ultra;
+	Atmosphere.Weather.Rain.WindInfluence = 1.0f;
+	Atmosphere.Weather.Rain.NearDensity = 1.0f;
+	Atmosphere.Weather.Rain.MidDensity = 0.9f;
+	Atmosphere.Weather.Rain.FarDensity = 0.7f;
+	Atmosphere.Weather.Rain.Impacts = true;
+	Atmosphere.Weather.Rain.MaxImpactsPerFrame = 96;
+	Atmosphere.Wind.Direction = 110.0f;
+	Atmosphere.Wind.Strength = 0.65f;
+	Atmosphere.Wind.GustStrength = 0.85f;
+	Atmosphere.Wind.GustFrequency = 0.5f;
+	Atmosphere.Wind.Turbulence = 0.35f;
+}
 
 /// Make a new Level object.
 //@function Level
@@ -393,6 +418,86 @@ WeatherType Level::GetWeatherType() const
 	bool clustering = GetRawWeatherClustering(*this);
 	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
 	return type;
+}
+
+bool Level::GetAtmosphereWeatherEnabled() const
+{
+	return Atmosphere.Enabled && GetWeatherType() != WeatherType::None && GetWeatherStrength() > 0.0f;
+}
+
+float Level::GetAtmosphereRainWindInfluence() const
+{
+	return GetEffectiveAtmosphereRain(*this).WindInfluence;
+}
+
+float Level::GetAtmosphereRainNearDensity() const
+{
+	return GetEffectiveAtmosphereRain(*this).NearDensity;
+}
+
+float Level::GetAtmosphereRainMidDensity() const
+{
+	return GetEffectiveAtmosphereRain(*this).MidDensity;
+}
+
+float Level::GetAtmosphereRainFarDensity() const
+{
+	return GetEffectiveAtmosphereRain(*this).FarDensity;
+}
+
+bool Level::GetAtmosphereRainImpactsEnabled() const
+{
+	return GetEffectiveAtmosphereRain(*this).Impacts;
+}
+
+int Level::GetAtmosphereRainMaxImpactsPerFrame() const
+{
+	return GetEffectiveAtmosphereRain(*this).MaxImpactsPerFrame;
+}
+
+bool Level::GetAtmosphereRainScreenDropsEnabled() const
+{
+	return Atmosphere.Enabled && GetWeatherType() == WeatherType::Rain && GetWeatherStrength() > 0.6f;
+}
+
+float Level::GetAtmosphereRainScreenDropDensity() const
+{
+	return Atmosphere.Enabled && GetWeatherType() == WeatherType::Rain ? 0.75f : 0.0f;
+}
+
+float Level::GetAtmosphereRainScreenDropFadeSpeed() const
+{
+	return 0.04f;
+}
+
+float Level::GetAtmosphereWindDirection() const
+{
+	return GetEffectiveAtmosphereWind(*this).Direction;
+}
+
+float Level::GetAtmosphereWindStrength() const
+{
+	return GetEffectiveAtmosphereWind(*this).Strength;
+}
+
+float Level::GetAtmosphereWindGustStrength() const
+{
+	return GetEffectiveAtmosphereWind(*this).GustStrength;
+}
+
+float Level::GetAtmosphereWindGustFrequency() const
+{
+	return GetEffectiveAtmosphereWind(*this).GustFrequency;
+}
+
+float Level::GetAtmosphereWindTurbulence() const
+{
+	return GetEffectiveAtmosphereWind(*this).Turbulence;
+}
+
+float Level::GetAtmosphereWindVerticalDrift() const
+{
+	return GetEffectiveAtmosphereWind(*this).VerticalDrift;
 }
 
 RGBAColor8Byte Level::GetFogColor() const
