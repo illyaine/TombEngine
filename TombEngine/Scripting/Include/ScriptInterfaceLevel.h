@@ -34,22 +34,6 @@ public:
 	virtual float GetWeatherStrength() const = 0;
 	virtual bool GetWeatherClustering() const = 0;
 	virtual WeatherType GetWeatherType() const = 0;
-	virtual bool GetAtmosphereWeatherEnabled() const { return false; }
-	virtual float GetAtmosphereRainWindInfluence() const { return 1.0f; }
-	virtual float GetAtmosphereRainNearDensity() const { return 1.0f; }
-	virtual float GetAtmosphereRainMidDensity() const { return 0.9f; }
-	virtual float GetAtmosphereRainFarDensity() const { return 0.7f; }
-	virtual bool GetAtmosphereRainImpactsEnabled() const { return true; }
-	virtual int GetAtmosphereRainMaxImpactsPerFrame() const { return 96; }
-	virtual bool GetAtmosphereRainScreenDropsEnabled() const { return true; }
-	virtual float GetAtmosphereRainScreenDropDensity() const { return 0.75f; }
-	virtual float GetAtmosphereRainScreenDropFadeSpeed() const { return 0.04f; }
-	virtual float GetAtmosphereWindDirection() const { return 110.0f; }
-	virtual float GetAtmosphereWindStrength() const { return 0.65f; }
-	virtual float GetAtmosphereWindGustStrength() const { return 0.85f; }
-	virtual float GetAtmosphereWindGustFrequency() const { return 0.5f; }
-	virtual float GetAtmosphereWindTurbulence() const { return 0.35f; }
-	virtual float GetAtmosphereWindVerticalDrift() const { return 0.0f; }
 	virtual RGBAColor8Byte GetSkyLayerColor(int index) const = 0;
 	virtual RGBAColor8Byte GetFogColor() const = 0;
 	virtual float GetFogMinDistance() const = 0;

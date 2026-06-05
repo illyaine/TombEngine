@@ -5,153 +5,6 @@
 
 using namespace TEN::Scripting;
 
-namespace
-{
-	WeatherType GetRawWeatherType(Level const& level)
-	{
-		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Type : level.Weather;
-	}
-
-	float GetRawWeatherStrength(Level const& level)
-	{
-		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Strength : level.WeatherStrength;
-	}
-
-	bool GetRawWeatherClustering(Level const& level)
-	{
-		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Clustering : level.WeatherClustering;
-	}
-
-	bool AllowsEnvironmentWeather(AtmosphereEnvironmentProfile const& environment, WeatherType type)
-	{
-		if (!environment.Enabled || type == WeatherType::None)
-			return true;
-
-		if (!environment.AllowsWeatherType(type))
-			return false;
-
-		if (!environment.AllowsHazardousPrecipitation())
-			return false;
-
-		return true;
-	}
-
-	void ApplyEnvironmentToWeather(AtmosphereEnvironmentProfile const& environment, WeatherType& type, float& strength, bool& clustering)
-	{
-		if (AllowsEnvironmentWeather(environment, type))
-			return;
-
-		type = WeatherType::None;
-		strength = 0.0f;
-		clustering = false;
-	}
-
-	void ApplyEnvironmentToWind(AtmosphereEnvironmentProfile const& environment, WindProfile& wind)
-	{
-		if (!environment.Enabled || environment.AllowsWind())
-			return;
-
-		wind = {};
-	}
-
-	bool HasWindMotion(WindProfile const& wind)
-	{
-		return wind.Strength > 0.0f || wind.GustStrength > 0.0f || wind.Turbulence > 0.0f || wind.VerticalDrift != 0.0f;
-	}
-
-	bool HasWindGusts(WindProfile const& wind)
-	{
-		return wind.GustStrength > 0.0f && wind.GustFrequency > 0.0f;
-	}
-
-	bool HasWindTurbulence(WindProfile const& wind)
-	{
-		return wind.Turbulence > 0.0f;
-	}
-
-	bool HasWindVerticalDrift(WindProfile const& wind)
-	{
-		return wind.VerticalDrift != 0.0f;
-	}
-
-	WindProfile GetEffectiveAtmosphereWind(Level const& level)
-	{
-		WindProfile wind = level.Atmosphere.Enabled ? level.Atmosphere.Wind : WindProfile{};
-		ApplyEnvironmentToWind(level.AtmosphereEnvironment, wind);
-		return wind;
-	}
-
-	RainProfile GetEffectiveAtmosphereRain(Level const& level)
-	{
-		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Rain : RainProfile{};
-	}
-
-	void ApplyEnvironmentToSnapshot(AtmosphereEnvironmentProfile const& environment, AtmosphereRuntimeSnapshot& snapshot)
-	{
-		ApplyEnvironmentToWeather(environment, snapshot.Type, snapshot.Strength, snapshot.Clustering);
-		ApplyEnvironmentToWind(environment, snapshot.Wind);
-	}
-
-	void ApplyEnvironmentToRenderData(AtmosphereEnvironmentProfile const& environment, AtmosphereRenderData& data)
-	{
-		ApplyEnvironmentToWeather(environment, data.WeatherTypeValue, data.WeatherStrength, data.WeatherClustering);
-		ApplyEnvironmentToWind(environment, data.Wind);
-	}
-
-	AtmosphereRenderPlan CreateRenderPlanFromData(AtmosphereRenderData const& data)
-	{
-		AtmosphereRenderPlan plan = {};
-
-		plan.Enabled = data.Enabled;
-		plan.DrawWeather = data.HasWeather();
-		plan.DrawMoon = data.HasMoon();
-		plan.DrawAurora = data.HasAurora();
-
-		for (auto const& shaft : data.LightShafts)
-		{
-			if (shaft.Scope == AtmosphereEffectScope::Global)
-				plan.DrawGlobalLightShafts = true;
-			else
-				plan.DrawLocalLightShafts = true;
-		}
-
-		for (auto const& effect : data.Effects)
-		{
-			if (effect.Scope == AtmosphereEffectScope::Global)
-				plan.DrawGlobalEffects = true;
-			else
-				plan.DrawLocalEffects = true;
-		}
-
-		if (plan.DrawWeather)
-			plan.PassCount++;
-		if (plan.DrawMoon)
-			plan.PassCount++;
-		if (plan.DrawAurora)
-			plan.PassCount++;
-		if (plan.DrawGlobalLightShafts)
-			plan.PassCount++;
-		if (plan.DrawLocalLightShafts)
-			plan.PassCount++;
-		if (plan.DrawGlobalEffects)
-			plan.PassCount++;
-		if (plan.DrawLocalEffects)
-			plan.PassCount++;
-
-		return plan;
-	}
-
-	void DisableMoonPass(AtmosphereRenderPlan& plan)
-	{
-		if (!plan.DrawMoon)
-			return;
-
-		plan.DrawMoon = false;
-		if (plan.PassCount > 0)
-			plan.PassCount--;
-	}
-}
-
 /***
 Stores level metadata.
 These are things things which aren't present in the compiled level file itself.
@@ -160,35 +13,11 @@ These are things things which aren't present in the compiled level file itself.
 @pragma nostrip
 */
 
-Level::Level()
-{
-	Atmosphere.Enabled = true;
-	Atmosphere.Weather.Type = WeatherType::Rain;
-	Atmosphere.Weather.Strength = 1.0f;
-	Atmosphere.Weather.Clustering = true;
-	Atmosphere.Weather.Quality = WeatherQuality::Ultra;
-	Atmosphere.Weather.Rain.WindInfluence = 1.0f;
-	Atmosphere.Weather.Rain.NearDensity = 1.0f;
-	Atmosphere.Weather.Rain.MidDensity = 0.9f;
-	Atmosphere.Weather.Rain.FarDensity = 0.7f;
-	Atmosphere.Weather.Rain.Impacts = true;
-	Atmosphere.Weather.Rain.MaxImpactsPerFrame = 96;
-	Atmosphere.Wind.Direction = 110.0f;
-	Atmosphere.Wind.Strength = 0.65f;
-	Atmosphere.Wind.GustStrength = 0.85f;
-	Atmosphere.Wind.GustFrequency = 0.5f;
-	Atmosphere.Wind.Turbulence = 0.35f;
-}
-
 /// Make a new Level object.
 //@function Level
 //@treturn Level a Level object.
 void Level::Register(sol::table& parent)
 {
-	TEN::Scripting::Atmosphere::Register(parent);
-	TEN::Scripting::AtmosphereEnvironmentProfile::Register(parent);
-	TEN::Scripting::AtmosphereCelestialProfile::Register(parent);
-
 	// Register type.
 	parent.new_usertype<Level>(
 		"Level",
@@ -248,42 +77,6 @@ void Level::Register(sol::table& parent)
 // If not provided, distance fog will not be visible.
 //@mem fog
 		"fog", &Level::Fog,
-
-/// (@{Flow.Atmosphere}) Atmosphere, weather, wind, and sky effect settings.
-//@mem atmosphere
-		"atmosphere", &Level::Atmosphere,
-
-/// (@{Flow.AtmosphereEnvironmentProfile}) Environment rules for weather, wind, space, and planetary weather.
-//@mem atmosphereEnvironment
-		"atmosphereEnvironment", &Level::AtmosphereEnvironment,
-
-/// (@{Flow.AtmosphereCelestialProfile}) Celestial sky stack for planets, moons, stars, comets, debris, and galaxy layers.
-//@mem atmosphereCelestial
-		"atmosphereCelestial", &Level::AtmosphereCelestial,
-
-/// (function) Returns whether atmosphere environment currently exposes a gameplay hazard.
-//@mem getAtmosphereHasGameplayHazard
-		"getAtmosphereHasGameplayHazard", &Level::GetAtmosphereHasGameplayHazard,
-
-/// (function) Returns the effective atmosphere hazard damage per second.
-//@mem getAtmosphereHazardDamagePerSecond
-		"getAtmosphereHazardDamagePerSecond", &Level::GetAtmosphereHazardDamagePerSecond,
-
-/// (function) Returns whether the effective atmosphere wind has any visible movement.
-//@mem getAtmosphereWindHasMotion
-		"getAtmosphereWindHasMotion", &Level::GetAtmosphereWindHasMotion,
-
-/// (function) Returns whether the effective atmosphere wind has active gusts.
-//@mem getAtmosphereWindHasGusts
-		"getAtmosphereWindHasGusts", &Level::GetAtmosphereWindHasGusts,
-
-/// (function) Returns whether the effective atmosphere wind has turbulence.
-//@mem getAtmosphereWindHasTurbulence
-		"getAtmosphereWindHasTurbulence", &Level::GetAtmosphereWindHasTurbulence,
-
-/// (function) Returns whether the effective atmosphere wind has vertical drift.
-//@mem getAtmosphereWindHasVerticalDrift
-		"getAtmosphereWindHasVerticalDrift", &Level::GetAtmosphereWindHasVerticalDrift,
 
 /// (bool) Enable flickering lightning in the sky.
 // Equivalent to classic TRLE's lightning setting, as in the TRC Ireland levels or TR4 Cairo levels.
@@ -395,109 +188,17 @@ bool Level::GetRumbleEnabled() const
 
 bool Level::GetWeatherClustering() const
 {
-	WeatherType type = GetRawWeatherType(*this);
-	float strength = GetRawWeatherStrength(*this);
-	bool clustering = GetRawWeatherClustering(*this);
-	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
-	return clustering;
+	return WeatherClustering;
 }
 
 float Level::GetWeatherStrength() const
 {
-	WeatherType type = GetRawWeatherType(*this);
-	float strength = GetRawWeatherStrength(*this);
-	bool clustering = GetRawWeatherClustering(*this);
-	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
-	return strength;
+	return WeatherStrength;	
 }
 
 WeatherType Level::GetWeatherType() const
 {
-	WeatherType type = GetRawWeatherType(*this);
-	float strength = GetRawWeatherStrength(*this);
-	bool clustering = GetRawWeatherClustering(*this);
-	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
-	return type;
-}
-
-bool Level::GetAtmosphereWeatherEnabled() const
-{
-	return Atmosphere.Enabled && GetWeatherType() != WeatherType::None && GetWeatherStrength() > 0.0f;
-}
-
-float Level::GetAtmosphereRainWindInfluence() const
-{
-	return GetEffectiveAtmosphereRain(*this).WindInfluence;
-}
-
-float Level::GetAtmosphereRainNearDensity() const
-{
-	return GetEffectiveAtmosphereRain(*this).NearDensity;
-}
-
-float Level::GetAtmosphereRainMidDensity() const
-{
-	return GetEffectiveAtmosphereRain(*this).MidDensity;
-}
-
-float Level::GetAtmosphereRainFarDensity() const
-{
-	return GetEffectiveAtmosphereRain(*this).FarDensity;
-}
-
-bool Level::GetAtmosphereRainImpactsEnabled() const
-{
-	return GetEffectiveAtmosphereRain(*this).Impacts;
-}
-
-int Level::GetAtmosphereRainMaxImpactsPerFrame() const
-{
-	return GetEffectiveAtmosphereRain(*this).MaxImpactsPerFrame;
-}
-
-bool Level::GetAtmosphereRainScreenDropsEnabled() const
-{
-	return Atmosphere.Enabled && GetWeatherType() == WeatherType::Rain && GetWeatherStrength() > 0.6f;
-}
-
-float Level::GetAtmosphereRainScreenDropDensity() const
-{
-	return Atmosphere.Enabled && GetWeatherType() == WeatherType::Rain ? 0.75f : 0.0f;
-}
-
-float Level::GetAtmosphereRainScreenDropFadeSpeed() const
-{
-	return 0.04f;
-}
-
-float Level::GetAtmosphereWindDirection() const
-{
-	return GetEffectiveAtmosphereWind(*this).Direction;
-}
-
-float Level::GetAtmosphereWindStrength() const
-{
-	return GetEffectiveAtmosphereWind(*this).Strength;
-}
-
-float Level::GetAtmosphereWindGustStrength() const
-{
-	return GetEffectiveAtmosphereWind(*this).GustStrength;
-}
-
-float Level::GetAtmosphereWindGustFrequency() const
-{
-	return GetEffectiveAtmosphereWind(*this).GustFrequency;
-}
-
-float Level::GetAtmosphereWindTurbulence() const
-{
-	return GetEffectiveAtmosphereWind(*this).Turbulence;
-}
-
-float Level::GetAtmosphereWindVerticalDrift() const
-{
-	return GetEffectiveAtmosphereWind(*this).VerticalDrift;
+	return Weather;
 }
 
 RGBAColor8Byte Level::GetFogColor() const
@@ -533,130 +234,6 @@ int Level::GetSecrets() const
 std::string Level::GetAmbientTrack() const
 {
 	return AmbientTrack;
-}
-
-const TEN::Scripting::Atmosphere& Level::GetAtmosphere() const
-{
-	return Atmosphere;
-}
-
-const TEN::Scripting::AtmosphereEnvironmentProfile& Level::GetAtmosphereEnvironment() const
-{
-	return AtmosphereEnvironment;
-}
-
-const TEN::Scripting::AtmosphereCelestialProfile& Level::GetAtmosphereCelestial() const
-{
-	return AtmosphereCelestial;
-}
-
-TEN::Scripting::AtmosphereRuntimeSnapshot Level::CreateAtmosphereRuntimeSnapshot() const
-{
-	TEN::Scripting::AtmosphereRuntimeSnapshot snapshot = Atmosphere.CreateRuntimeSnapshot(Weather, WeatherStrength, WeatherClustering);
-	ApplyEnvironmentToSnapshot(AtmosphereEnvironment, snapshot);
-	return snapshot;
-}
-
-TEN::Scripting::AtmosphereRenderData Level::CreateAtmosphereRenderData() const
-{
-	TEN::Scripting::AtmosphereRenderData data = Atmosphere.CreateRenderData(Weather, WeatherStrength, WeatherClustering);
-	ApplyEnvironmentToRenderData(AtmosphereEnvironment, data);
-	return data;
-}
-
-TEN::Scripting::AtmosphereRenderPlan Level::CreateAtmosphereRenderPlan() const
-{
-	return CreateRenderPlanFromData(CreateAtmosphereRenderData());
-}
-
-TEN::Scripting::AtmosphereCelestialRenderData Level::CreateAtmosphereCelestialRenderData() const
-{
-	return TEN::Scripting::CreateAtmosphereCelestialRenderData(AtmosphereCelestial);
-}
-
-SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
-{
-	SkyAtmosphereRenderData data = {};
-	data.Layer1Enabled = Layer1.Enabled;
-	data.Layer2Enabled = Layer2.Enabled;
-	data.Horizon1Enabled = Horizon1.GetEnabled();
-	data.Horizon2Enabled = Horizon2.GetEnabled();
-	data.LensFlareEnabled = LensFlare.GetEnabled();
-	data.StarfieldEnabled = Starfield.GetStarCount() > 0 || Starfield.GetMeteorCount() > 0;
-	data.StormEnabled = Storm;
-	data.AtmosphereCelestialData = CreateAtmosphereCelestialRenderData();
-	data.AtmosphereCelestialEnabled = data.AtmosphereCelestialData.HasAnyPass();
-	data.AtmosphereCelestialBodyCount = data.AtmosphereCelestialData.BodyCount;
-	data.AtmosphereData = CreateAtmosphereRenderData();
-	data.AtmospherePlan = CreateAtmosphereRenderPlan();
-	data.AtmosphereWindMotionEnabled = HasWindMotion(data.AtmosphereData.Wind);
-	data.AtmosphereWindGustsEnabled = HasWindGusts(data.AtmosphereData.Wind);
-	data.AtmosphereWindTurbulenceEnabled = HasWindTurbulence(data.AtmosphereData.Wind);
-	data.AtmosphereWindVerticalDriftEnabled = HasWindVerticalDrift(data.AtmosphereData.Wind);
-
-	if (data.AtmosphereCelestialData.HideStarfield)
-		data.StarfieldEnabled = false;
-
-	if (data.AtmosphereCelestialData.HideLegacyMoon)
-		DisableMoonPass(data.AtmospherePlan);
-
-	data.LegacySkyEnabled = data.Layer1Enabled || data.Layer2Enabled || data.Horizon1Enabled || data.Horizon2Enabled || data.LensFlareEnabled || data.StarfieldEnabled || data.StormEnabled;
-	return data;
-}
-
-bool Level::GetAtmosphereEnabled() const
-{
-	return Atmosphere.Enabled;
-}
-
-bool Level::GetAtmosphereEnvironmentEnabled() const
-{
-	return AtmosphereEnvironment.Enabled;
-}
-
-bool Level::GetAtmosphereCelestialEnabled() const
-{
-	return AtmosphereCelestial.Enabled && AtmosphereCelestial.HasEnabledBodies();
-}
-
-bool Level::GetAtmosphereHasGameplayHazard() const
-{
-	return AtmosphereEnvironment.HasGameplayHazard();
-}
-
-float Level::GetAtmosphereHazardDamagePerSecond() const
-{
-	return AtmosphereEnvironment.GetHazardDamagePerSecond();
-}
-
-bool Level::GetAtmosphereWindHasMotion() const
-{
-	return HasWindMotion(GetEffectiveAtmosphereWind(*this));
-}
-
-bool Level::GetAtmosphereWindHasGusts() const
-{
-	return HasWindGusts(GetEffectiveAtmosphereWind(*this));
-}
-
-bool Level::GetAtmosphereWindHasTurbulence() const
-{
-	return HasWindTurbulence(GetEffectiveAtmosphereWind(*this));
-}
-
-bool Level::GetAtmosphereWindHasVerticalDrift() const
-{
-	return HasWindVerticalDrift(GetEffectiveAtmosphereWind(*this));
-}
-
-int Level::GetAtmosphereCelestialBodyCount() const
-{
-	return AtmosphereCelestial.GetEnabledBodyCount();
-}
-
-bool Level::GetAtmosphereCelestialHasSpaceBodies() const
-{
-	return AtmosphereCelestial.HasSpaceBodies();
 }
 
 const TEN::Scripting::Horizon& Level::GetHorizon(int index) const
