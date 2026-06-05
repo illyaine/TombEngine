@@ -34,6 +34,8 @@ struct Level : public ScriptInterfaceLevel
 
 	bool ResetHub = false;
 
+	Level();
+
 	// TODO: Clean up this mess.
 
 	RGBAColor8Byte GetFogColor() const override;
