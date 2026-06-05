@@ -247,6 +247,11 @@ const TEN::Scripting::Atmosphere& Level::GetAtmosphere() const
 	return Atmosphere;
 }
 
+TEN::Scripting::AtmosphereRuntimeSnapshot Level::CreateAtmosphereRuntimeSnapshot() const
+{
+	return Atmosphere.CreateRuntimeSnapshot(Weather, WeatherStrength, WeatherClustering);
+}
+
 bool Level::GetAtmosphereEnabled() const
 {
 	return Atmosphere.Enabled;
