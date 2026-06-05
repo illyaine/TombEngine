@@ -8,7 +8,7 @@ atmosphere_system
 
 ## Current Scope
 
-This branch currently prepares the data, script, and non-rendering runtime foundation for a TombEngine atmosphere system.
+This branch currently prepares the data, script, non-rendering runtime foundation, and renderer-facing data foundation for a TombEngine atmosphere system.
 
 Implemented scope:
 
@@ -22,8 +22,10 @@ Implemented scope:
 - Flow.AtmosphereEffectProfile data shape.
 - Flow.LightShaftProfile data shape for global and nullmesh/anchor-driven shafts.
 - AtmosphereRuntimeSnapshot resolved global runtime data.
-- AtmosphereRuntimeController non-rendering shell.
+- AtmosphereRenderData renderer-facing filtered data container.
+- AtmosphereRuntimeController non-rendering shell with snapshot and render data cache.
 - Level::CreateAtmosphereRuntimeSnapshot() helper.
+- Level::CreateAtmosphereRenderData() helper.
 - Backward-compatible Level weather fallback.
 - Enabled/local effect and light shaft counting helpers.
 - Documentation for Tomb Editor / TombEngine boundary.
@@ -153,6 +155,44 @@ If level.atmosphere.enabled is true, the snapshot uses level.atmosphere.weather,
 
 Local effect and light shaft profiles are counted but not activated by runtime renderer code yet.
 
+## Render Data
+
+The branch now has renderer-facing data without renderer activation:
+
+```cpp
+AtmosphereRenderData renderData = level.CreateAtmosphereRenderData();
+```
+
+The render data collects only active, render-relevant payloads:
+
+```text
+Enabled
+WeatherTypeValue
+WeatherStrength
+WeatherClustering
+Quality
+Rain
+Wind
+Aurora
+Moon
+Effects               active effects only
+LightShafts           active light shafts only
+```
+
+Available render-data checks:
+
+```text
+HasWeather()
+HasAurora()
+HasMoon()
+HasEffects()
+HasLocalEffects()
+HasLightShafts()
+HasLocalLightShafts()
+```
+
+This is still non-rendering data. No draw calls, shaders, GPU resources, or visible layers are created by this branch yet.
+
 ## Non-Rendering Controller
 
 The branch also includes a small non-rendering controller shell:
@@ -174,6 +214,7 @@ HasLocalEffects()
 HasLightShafts()
 HasLocalLightShafts()
 GetSnapshot()
+GetRenderData()
 Reset()
 ```
 
@@ -211,6 +252,7 @@ Current expected test result:
 - level.atmosphere can be added as data if Flow binding compiles.
 - Moon pitch/yaw data can be loaded.
 - Global and nullmesh/anchor light shaft data can be loaded.
+- RenderData can be created from Level after compile.
 - Aurora does not render yet.
 - Moon does not render yet.
 - Light shafts do not render yet.
@@ -230,7 +272,7 @@ Areas to check during local compile:
 - Flow enum table registration compatibility.
 - std::vector<AtmosphereEffectProfile> Lua binding behavior.
 - std::vector<LightShaftProfile> Lua binding behavior.
-- Inline AtmosphereRuntimeSnapshot / AtmosphereRuntimeController helper compatibility with current include order.
+- Inline AtmosphereRuntimeSnapshot / AtmosphereRenderData / AtmosphereRuntimeController helper compatibility with current include order.
 - Atmosphere file entries in TombEngine.vcxproj.
 - TombEngine.vcxproj line-ending/noisy diff cleanup before PR.
 ```
@@ -242,7 +284,7 @@ Recommended sequence after local compile is available:
 ```text
 1. Fix compile issues from the current Flow data shape if any.
 2. Clean TombEngine.vcxproj to avoid large noisy diff.
-3. Wire AtmosphereRuntimeController into the real environment update path without rendering.
+3. Wire AtmosphereRuntimeController / AtmosphereRenderData into the real environment update path without drawing.
 4. Add moon renderer planning stubs and then a simple sky billboard/quad layer.
 5. Add Aurora renderer planning stubs after Flow data is stable.
 6. Add one simple generated global layer before local/nullmesh runtime activation.
@@ -259,6 +301,7 @@ Recommended wording:
 - Adds an opt-in atmosphere profile data layer.
 - Preserves existing weather fields.
 - Adds a non-rendering runtime snapshot/controller read path.
+- Adds renderer-facing atmosphere render data without activating draw code.
 - Adds script data for aurora, moon, generated effects, and light shafts.
 - Documents the future editor-driven local emitter workflow.
 - Keeps local/nullmesh detailed tuning out of normal hand-written scripts.
