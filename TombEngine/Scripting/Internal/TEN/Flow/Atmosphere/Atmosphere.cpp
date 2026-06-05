@@ -315,44 +315,10 @@ void AtmosphereEffectProfile::Register(sol::table& parent)
 */
 void Atmosphere::Register(sol::table& parent)
 {
-	parent.new_enum<WeatherQuality>("WeatherQuality",
-		{
-			{ "Low", WeatherQuality::Low },
-			{ "Medium", WeatherQuality::Medium },
-			{ "High", WeatherQuality::High },
-			{ "Ultra", WeatherQuality::Ultra },
-			{ "Auto", WeatherQuality::Auto }
-		});
-
-	parent.new_enum<AtmosphereEffectType>("AtmosphereEffectType",
-		{
-			{ "None", AtmosphereEffectType::None },
-			{ "GroundFog", AtmosphereEffectType::GroundFog },
-			{ "Mist", AtmosphereEffectType::Mist },
-			{ "SnowstormVeil", AtmosphereEffectType::SnowstormVeil },
-			{ "SandstormVeil", AtmosphereEffectType::SandstormVeil },
-			{ "DustSheet", AtmosphereEffectType::DustSheet },
-			{ "AshFall", AtmosphereEffectType::AshFall },
-			{ "LeafFall", AtmosphereEffectType::LeafFall },
-			{ "MagicParticles", AtmosphereEffectType::MagicParticles },
-			{ "Custom", AtmosphereEffectType::Custom }
-		});
-
-	parent.new_enum<AtmosphereEffectScope>("AtmosphereEffectScope",
-		{
-			{ "Global", AtmosphereEffectScope::Global },
-			{ "Nullmesh", AtmosphereEffectScope::Nullmesh },
-			{ "Room", AtmosphereEffectScope::Room },
-			{ "Volume", AtmosphereEffectScope::Volume }
-		});
-
-	parent.new_enum<AtmosphereEffectRenderMode>("AtmosphereEffectRenderMode",
-		{
-			{ "Generated", AtmosphereEffectRenderMode::Generated },
-			{ "Sprite", AtmosphereEffectRenderMode::Sprite },
-			{ "ExistingEffect", AtmosphereEffectRenderMode::ExistingEffect },
-			{ "Custom", AtmosphereEffectRenderMode::Custom }
-		});
+	parent.set("WeatherQuality", WEATHER_QUALITIES);
+	parent.set("AtmosphereEffectType", ATMOSPHERE_EFFECT_TYPES);
+	parent.set("AtmosphereEffectScope", ATMOSPHERE_EFFECT_SCOPES);
+	parent.set("AtmosphereEffectRenderMode", ATMOSPHERE_EFFECT_RENDER_MODES);
 
 	RainProfile::Register(parent);
 	WeatherProfile::Register(parent);
