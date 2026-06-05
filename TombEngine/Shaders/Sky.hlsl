@@ -21,11 +21,6 @@ struct PixelShaderInput
 Texture2D Texture : register(t0);
 SamplerState Sampler : register(s0);
 
-bool IsTemporaryAuroraPrototypePass()
-{
-	return Color.w > 1.5f && ApplyFogBulbs == 0 && all(Color.xyz > float3(0.99f, 0.99f, 0.99f));
-}
-
 PixelShaderInput VS(VertexShaderInput input)
 {
 	PixelShaderInput output;
@@ -39,10 +34,10 @@ PixelShaderInput VS(VertexShaderInput input)
 	output.FogBulbs = ApplyFogBulbs == 1 ? DoFogBulbsForSky(worldPosition) : 0;
 	output.WorldPosition = worldPosition.xyz;
 
-	// Temporary atmosphere dome mode. RendererDraw.cpp still uses the legacy sky grid,
-	// but aurora is projected as a fullscreen sky layer so it is no longer limited by
-	// the square legacy horizon mesh geometry.
-	if (IsTemporaryAuroraPrototypePass())
+	// Temporary atmosphere dome mode. RendererDraw.cpp uses a dedicated white sky pass
+	// with Color.w > 1.5 and fog bulbs disabled. Normal horizon layers keep their
+	// regular sky shader path.
+	if (Color.w > 1.5f && ApplyFogBulbs == 0 && Color.x > 0.99f && Color.y > 0.99f && Color.z > 0.99f)
 	{
 		output.Position = float4(input.Position.x / 5120.0f, input.Position.z / 5120.0f, 0.0001f, 1.0f);
 		output.FogBulbs = 0;
@@ -53,11 +48,12 @@ PixelShaderInput VS(VertexShaderInput input)
 
 float4 PS(PixelShaderInput input) : SV_TARGET
 {
-	// Temporary prototype mode. RendererDraw.cpp uses a white sky pass with Color.w > 1.5 for the standalone aurora pass.
-	if (IsTemporaryAuroraPrototypePass())
+	// Temporary prototype mode. RendererDraw.cpp uses a dedicated white sky pass
+	// with Color.w > 1.5 and fog bulbs disabled for aurora only.
+	if (Color.w > 1.5f && ApplyFogBulbs == 0 && Color.x > 0.99f && Color.y > 0.99f && Color.z > 0.99f)
 	{
 		float3 aurora = DoAuroraFullscreenDome(input.Position.xy, Frame);
-		return float4(aurora * 0.35f, 1.0f);
+		return float4(aurora * 0.45f, 1.0f);
 	}
 
 	if (Animated && Type == 1)
