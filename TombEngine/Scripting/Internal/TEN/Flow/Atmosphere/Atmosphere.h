@@ -14,6 +14,32 @@ namespace TEN::Scripting
 		Auto
 	};
 
+	/// Constants for weather quality budgets.
+	// @enum Flow.WeatherQuality
+	// @pragma nostrip
+	static const std::unordered_map<std::string, WeatherQuality> WEATHER_QUALITIES
+	{
+		/// Low weather quality budget.
+		// @mem Low
+		{ "Low", WeatherQuality::Low },
+
+		/// Medium weather quality budget.
+		// @mem Medium
+		{ "Medium", WeatherQuality::Medium },
+
+		/// High weather quality budget.
+		// @mem High
+		{ "High", WeatherQuality::High },
+
+		/// Ultra weather quality budget.
+		// @mem Ultra
+		{ "Ultra", WeatherQuality::Ultra },
+
+		/// Automatic weather quality budget.
+		// @mem Auto
+		{ "Auto", WeatherQuality::Auto }
+	};
+
 	struct RainProfile
 	{
 		float WindInfluence{ 0.0f };
