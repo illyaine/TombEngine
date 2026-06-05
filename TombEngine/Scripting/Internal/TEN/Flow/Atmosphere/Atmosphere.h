@@ -24,7 +24,8 @@ namespace TEN::Scripting
 		DustSheet,
 		AshFall,
 		LeafFall,
-		MagicParticles
+		MagicParticles,
+		Custom
 	};
 
 	enum class AtmosphereEffectScope
@@ -133,6 +134,7 @@ namespace TEN::Scripting
 		bool Enabled{ false };
 		AtmosphereEffectType Type{ AtmosphereEffectType::None };
 		AtmosphereEffectScope Scope{ AtmosphereEffectScope::Global };
+		std::string PresetName = {};
 		std::string AnchorName = {};
 		float Radius{ 1024.0f };
 		float Height{ 512.0f };
