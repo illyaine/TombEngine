@@ -24,7 +24,6 @@ namespace TEN::Scripting
 		DustSheet,
 		AshFall,
 		LeafFall,
-		Fireflies,
 		MagicParticles
 	};
 
