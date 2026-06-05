@@ -20,17 +20,18 @@ Implemented scope:
 - Flow.AuroraProfile data shape.
 - Flow.AtmosphereEffectProfile data shape.
 - AtmosphereRuntimeSnapshot resolved global runtime data.
+- AtmosphereRuntimeController non-rendering shell.
 - Level::CreateAtmosphereRuntimeSnapshot() helper.
 - Backward-compatible Level weather fallback.
 - Enabled/local effect counting helpers.
 - Documentation for Tomb Editor / TombEngine boundary.
 - Documentation for generated effects and editor-driven local emitter configuration.
+- Test plan for local compile/script loading checks.
 ```
 
 Not implemented yet:
 
 ```text
-- Runtime AtmosphereController.
 - Runtime GeneratedEffectController.
 - Aurora renderer layer.
 - Weather instanced renderer path.
@@ -109,6 +110,29 @@ If level.atmosphere.enabled is true, the snapshot uses level.atmosphere.weather,
 
 Local effect profiles are counted but not activated by runtime renderer code yet.
 
+## Non-Rendering Controller
+
+The branch also includes a small non-rendering controller shell:
+
+```cpp
+AtmosphereRuntimeController controller;
+controller.Update(level.GetAtmosphere(), level.Weather, level.WeatherStrength, level.WeatherClustering);
+```
+
+Available checks:
+
+```text
+IsEnabled()
+HasWeather()
+HasAurora()
+HasEnabledEffects()
+HasLocalEffects()
+GetSnapshot()
+Reset()
+```
+
+This is intentionally renderer-neutral. It is only a stable read/cache path for the next runtime phase.
+
 ## Backward Compatibility
 
 Existing legacy script fields remain valid:
@@ -126,6 +150,24 @@ If level.atmosphere.enabled is false, runtime getters continue to use legacy lev
 If level.atmosphere.enabled is true, runtime getters can read weather data from the atmosphere profile.
 ```
 
+## Tonight's Test Scope
+
+Use:
+
+```text
+docs/testing/Atmosphere_System_Test_Plan.md
+```
+
+Current expected test result:
+
+```text
+- Legacy weather still works.
+- level.atmosphere can be added as data if Flow binding compiles.
+- Aurora does not render yet.
+- Generated effects do not render yet.
+- Local/nullmesh effects do not render yet.
+```
+
 ## Known Review Notes
 
 The current branch still needs local compile verification.
@@ -137,7 +179,7 @@ Areas to check during local compile:
 ```text
 - sol::table::new_enum support in this TombEngine sol2 setup.
 - std::vector<AtmosphereEffectProfile> Lua binding behavior.
-- Inline AtmosphereRuntimeSnapshot helper compatibility with current include order.
+- Inline AtmosphereRuntimeSnapshot / AtmosphereRuntimeController helper compatibility with current include order.
 - Atmosphere file entries in TombEngine.vcxproj.
 - TombEngine.vcxproj line-ending/noisy diff cleanup before PR.
 ```
@@ -149,7 +191,7 @@ Recommended sequence after local compile is available:
 ```text
 1. Fix compile issues from the current Flow data shape if any.
 2. Clean TombEngine.vcxproj to avoid large noisy diff.
-3. Wire AtmosphereRuntimeSnapshot into a disabled/non-activating AtmosphereController shell.
+3. Wire AtmosphereRuntimeController into the real environment update path without rendering.
 4. Add Aurora renderer planning stubs only after Flow data is stable.
 5. Add one simple generated global layer before local/nullmesh runtime activation.
 6. Enable local/nullmesh emitters only after Tomb Editor can author object parameters cleanly.
@@ -164,7 +206,7 @@ Recommended wording:
 ```text
 - Adds an opt-in atmosphere profile data layer.
 - Preserves existing weather fields.
-- Adds a non-rendering runtime snapshot read path.
+- Adds a non-rendering runtime snapshot/controller read path.
 - Documents the future editor-driven local emitter workflow.
 - Keeps local/nullmesh detailed tuning out of normal hand-written scripts.
 - Prepares generated effects and aurora without forcing renderer activation yet.
