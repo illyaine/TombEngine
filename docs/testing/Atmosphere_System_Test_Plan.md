@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This file describes what can be tested from the current `atmosphere_system` branch before renderer activation exists.
+This file describes what can be tested from the current `atmosphere_system` branch before visible renderer activation exists.
 
-The current branch is not expected to show aurora, moon, light shafts, or generated atmosphere visuals yet. The goal of this test pass is to verify that the Flow data shape, legacy weather fallback, enum tables, and non-rendering runtime snapshot path compile and do not break existing levels.
+The current branch is not expected to show aurora, moon, light shafts, planets, galaxy layers, or generated atmosphere visuals yet. The goal of this test pass is to verify that the Flow data shape, legacy weather fallback, enum tables, environment policy, celestial activation data, and non-rendering runtime snapshot path compile and do not break existing levels.
 
 ## Expected Current Behavior
 
@@ -12,11 +12,13 @@ Expected visible behavior:
 
 ```text
 - Existing legacy weather should still work.
-- Existing levels without level.atmosphere should behave like before.
+- Existing levels without level.atmosphere, level.atmosphereEnvironment, or level.atmosphereCelestial should behave like before.
 - level.atmosphere can be present in Flow/Lua without crashing script loading if the binding compiles.
-- WeatherQuality, AtmosphereEffectType, AtmosphereEffectScope, and AtmosphereEffectRenderMode should be available as Flow tables.
-- Aurora, moon, and light shaft fields should load as data only. They are not rendered yet.
-- Local/nullmesh effects and local/nullmesh light shafts should load as data only. They are not rendered yet.
+- level.atmosphereEnvironment can be present in Flow/Lua without crashing script loading if the binding compiles.
+- level.atmosphereCelestial can be present in Flow/Lua without crashing script loading if the binding compiles.
+- WeatherQuality, AtmosphereEffectType, AtmosphereEffectScope, AtmosphereEffectRenderMode, AtmosphereEnvironmentMode, AtmospherePrecipitationMaterial, AtmosphereCelestialBodyType, and AtmosphereCelestialRenderMode should be available as Flow tables.
+- Aurora, moon, celestial bodies, and light shaft fields should load as data only. They are not visibly rendered yet.
+- Local/nullmesh effects and local/nullmesh light shafts should load as data only. They are not visibly rendered yet.
 ```
 
 ## Test 1: Legacy Weather Compatibility
@@ -111,7 +113,93 @@ Expected result:
 - Moon position is script-controlled through pitch/yaw data.
 ```
 
-## Test 3: Generated Effect Data Shape Only
+## Test 3: Environment Policy Data
+
+Add an environment profile to one level:
+
+```lua
+level.atmosphereEnvironment = Flow.AtmosphereEnvironmentProfile {
+	enabled = true,
+	mode = Flow.AtmosphereEnvironmentMode.SpaceVacuum,
+	precipitationMaterial = Flow.AtmospherePrecipitationMaterial.None,
+	artificialWeather = false,
+	allowToxicWeather = false,
+	forceAllowPrecipitation = false,
+	forceAllowWind = false,
+	visualOnlyHazards = true,
+	damagePerSecond = 0
+}
+```
+
+Expected result:
+
+```text
+- Script loads if Flow binding is correct.
+- Normal rain/snow should be blocked by the environment policy in read paths.
+- Wind should be blocked in space vacuum unless artificial weather or force wind is enabled.
+- No gameplay damage is active yet.
+```
+
+## Test 4: Celestial Sky Stack Data
+
+Add a simple planet and galaxy layer:
+
+```lua
+level.atmosphereCelestial = Flow.AtmosphereCelestialProfile {
+	enabled = true,
+	hideLegacyMoonWhenActive = true,
+	hideStarfieldWhenSpaceLayerActive = true,
+	useLayerOrdering = true,
+
+	bodies = {
+		Flow.AtmosphereCelestialBodyProfile {
+			enabled = true,
+			type = Flow.AtmosphereCelestialBodyType.Planet,
+			renderMode = Flow.AtmosphereCelestialRenderMode.Sphere3D,
+			name = "earth",
+			textureName = "earth_day",
+			pitch = -12,
+			yaw = 210,
+			distance = 1.0,
+			size = 1.4,
+			intensity = 1.0,
+			haloIntensity = 0.15,
+			layer = 10,
+			fadeWithFog = true,
+			drivesLight = true,
+			visualOnly = true,
+			color = Color(255, 255, 255),
+			lightColor = Color(180, 210, 255)
+		},
+
+		Flow.AtmosphereCelestialBodyProfile {
+			enabled = true,
+			type = Flow.AtmosphereCelestialBodyType.GalaxyBand,
+			renderMode = Flow.AtmosphereCelestialRenderMode.GeneratedLayer,
+			name = "milky_way",
+			pitch = 8,
+			yaw = 45,
+			size = 2.0,
+			intensity = 0.35,
+			layer = 0,
+			fadeWithFog = true,
+			visualOnly = true,
+			color = Color(180, 200, 255)
+		}
+	}
+}
+```
+
+Expected result:
+
+```text
+- Script loads if Flow binding is correct.
+- CelestialRenderData should classify one Sphere3D body and one GeneratedLayer.
+- No planet or galaxy should render yet.
+- No legacy moon/starfield suppression is visibly forced yet.
+```
+
+## Test 5: Generated Effect Data Shape Only
 
 Add one global generated effect entry:
 
@@ -142,9 +230,9 @@ Expected result:
 - If Lua binding fails here, defer effects table usage until Tomb Editor exports stable metadata.
 ```
 
-## Test 4: Local Effect Data Shape Only
+## Test 6: Local Effect Data Shape Only
 
-Add one local/nullmesh-style entry only after Test 3 loads:
+Add one local/nullmesh-style entry only after Test 5 loads:
 
 ```lua
 level.atmosphere.effects = {
@@ -175,7 +263,7 @@ Expected result:
 - This workflow is intended to be authored by Tomb Editor Object Parameters later, not by hand-written scripts.
 ```
 
-## Test 5: Global Light Shaft Data Shape Only
+## Test 7: Global Light Shaft Data Shape Only
 
 Add one global moon-driven light shaft:
 
@@ -206,7 +294,7 @@ Expected result:
 - The shaft can inherit the moon direction later.
 ```
 
-## Test 6: Local Nullmesh Light Shaft Data Shape Only
+## Test 8: Local Nullmesh Light Shaft Data Shape Only
 
 Add one local/nullmesh-style light shaft:
 
@@ -245,7 +333,11 @@ Known likely failure points:
 
 ```text
 - Flow table registration for WeatherQuality / AtmosphereEffectType / AtmosphereEffectScope / AtmosphereEffectRenderMode may need to move to FlowHandler MakeReadOnlyTable style.
+- Flow table registration for AtmosphereEnvironmentMode / AtmospherePrecipitationMaterial may need to move to FlowHandler MakeReadOnlyTable style.
+- Flow table registration for AtmosphereCelestialBodyType / AtmosphereCelestialRenderMode may need to move to FlowHandler MakeReadOnlyTable style.
 - std::vector<AtmosphereEffectProfile> or std::vector<LightShaftProfile> assignment from Lua table may need a table-wrapper pattern.
+- std::vector<AtmosphereCelestialBodyProfile> assignment from Lua table may need a table-wrapper pattern.
+- Inline helper compatibility may need moving some implementations from headers into .cpp files after the project file is clean.
 - TombEngine.vcxproj noisy diff may need local cleanup.
 ```
 
@@ -256,6 +348,10 @@ FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "WeatherQuality", WEATHER_QUA
 FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "AtmosphereEffectType", ATMOSPHERE_EFFECT_TYPES)
 FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "AtmosphereEffectScope", ATMOSPHERE_EFFECT_SCOPES)
 FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "AtmosphereEffectRenderMode", ATMOSPHERE_EFFECT_RENDER_MODES)
+FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "AtmosphereEnvironmentMode", ATMOSPHERE_ENVIRONMENT_MODES)
+FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "AtmospherePrecipitationMaterial", ATMOSPHERE_PRECIPITATION_MATERIALS)
+FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "AtmosphereCelestialBodyType", ATMOSPHERE_CELESTIAL_BODY_TYPES)
+FlowHandler::_handler.MakeReadOnlyTable(tableFlow, "AtmosphereCelestialRenderMode", ATMOSPHERE_CELESTIAL_RENDER_MODES)
 ```
 
 ## Current Pass Criteria
@@ -266,7 +362,11 @@ This branch is ready for the next implementation step when:
 - TombEngine compiles locally.
 - Existing legacy weather scripts still load.
 - A level script with level.atmosphere loads.
-- MoonProfile and LightShaftProfile load as data.
+- A level script with level.atmosphereEnvironment loads.
+- A level script with level.atmosphereCelestial loads.
+- MoonProfile, LightShaftProfile, and AtmosphereCelestialBodyProfile load as data.
 - WeatherQuality and AtmosphereEffect* tables are usable in Lua.
+- AtmosphereEnvironment* tables are usable in Lua.
+- AtmosphereCelestial* tables are usable in Lua.
 - The .vcxproj diff is cleaned before PR.
 ```
