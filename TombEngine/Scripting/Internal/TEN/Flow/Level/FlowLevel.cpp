@@ -262,6 +262,22 @@ TEN::Scripting::AtmosphereRenderPlan Level::CreateAtmosphereRenderPlan() const
 	return Atmosphere.CreateRenderPlan(Weather, WeatherStrength, WeatherClustering);
 }
 
+SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
+{
+	SkyAtmosphereRenderData data = {};
+	data.Layer1Enabled = Layer1.Enabled;
+	data.Layer2Enabled = Layer2.Enabled;
+	data.Horizon1Enabled = Horizon1.GetEnabled();
+	data.Horizon2Enabled = Horizon2.GetEnabled();
+	data.LensFlareEnabled = LensFlare.GetEnabled();
+	data.StarfieldEnabled = Starfield.GetStarCount() > 0 || Starfield.GetMeteorCount() > 0;
+	data.StormEnabled = Storm;
+	data.LegacySkyEnabled = data.Layer1Enabled || data.Layer2Enabled || data.Horizon1Enabled || data.Horizon2Enabled || data.LensFlareEnabled || data.StarfieldEnabled || data.StormEnabled;
+	data.AtmosphereData = CreateAtmosphereRenderData();
+	data.AtmospherePlan = CreateAtmosphereRenderPlan();
+	return data;
+}
+
 bool Level::GetAtmosphereEnabled() const
 {
 	return Atmosphere.Enabled;
