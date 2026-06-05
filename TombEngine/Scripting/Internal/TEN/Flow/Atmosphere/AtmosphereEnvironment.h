@@ -159,9 +159,11 @@ namespace TEN::Scripting
 		bool IsArtificialEnvironment() const;
 		bool AllowsWeatherType(WeatherType type) const;
 		bool AllowsNormalPrecipitation() const;
+		bool AllowsHazardousPrecipitation() const;
 		bool AllowsWind() const;
 		bool HasHazardousPrecipitation() const;
 		bool HasGameplayHazard() const;
+		float GetHazardDamagePerSecond() const;
 
 		static void Register(sol::table& parent);
 	};
@@ -221,6 +223,14 @@ namespace TEN::Scripting
 		}
 	}
 
+	inline bool AtmosphereEnvironmentProfile::AllowsHazardousPrecipitation() const
+	{
+		if (!Enabled || !HasHazardousPrecipitation())
+			return true;
+
+		return AllowToxicWeather || ForceAllowPrecipitation || IsAlienOrToxicMode() || Mode == AtmosphereEnvironmentMode::Fantasy || Mode == AtmosphereEnvironmentMode::Custom;
+	}
+
 	inline bool AtmosphereEnvironmentProfile::AllowsWind() const
 	{
 		if (!Enabled || ForceAllowWind)
@@ -249,7 +259,15 @@ namespace TEN::Scripting
 
 	inline bool AtmosphereEnvironmentProfile::HasGameplayHazard() const
 	{
-		return HasHazardousPrecipitation() && !VisualOnlyHazards && DamagePerSecond > 0.0f;
+		return AllowsHazardousPrecipitation() && !VisualOnlyHazards && GetHazardDamagePerSecond() > 0.0f;
+	}
+
+	inline float AtmosphereEnvironmentProfile::GetHazardDamagePerSecond() const
+	{
+		if (!HasHazardousPrecipitation())
+			return 0.0f;
+
+		return DamagePerSecond > 0.0f ? DamagePerSecond : 0.0f;
 	}
 
 	/*** Environment rules for atmosphere and planetary weather. To be used with @{Flow.Level.atmosphereEnvironment}.
@@ -322,6 +340,10 @@ namespace TEN::Scripting
 			//@mem allowsNormalPrecipitation
 			"allowsNormalPrecipitation", &AtmosphereEnvironmentProfile::AllowsNormalPrecipitation,
 
+			/// (function) Returns whether hazardous precipitation is allowed in this environment.
+			//@mem allowsHazardousPrecipitation
+			"allowsHazardousPrecipitation", &AtmosphereEnvironmentProfile::AllowsHazardousPrecipitation,
+
 			/// (function) Returns whether wind is allowed in this environment.
 			//@mem allowsWind
 			"allowsWind", &AtmosphereEnvironmentProfile::AllowsWind,
@@ -332,7 +354,11 @@ namespace TEN::Scripting
 
 			/// (function) Returns whether hazardous precipitation should currently be treated as gameplay damage.
 			//@mem hasGameplayHazard
-			"hasGameplayHazard", &AtmosphereEnvironmentProfile::HasGameplayHazard
+			"hasGameplayHazard", &AtmosphereEnvironmentProfile::HasGameplayHazard,
+
+			/// (function) Returns the effective damage amount for hazardous precipitation.
+			//@mem getHazardDamagePerSecond
+			"getHazardDamagePerSecond", &AtmosphereEnvironmentProfile::GetHazardDamagePerSecond
 		);
 	}
 }
