@@ -162,6 +162,8 @@ namespace TEN::Scripting
 		bool AllowsWind() const;
 		bool HasHazardousPrecipitation() const;
 		bool HasGameplayHazard() const;
+
+		static void Register(sol::table& parent);
 	};
 
 	inline bool AtmosphereEnvironmentProfile::IsSpaceMode() const
