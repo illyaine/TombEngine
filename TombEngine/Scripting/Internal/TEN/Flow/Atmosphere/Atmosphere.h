@@ -48,6 +48,15 @@ namespace TEN::Scripting
 		Custom
 	};
 
+	enum class AtmosphereRenderStage
+	{
+		Weather,
+		Moon,
+		Aurora,
+		LightShafts,
+		GeneratedEffects
+	};
+
 	/// Constants for weather quality budgets.
 	// @enum Flow.WeatherQuality
 	// @pragma nostrip
@@ -375,6 +384,23 @@ namespace TEN::Scripting
 		bool HasLocalLightShafts() const;
 	};
 
+	struct AtmosphereRenderPlan
+	{
+		bool Enabled{ false };
+		bool DrawWeather{ false };
+		bool DrawMoon{ false };
+		bool DrawAurora{ false };
+		bool DrawGlobalLightShafts{ false };
+		bool DrawLocalLightShafts{ false };
+		bool DrawGlobalEffects{ false };
+		bool DrawLocalEffects{ false };
+		int PassCount{ 0 };
+
+		bool HasAnyPass() const;
+		bool HasSkyPasses() const;
+		bool HasWorldPasses() const;
+	};
+
 	struct Atmosphere
 	{
 		bool Enabled{ false };
@@ -387,6 +413,7 @@ namespace TEN::Scripting
 
 		AtmosphereRuntimeSnapshot CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const;
 		AtmosphereRenderData CreateRenderData(WeatherType legacyType, float legacyStrength, bool legacyClustering) const;
+		AtmosphereRenderPlan CreateRenderPlan(WeatherType legacyType, float legacyStrength, bool legacyClustering) const;
 		int GetEnabledEffectCount() const;
 		int GetLocalEffectCount() const;
 		int GetEnabledLightShaftCount() const;
@@ -404,11 +431,13 @@ namespace TEN::Scripting
 	{
 		AtmosphereRuntimeSnapshot Snapshot = {};
 		AtmosphereRenderData RenderData = {};
+		AtmosphereRenderPlan RenderPlan = {};
 
 		void Reset();
 		void Update(Atmosphere const& atmosphere, WeatherType legacyType, float legacyStrength, bool legacyClustering);
 		const AtmosphereRuntimeSnapshot& GetSnapshot() const;
 		const AtmosphereRenderData& GetRenderData() const;
+		const AtmosphereRenderPlan& GetRenderPlan() const;
 		bool IsEnabled() const;
 		bool HasWeather() const;
 		bool HasAurora() const;
@@ -417,6 +446,7 @@ namespace TEN::Scripting
 		bool HasLocalEffects() const;
 		bool HasLightShafts() const;
 		bool HasLocalLightShafts() const;
+		bool HasAnyRenderPass() const;
 	};
 
 	inline AtmosphereRuntimeSnapshot Atmosphere::CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const
@@ -484,6 +514,50 @@ namespace TEN::Scripting
 		}
 
 		return data;
+	}
+
+	inline AtmosphereRenderPlan Atmosphere::CreateRenderPlan(WeatherType legacyType, float legacyStrength, bool legacyClustering) const
+	{
+		AtmosphereRenderData data = CreateRenderData(legacyType, legacyStrength, legacyClustering);
+		AtmosphereRenderPlan plan = {};
+
+		plan.Enabled = data.Enabled;
+		plan.DrawWeather = data.HasWeather();
+		plan.DrawMoon = data.HasMoon();
+		plan.DrawAurora = data.HasAurora();
+
+		for (auto const& shaft : data.LightShafts)
+		{
+			if (shaft.Scope == AtmosphereEffectScope::Global)
+				plan.DrawGlobalLightShafts = true;
+			else
+				plan.DrawLocalLightShafts = true;
+		}
+
+		for (auto const& effect : data.Effects)
+		{
+			if (effect.Scope == AtmosphereEffectScope::Global)
+				plan.DrawGlobalEffects = true;
+			else
+				plan.DrawLocalEffects = true;
+		}
+
+		if (plan.DrawWeather)
+			plan.PassCount++;
+		if (plan.DrawMoon)
+			plan.PassCount++;
+		if (plan.DrawAurora)
+			plan.PassCount++;
+		if (plan.DrawGlobalLightShafts)
+			plan.PassCount++;
+		if (plan.DrawLocalLightShafts)
+			plan.PassCount++;
+		if (plan.DrawGlobalEffects)
+			plan.PassCount++;
+		if (plan.DrawLocalEffects)
+			plan.PassCount++;
+
+		return plan;
 	}
 
 	inline int Atmosphere::GetEnabledEffectCount() const
@@ -610,16 +684,33 @@ namespace TEN::Scripting
 		return false;
 	}
 
+	inline bool AtmosphereRenderPlan::HasAnyPass() const
+	{
+		return PassCount > 0;
+	}
+
+	inline bool AtmosphereRenderPlan::HasSkyPasses() const
+	{
+		return DrawMoon || DrawAurora || DrawGlobalLightShafts;
+	}
+
+	inline bool AtmosphereRenderPlan::HasWorldPasses() const
+	{
+		return DrawWeather || DrawLocalLightShafts || DrawGlobalEffects || DrawLocalEffects;
+	}
+
 	inline void AtmosphereRuntimeController::Reset()
 	{
 		Snapshot = {};
 		RenderData = {};
+		RenderPlan = {};
 	}
 
 	inline void AtmosphereRuntimeController::Update(Atmosphere const& atmosphere, WeatherType legacyType, float legacyStrength, bool legacyClustering)
 	{
 		Snapshot = atmosphere.CreateRuntimeSnapshot(legacyType, legacyStrength, legacyClustering);
 		RenderData = atmosphere.CreateRenderData(legacyType, legacyStrength, legacyClustering);
+		RenderPlan = atmosphere.CreateRenderPlan(legacyType, legacyStrength, legacyClustering);
 	}
 
 	inline const AtmosphereRuntimeSnapshot& AtmosphereRuntimeController::GetSnapshot() const
@@ -630,6 +721,11 @@ namespace TEN::Scripting
 	inline const AtmosphereRenderData& AtmosphereRuntimeController::GetRenderData() const
 	{
 		return RenderData;
+	}
+
+	inline const AtmosphereRenderPlan& AtmosphereRuntimeController::GetRenderPlan() const
+	{
+		return RenderPlan;
 	}
 
 	inline bool AtmosphereRuntimeController::IsEnabled() const
@@ -670,5 +766,10 @@ namespace TEN::Scripting
 	inline bool AtmosphereRuntimeController::HasLocalLightShafts() const
 	{
 		return RenderData.HasLocalLightShafts();
+	}
+
+	inline bool AtmosphereRuntimeController::HasAnyRenderPass() const
+	{
+		return RenderPlan.HasAnyPass();
 	}
 }
