@@ -8,21 +8,21 @@ using namespace TEN::Entities::Effects;
 
 namespace TEN::Effects::Environment 
 {
-	constexpr auto WEATHER_PARTICLE_SPAWN_DENSITY		 = 32;
-	constexpr auto WEATHER_PARTICLE_CLUSTER_MULT		 = 16.0f;
-	constexpr auto WEATHER_PARTICLE_COUNT_MAX			 = 2048;
+	constexpr auto WEATHER_PARTICLE_SPAWN_DENSITY		 = 64;
+	constexpr auto WEATHER_PARTICLE_CLUSTER_MULT		 = 20.0f;
+	constexpr auto WEATHER_PARTICLE_COUNT_MAX			 = 4096;
 	constexpr auto WEATHER_PARTICLE_COLL_CHECK_DELAY_MAX = 5.0f;
 
 	constexpr auto DUST_SIZE_MAX = 25.0f;
 	constexpr auto SNOW_SIZE_MAX = 32.0f;
-	constexpr auto RAIN_SIZE_MAX = 256.0f;
+	constexpr auto RAIN_SIZE_MAX = 300.0f;
 
-	constexpr auto WEATHER_PARTICLE_HORIZONTAL_VELOCITY = 8.0f;
+	constexpr auto WEATHER_PARTICLE_HORIZONTAL_VELOCITY = 10.0f;
 	constexpr auto SNOW_VELOCITY_MAX					= 128.0f;
-	constexpr auto RAIN_VELOCITY_MAX					= 256.0f;
+	constexpr auto RAIN_VELOCITY_MAX					= 320.0f;
 	constexpr auto DUST_VELOCITY_MAX					= 1.0f;
 
-	constexpr auto WEATHER_PARTICLE_OPACITY				   = 0.8f;
+	constexpr auto WEATHER_PARTICLE_OPACITY				   = 0.9f;
 	constexpr auto WEATHER_PARTICLE_NEAR_DEATH_LIFE		   = 20.0f;
 	constexpr auto WEATHER_PARTICLE_NEAR_DEATH_MELT_FACTOR = 1.0f - (1.0f / (WEATHER_PARTICLE_NEAR_DEATH_LIFE * 2));
 
@@ -36,10 +36,10 @@ namespace TEN::Effects::Environment
 	constexpr auto METEOR_PARTICLE_SPAWN_DENSITY = 4;
 	constexpr auto METEOR_PARTICLE_FADE_TIME	 = 30.0f;
 
-	constexpr float RAIN_RENDER_RANGE_MULT = 0.70f;
-	constexpr float RAIN_SPAWN_RANGE_MULT  = 0.70f;
+	constexpr float RAIN_RENDER_RANGE_MULT = 0.95f;
+	constexpr float RAIN_SPAWN_RANGE_MULT  = 1.00f;
 	constexpr float WEATHER_SPAWN_DIST_SNOW  = BLOCK(8);
-	constexpr float WEATHER_SPAWN_DIST_RAIN  = BLOCK(5.5f);
+	constexpr float WEATHER_SPAWN_DIST_RAIN  = BLOCK(7.5f);
 	constexpr float WEATHER_SPAWN_DIST_OTHER = BLOCK(4);
 
 	struct StarParticle
