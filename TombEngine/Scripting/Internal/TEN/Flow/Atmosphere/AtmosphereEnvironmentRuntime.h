@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereEnvironment.h"
-#include "Specific/level.h"
 
 namespace TEN::Scripting
 {
