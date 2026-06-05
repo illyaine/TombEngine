@@ -10,6 +10,39 @@
 
 using namespace TEN::Scripting;
 
+struct SkyAtmosphereRenderData
+{
+	bool Layer1Enabled{ false };
+	bool Layer2Enabled{ false };
+	bool Horizon1Enabled{ false };
+	bool Horizon2Enabled{ false };
+	bool LensFlareEnabled{ false };
+	bool StarfieldEnabled{ false };
+	bool StormEnabled{ false };
+	bool LegacySkyEnabled{ false };
+	TEN::Scripting::AtmosphereRenderData AtmosphereData = {};
+	TEN::Scripting::AtmosphereRenderPlan AtmospherePlan = {};
+
+	bool HasLegacySky() const;
+	bool HasAtmosphere() const;
+	bool HasAnySkyOrAtmosphere() const;
+};
+
+inline bool SkyAtmosphereRenderData::HasLegacySky() const
+{
+	return LegacySkyEnabled;
+}
+
+inline bool SkyAtmosphereRenderData::HasAtmosphere() const
+{
+	return AtmospherePlan.HasAnyPass();
+}
+
+inline bool SkyAtmosphereRenderData::HasAnySkyOrAtmosphere() const
+{
+	return HasLegacySky() || HasAtmosphere();
+}
+
 struct Level : public ScriptInterfaceLevel
 {
 	Fog			Fog			 = {};
@@ -63,6 +96,7 @@ struct Level : public ScriptInterfaceLevel
 	TEN::Scripting::AtmosphereRuntimeSnapshot CreateAtmosphereRuntimeSnapshot() const;
 	TEN::Scripting::AtmosphereRenderData CreateAtmosphereRenderData() const;
 	TEN::Scripting::AtmosphereRenderPlan CreateAtmosphereRenderPlan() const;
+	SkyAtmosphereRenderData CreateSkyAtmosphereRenderData() const;
 	bool GetAtmosphereEnabled() const;
 
 	// Horizon getters
