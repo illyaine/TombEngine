@@ -54,6 +54,33 @@ namespace
 		wind = {};
 	}
 
+	bool HasWindMotion(WindProfile const& wind)
+	{
+		return wind.Strength > 0.0f || wind.GustStrength > 0.0f || wind.Turbulence > 0.0f || wind.VerticalDrift != 0.0f;
+	}
+
+	bool HasWindGusts(WindProfile const& wind)
+	{
+		return wind.GustStrength > 0.0f && wind.GustFrequency > 0.0f;
+	}
+
+	bool HasWindTurbulence(WindProfile const& wind)
+	{
+		return wind.Turbulence > 0.0f;
+	}
+
+	bool HasWindVerticalDrift(WindProfile const& wind)
+	{
+		return wind.VerticalDrift != 0.0f;
+	}
+
+	WindProfile GetEffectiveAtmosphereWind(Level const& level)
+	{
+		WindProfile wind = level.Atmosphere.Enabled ? level.Atmosphere.Wind : WindProfile{};
+		ApplyEnvironmentToWind(level.AtmosphereEnvironment, wind);
+		return wind;
+	}
+
 	void ApplyEnvironmentToSnapshot(AtmosphereEnvironmentProfile const& environment, AtmosphereRuntimeSnapshot& snapshot)
 	{
 		ApplyEnvironmentToWeather(environment, snapshot.Type, snapshot.Strength, snapshot.Clustering);
@@ -216,6 +243,22 @@ void Level::Register(sol::table& parent)
 /// (function) Returns the effective atmosphere hazard damage per second.
 //@mem getAtmosphereHazardDamagePerSecond
 		"getAtmosphereHazardDamagePerSecond", &Level::GetAtmosphereHazardDamagePerSecond,
+
+/// (function) Returns whether the effective atmosphere wind has any visible movement.
+//@mem getAtmosphereWindHasMotion
+		"getAtmosphereWindHasMotion", &Level::GetAtmosphereWindHasMotion,
+
+/// (function) Returns whether the effective atmosphere wind has active gusts.
+//@mem getAtmosphereWindHasGusts
+		"getAtmosphereWindHasGusts", &Level::GetAtmosphereWindHasGusts,
+
+/// (function) Returns whether the effective atmosphere wind has turbulence.
+//@mem getAtmosphereWindHasTurbulence
+		"getAtmosphereWindHasTurbulence", &Level::GetAtmosphereWindHasTurbulence,
+
+/// (function) Returns whether the effective atmosphere wind has vertical drift.
+//@mem getAtmosphereWindHasVerticalDrift
+		"getAtmosphereWindHasVerticalDrift", &Level::GetAtmosphereWindHasVerticalDrift,
 
 /// (bool) Enable flickering lightning in the sky.
 // Equivalent to classic TRLE's lightning setting, as in the TRC Ireland levels or TR4 Cairo levels.
@@ -441,6 +484,10 @@ SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
 	data.AtmosphereCelestialBodyCount = data.AtmosphereCelestialData.BodyCount;
 	data.AtmosphereData = CreateAtmosphereRenderData();
 	data.AtmospherePlan = CreateAtmosphereRenderPlan();
+	data.AtmosphereWindMotionEnabled = HasWindMotion(data.AtmosphereData.Wind);
+	data.AtmosphereWindGustsEnabled = HasWindGusts(data.AtmosphereData.Wind);
+	data.AtmosphereWindTurbulenceEnabled = HasWindTurbulence(data.AtmosphereData.Wind);
+	data.AtmosphereWindVerticalDriftEnabled = HasWindVerticalDrift(data.AtmosphereData.Wind);
 
 	if (data.AtmosphereCelestialData.HideStarfield)
 		data.StarfieldEnabled = false;
@@ -475,6 +522,26 @@ bool Level::GetAtmosphereHasGameplayHazard() const
 float Level::GetAtmosphereHazardDamagePerSecond() const
 {
 	return AtmosphereEnvironment.GetHazardDamagePerSecond();
+}
+
+bool Level::GetAtmosphereWindHasMotion() const
+{
+	return HasWindMotion(GetEffectiveAtmosphereWind(*this));
+}
+
+bool Level::GetAtmosphereWindHasGusts() const
+{
+	return HasWindGusts(GetEffectiveAtmosphereWind(*this));
+}
+
+bool Level::GetAtmosphereWindHasTurbulence() const
+{
+	return HasWindTurbulence(GetEffectiveAtmosphereWind(*this));
+}
+
+bool Level::GetAtmosphereWindHasVerticalDrift() const
+{
+	return HasWindVerticalDrift(GetEffectiveAtmosphereWind(*this));
 }
 
 int Level::GetAtmosphereCelestialBodyCount() const
