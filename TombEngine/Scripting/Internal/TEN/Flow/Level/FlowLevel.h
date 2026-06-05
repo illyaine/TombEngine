@@ -1,4 +1,5 @@
 #pragma once
+#include "Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.h"
 #include "Scripting/Internal/TEN/Flow/Horizon/Horizon.h"
 #include "Scripting/Internal/TEN/Flow/LensFlare/LensFlare.h"
 #include "Scripting/Internal/TEN/Flow/SkyLayer/SkyLayer.h"
@@ -21,6 +22,8 @@ struct Level : public ScriptInterfaceLevel
 	TEN::Scripting::Horizon Horizon2 = {};
 	TEN::Scripting::LensFlare LensFlare = {};
 	TEN::Scripting::Starfield Starfield = {};
+	TEN::Scripting::Atmosphere Atmosphere = {};
+	bool AtmosphereSet = false;
 
 	WeatherType Weather				= WeatherType::None;
 	float		WeatherStrength		= 1.0f;
@@ -55,6 +58,11 @@ struct Level : public ScriptInterfaceLevel
 	int GetSecrets() const override;
 	std::string GetAmbientTrack() const override;
 	bool GetResetHubEnabled() const override;
+
+	// Atmosphere getters
+	const TEN::Scripting::Atmosphere& GetAtmosphere() const;
+	void SetAtmosphere(const TEN::Scripting::Atmosphere& atmosphere);
+	bool GetAtmosphereSet() const;
 
 	// Horizon getters
 	bool GetHorizonEnabled(int index) const override;
