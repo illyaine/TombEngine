@@ -13,6 +13,13 @@ These are things things which aren't present in the compiled level file itself.
 @pragma nostrip
 */
 
+Level::Level()
+{
+	Weather = WeatherType::Rain;
+	WeatherStrength = 1.0f;
+	WeatherClustering = true;
+}
+
 /// Make a new Level object.
 //@function Level
 //@treturn Level a Level object.
