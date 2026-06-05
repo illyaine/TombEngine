@@ -30,7 +30,7 @@ namespace
 		if (!environment.AllowsWeatherType(type))
 			return false;
 
-		if (environment.HasHazardousPrecipitation() && !environment.AllowToxicWeather && !environment.ForceAllowPrecipitation)
+		if (!environment.AllowsHazardousPrecipitation())
 			return false;
 
 		return true;
@@ -107,6 +107,16 @@ namespace
 			plan.PassCount++;
 
 		return plan;
+	}
+
+	void DisableMoonPass(AtmosphereRenderPlan& plan)
+	{
+		if (!plan.DrawMoon)
+			return;
+
+		plan.DrawMoon = false;
+		if (plan.PassCount > 0)
+			plan.PassCount--;
 	}
 }
 
@@ -421,9 +431,16 @@ SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
 	data.AtmosphereCelestialData = CreateAtmosphereCelestialRenderData();
 	data.AtmosphereCelestialEnabled = data.AtmosphereCelestialData.HasAnyPass();
 	data.AtmosphereCelestialBodyCount = data.AtmosphereCelestialData.BodyCount;
-	data.LegacySkyEnabled = data.Layer1Enabled || data.Layer2Enabled || data.Horizon1Enabled || data.Horizon2Enabled || data.LensFlareEnabled || data.StarfieldEnabled || data.StormEnabled;
 	data.AtmosphereData = CreateAtmosphereRenderData();
 	data.AtmospherePlan = CreateAtmosphereRenderPlan();
+
+	if (data.AtmosphereCelestialData.HideStarfield)
+		data.StarfieldEnabled = false;
+
+	if (data.AtmosphereCelestialData.HideLegacyMoon)
+		DisableMoonPass(data.AtmospherePlan);
+
+	data.LegacySkyEnabled = data.Layer1Enabled || data.Layer2Enabled || data.Horizon1Enabled || data.Horizon2Enabled || data.LensFlareEnabled || data.StarfieldEnabled || data.StormEnabled;
 	return data;
 }
 
