@@ -74,12 +74,14 @@ float3 AuroraColorFromUv(float2 uv, float frame)
 	color += float3(0.48f, 0.18f, 0.78f) * upper;
 
 	float brightness = 0.88f + sin(time * 0.9f + uv.x * PI2 * 1.5f) * 0.12f;
-	float horizonFade = smoothstep(0.30f, 0.48f, uv.y);
+	float horizonFade = smoothstep(0.38f, 0.58f, uv.y);
 	float zenithFade = 1.0f - smoothstep(0.98f, 1.0f, uv.y);
 	float seamFade = smoothstep(0.00f, 0.040f, uv.x) * (1.0f - smoothstep(0.960f, 1.0f, uv.x));
+	float sideFade = smoothstep(0.02f, 0.18f, uv.x) * (1.0f - smoothstep(0.82f, 0.98f, uv.x));
 	seamFade = max(seamFade, 0.42f);
+	sideFade = max(sideFade, 0.45f);
 
-	return color * horizonFade * zenithFade * seamFade * brightness * 1.16f;
+	return color * horizonFade * zenithFade * seamFade * sideFade * brightness * 1.05f;
 }
 
 float3 DoAuroraWorldBands(float3 worldPosition, float frame)
