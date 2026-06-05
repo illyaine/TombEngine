@@ -172,6 +172,19 @@ namespace TEN::ObjectParameters
 			return entries;
 		}
 
+		std::vector<ObjectParameterEntry> GetEntriesByDefinitionSet(const std::string& providerId, const std::string& definitionSetId) const
+		{
+			auto entries = std::vector<ObjectParameterEntry>{};
+
+			for (const auto& entry : _entries)
+			{
+				if (entry.ProviderId == providerId && entry.DefinitionSetId == definitionSetId)
+					entries.push_back(entry);
+			}
+
+			return entries;
+		}
+
 		std::vector<ObjectParameterEntry> GetEntriesByObject(const ObjectParameterObjectRef& objectRef) const
 		{
 			auto entries = std::vector<ObjectParameterEntry>{};
@@ -190,6 +203,20 @@ namespace TEN::ObjectParameters
 			for (const auto& entry : _entries)
 			{
 				if (entry.ProviderId == providerId && entry.ParameterId == parameterId && entry.Object.Matches(objectRef))
+				{
+					result = entry;
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		bool TryGetEntry(const std::string& providerId, const std::string& definitionSetId, const ObjectParameterObjectRef& objectRef, const std::string& parameterId, ObjectParameterEntry& result) const
+		{
+			for (const auto& entry : _entries)
+			{
+				if (entry.ProviderId == providerId && entry.DefinitionSetId == definitionSetId && entry.ParameterId == parameterId && entry.Object.Matches(objectRef))
 				{
 					result = entry;
 					return true;
