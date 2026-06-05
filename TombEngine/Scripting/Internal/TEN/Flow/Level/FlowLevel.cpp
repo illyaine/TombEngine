@@ -403,6 +403,11 @@ TEN::Scripting::AtmosphereRenderPlan Level::CreateAtmosphereRenderPlan() const
 	return CreateRenderPlanFromData(CreateAtmosphereRenderData());
 }
 
+TEN::Scripting::AtmosphereCelestialRenderData Level::CreateAtmosphereCelestialRenderData() const
+{
+	return TEN::Scripting::CreateAtmosphereCelestialRenderData(AtmosphereCelestial);
+}
+
 SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
 {
 	SkyAtmosphereRenderData data = {};
@@ -413,8 +418,9 @@ SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
 	data.LensFlareEnabled = LensFlare.GetEnabled();
 	data.StarfieldEnabled = Starfield.GetStarCount() > 0 || Starfield.GetMeteorCount() > 0;
 	data.StormEnabled = Storm;
-	data.AtmosphereCelestialEnabled = GetAtmosphereCelestialEnabled();
-	data.AtmosphereCelestialBodyCount = GetAtmosphereCelestialBodyCount();
+	data.AtmosphereCelestialData = CreateAtmosphereCelestialRenderData();
+	data.AtmosphereCelestialEnabled = data.AtmosphereCelestialData.HasAnyPass();
+	data.AtmosphereCelestialBodyCount = data.AtmosphereCelestialData.BodyCount;
 	data.LegacySkyEnabled = data.Layer1Enabled || data.Layer2Enabled || data.Horizon1Enabled || data.Horizon2Enabled || data.LensFlareEnabled || data.StarfieldEnabled || data.StormEnabled;
 	data.AtmosphereData = CreateAtmosphereRenderData();
 	data.AtmospherePlan = CreateAtmosphereRenderPlan();
