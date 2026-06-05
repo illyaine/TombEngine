@@ -178,6 +178,20 @@ void AuroraProfile::Register(sol::table& parent)
 */
 void Atmosphere::Register(sol::table& parent)
 {
+	RainProfile::Register(parent);
+	WeatherProfile::Register(parent);
+	WindProfile::Register(parent);
+	AuroraProfile::Register(parent);
+
+	parent.new_enum<WeatherQuality>("WeatherQuality",
+		{
+			{ "Low", WeatherQuality::Low },
+			{ "Medium", WeatherQuality::Medium },
+			{ "High", WeatherQuality::High },
+			{ "Ultra", WeatherQuality::Ultra },
+			{ "Auto", WeatherQuality::Auto }
+		});
+
 	using ctors = sol::constructors<Atmosphere()>;
 	parent.new_usertype<Atmosphere>("Atmosphere",
 		ctors(),
