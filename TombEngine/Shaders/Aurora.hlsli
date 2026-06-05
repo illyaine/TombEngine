@@ -13,7 +13,7 @@ float2 AuroraDirectionUv(float3 direction)
 {
 	direction = normalize(direction);
 	float yaw = atan2(direction.z, direction.x) / PI2 + 0.5f;
-	float height = saturate(direction.y * 0.70f + 0.66f);
+	float height = saturate(direction.y * 0.62f + 0.72f);
 	return float2(frac(yaw), height);
 }
 
@@ -57,67 +57,82 @@ float AuroraNoise(float2 p)
 
 float AuroraColumnMask(float x, float time, float phase)
 {
-	float raysA = sin((x + phase + time * 0.026f) * PI2 * 8.0f) * 0.5f + 0.5f;
-	float raysB = sin((x - phase * 0.37f - time * 0.019f) * PI2 * 17.0f) * 0.5f + 0.5f;
-	float raysNoise = AuroraNoise(float2(x * 12.0f + phase * 5.0f, time * 0.12f));
-	float mask = smoothstep(0.48f, 0.90f, raysA * 0.46f + raysB * 0.34f + raysNoise * 0.20f);
-	return lerp(0.24f, 1.0f, mask);
+	float raysA = sin((x + phase + time * 0.012f) * PI2 * 7.0f) * 0.5f + 0.5f;
+	float raysB = sin((x - phase * 0.37f - time * 0.009f) * PI2 * 19.0f) * 0.5f + 0.5f;
+	float raysNoise = AuroraNoise(float2(x * 15.0f + phase * 5.0f, time * 0.06f));
+	float gaps = AuroraNoise(float2(x * 4.0f - time * 0.018f, phase * 6.0f));
+	float mask = smoothstep(0.55f, 0.95f, raysA * 0.42f + raysB * 0.34f + raysNoise * 0.24f);
+	mask *= smoothstep(0.18f, 0.78f, gaps);
+	return lerp(0.05f, 1.0f, mask);
 }
 
 float AuroraSoftBand(float2 uv, float time, float baseHeight, float curveStrength, float width, float phase)
 {
 	float x = uv.x + phase;
 	float curve = baseHeight;
-	curve += sin((x + time * 0.045f) * PI2 * 0.90f) * curveStrength;
-	curve += sin((x - time * 0.032f) * PI2 * 1.80f) * curveStrength * 0.45f;
-	curve += sin((x + time * 0.021f) * PI2 * 3.70f) * curveStrength * 0.24f;
+	curve += sin((x + time * 0.018f) * PI2 * 0.80f) * curveStrength;
+	curve += sin((x - time * 0.013f) * PI2 * 1.70f) * curveStrength * 0.50f;
+	curve += sin((x + time * 0.010f) * PI2 * 3.20f) * curveStrength * 0.30f;
 
 	float d = abs(uv.y - curve);
-	float core = 1.0f - smoothstep(width, width + 0.020f, d);
-	float glow = 1.0f - smoothstep(width + 0.025f, width + 0.180f, d);
+	float core = 1.0f - smoothstep(width, width + 0.014f, d);
+	float localGlow = 1.0f - smoothstep(width + 0.012f, width + 0.085f, d);
 	float columnMask = AuroraColumnMask(x, time, phase);
 
-	float above = smoothstep(curve - 0.040f, curve + 0.090f, uv.y);
-	float belowTop = 1.0f - smoothstep(curve + 0.170f, curve + 0.520f, uv.y);
-	float curtain = pow(saturate(columnMask * above * belowTop), 1.15f);
-	float pulse = 0.93f + sin(time * 0.42f + phase * PI2) * 0.07f;
+	float lowerCurtain = smoothstep(curve - 0.260f, curve - 0.030f, uv.y);
+	float upperCurtain = 1.0f - smoothstep(curve + 0.050f, curve + 0.210f, uv.y);
+	float curtainShape = lowerCurtain * upperCurtain;
+	float curtain = pow(saturate(columnMask * curtainShape), 1.45f);
+	float pulse = 0.97f + sin(time * 0.18f + phase * PI2) * 0.03f;
 
-	return saturate((core * 0.78f + glow * 0.22f + curtain * 0.90f) * pulse);
+	return saturate((core * 0.58f + localGlow * 0.07f + curtain * 0.48f) * pulse);
+}
+
+float AuroraWideVeil(float2 uv, float time)
+{
+	float wave = sin((uv.x * 0.82f + time * 0.010f) * PI2) * 0.5f + 0.5f;
+	float patches = AuroraNoise(float2(uv.x * 2.8f - time * 0.012f, uv.y * 3.1f));
+	float band = smoothstep(0.58f, 0.76f, uv.y) * (1.0f - smoothstep(0.94f, 1.0f, uv.y));
+	return band * smoothstep(0.20f, 0.88f, wave * 0.45f + patches * 0.55f) * 0.055f;
 }
 
 float3 AuroraColorFromUv(float2 uv, float frame)
 {
-	float time = frame / 150.0f;
+	float time = frame / 300.0f;
 
-	float lower = AuroraSoftBand(float2(uv.x - 0.13f, uv.y), time, 0.58f, 0.040f, 0.026f, 0.31f);
-	float middle = AuroraSoftBand(uv, time, 0.71f, 0.052f, 0.030f, 0.00f);
-	float upper = AuroraSoftBand(float2(uv.x + 0.12f, uv.y), time, 0.84f, 0.040f, 0.034f, 0.67f);
+	float lower = AuroraSoftBand(float2(uv.x - 0.17f, uv.y), time, 0.70f, 0.036f, 0.021f, 0.31f);
+	float middle = AuroraSoftBand(uv, time, 0.82f, 0.052f, 0.024f, 0.00f);
+	float upper = AuroraSoftBand(float2(uv.x + 0.16f, uv.y), time, 0.91f, 0.035f, 0.026f, 0.67f);
+	float veil = AuroraWideVeil(uv, time);
 
-	float colorShift = AuroraNoise(float2(uv.x * 3.2f + time * 0.025f, uv.y * 2.2f));
-	float colorWave = sin((uv.x * 1.25f + time * 0.030f) * PI2) * 0.5f + 0.5f;
+	float colorShift = AuroraNoise(float2(uv.x * 4.8f + time * 0.008f, uv.y * 2.6f));
+	float colorWave = sin((uv.x * 1.05f + time * 0.012f) * PI2) * 0.5f + 0.5f;
 
-	float3 green = float3(0.06f, 0.90f, 0.36f);
-	float3 cyan = float3(0.05f, 0.78f, 0.95f);
-	float3 blue = float3(0.10f, 0.30f, 1.00f);
-	float3 violet = float3(0.58f, 0.16f, 0.86f);
+	float3 green = float3(0.06f, 0.84f, 0.30f);
+	float3 cyan = float3(0.04f, 0.70f, 0.90f);
+	float3 blue = float3(0.08f, 0.25f, 0.86f);
+	float3 violet = float3(0.50f, 0.14f, 0.76f);
+	float3 magenta = float3(0.68f, 0.12f, 0.46f);
 
-	float3 lowerColor = lerp(green, cyan, saturate(colorShift * 0.45f + colorWave * 0.18f));
-	float3 middleColor = lerp(cyan, blue, saturate(colorWave * 0.52f + colorShift * 0.20f));
-	float3 upperColor = lerp(blue, violet, saturate(colorShift * 0.42f + colorWave * 0.36f));
+	float3 lowerColor = lerp(green, cyan, saturate(colorShift * 0.35f + colorWave * 0.15f));
+	float3 middleColor = lerp(cyan, blue, saturate(colorWave * 0.50f + colorShift * 0.25f));
+	float3 upperColor = lerp(violet, magenta, saturate(colorShift * 0.40f + colorWave * 0.32f));
+	float3 veilColor = lerp(green, cyan, saturate(colorShift * 0.60f));
 
-	float3 color = lowerColor * lower;
-	color += middleColor * middle * 0.92f;
-	color += upperColor * upper * 0.84f;
+	float3 color = lowerColor * lower * 0.74f;
+	color += middleColor * middle * 0.68f;
+	color += upperColor * upper * 0.54f;
+	color += veilColor * veil;
 
-	float brightness = 0.96f + sin(time * 0.28f + uv.x * PI2 * 1.2f) * 0.04f;
-	float horizonFade = smoothstep(0.50f, 0.67f, uv.y);
-	float zenithFade = 1.0f - smoothstep(0.97f, 1.0f, uv.y);
-	float seamFade = smoothstep(0.00f, 0.090f, uv.x) * (1.0f - smoothstep(0.910f, 1.0f, uv.x));
-	float sideFade = smoothstep(-0.06f, 0.16f, uv.x) * (1.0f - smoothstep(0.84f, 1.06f, uv.x));
-	seamFade = max(seamFade, 0.68f);
-	sideFade = max(sideFade, 0.74f);
+	float brightness = 0.98f + sin(time * 0.11f + uv.x * PI2 * 1.2f) * 0.02f;
+	float horizonFade = smoothstep(0.62f, 0.76f, uv.y);
+	float zenithFade = 1.0f - smoothstep(0.985f, 1.0f, uv.y);
+	float seamFade = smoothstep(0.00f, 0.080f, uv.x) * (1.0f - smoothstep(0.920f, 1.0f, uv.x));
+	float sideFade = smoothstep(-0.05f, 0.17f, uv.x) * (1.0f - smoothstep(0.83f, 1.05f, uv.x));
+	seamFade = max(seamFade, 0.66f);
+	sideFade = max(sideFade, 0.72f);
 
-	return color * horizonFade * zenithFade * seamFade * sideFade * brightness * 1.10f;
+	return color * horizonFade * zenithFade * seamFade * sideFade * brightness * 0.72f;
 }
 
 float3 DoAuroraWorldBands(float3 worldPosition, float frame)
