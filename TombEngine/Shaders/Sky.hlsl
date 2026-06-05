@@ -52,7 +52,7 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 	if (Color.w > 1.5f)
 	{
 		float3 aurora = DoAuroraFullscreenDome(input.Position.xy, Frame);
-		return float4(aurora * 0.58f, 1.0f);
+		return float4(aurora * 0.18f, 1.0f);
 	}
 
 	if (Animated && Type == 1)
