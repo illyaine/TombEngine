@@ -308,4 +308,65 @@ namespace TEN::Scripting
 
 		static void Register(sol::table& parent);
 	};
+
+	inline AtmosphereRuntimeSnapshot Atmosphere::CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const
+	{
+		AtmosphereRuntimeSnapshot snapshot = {};
+		snapshot.Enabled = Enabled;
+
+		if (!Enabled)
+		{
+			snapshot.Type = legacyType;
+			snapshot.Strength = legacyStrength;
+			snapshot.Clustering = legacyClustering;
+			return snapshot;
+		}
+
+		snapshot.Type = Weather.Type;
+		snapshot.Strength = Weather.Strength;
+		snapshot.Clustering = Weather.Clustering;
+		snapshot.Quality = Weather.Quality;
+		snapshot.Rain = Weather.Rain;
+		snapshot.Wind = Wind;
+		snapshot.Aurora = Aurora;
+		snapshot.EnabledEffectCount = GetEnabledEffectCount();
+		snapshot.LocalEffectCount = GetLocalEffectCount();
+		return snapshot;
+	}
+
+	inline int Atmosphere::GetEnabledEffectCount() const
+	{
+		int count = 0;
+
+		for (auto const& effect : Effects)
+		{
+			if (effect.Enabled)
+				count++;
+		}
+
+		return count;
+	}
+
+	inline int Atmosphere::GetLocalEffectCount() const
+	{
+		int count = 0;
+
+		for (auto const& effect : Effects)
+		{
+			if (effect.Enabled && effect.Scope != AtmosphereEffectScope::Global)
+				count++;
+		}
+
+		return count;
+	}
+
+	inline bool Atmosphere::HasEnabledEffects() const
+	{
+		return GetEnabledEffectCount() > 0;
+	}
+
+	inline bool Atmosphere::HasLocalEffects() const
+	{
+		return GetLocalEffectCount() > 0;
+	}
 }
