@@ -1,0 +1,131 @@
+Atmosphere system - visual wind integration notes
+=================================================
+
+Status
+------
+This file records the target direction for the atmosphere wind block.
+It is a planning/status note only. No renderer or gameplay activation is implied by this file.
+
+Goal
+----
+Wind should become a visible atmosphere component, not only a numeric weather modifier.
+The system should support subtle everyday wind, strong wind, gusts, storm wind, and turbulent atmospheric movement.
+It should be possible to see wind occasionally through the level atmosphere even when no heavy rain or snow is active.
+
+Design rule
+-----------
+Wind must remain integrated into the existing atmosphere path.
+Avoid a separate wind service hierarchy unless renderer or gameplay integration later proves that a dedicated runtime component is necessary.
+
+Current data foundation
+-----------------------
+The current WindProfile already contains:
+
+- Direction.
+- Strength.
+- Gust strength.
+- Gust frequency.
+- Turbulence.
+- Vertical drift.
+
+This is enough for a first data pass, but it is not yet visually consumed by the renderer.
+
+Expected visible wind effects
+-----------------------------
+Wind should influence several visible layers:
+
+1. Weather particles
+   - Rain should lean with wind direction.
+   - Snow should drift and swirl instead of falling straight down.
+   - Ash, sand, spores, radiation dust, and toxic particles should move with gusts and turbulence.
+
+2. Fog and mist
+   - Global fog should have optional slow movement/wobble.
+   - Local nullmesh or volume fog should drift, pulse, curl, and react to gusts.
+   - Toxic fog, acid vapor, radiation haze, spores, steam, and fantasy fog should have strong visual wind support.
+
+3. Ground-level indicators
+   - Dust sheets near the floor.
+   - Leaf movement.
+   - Sand streaks.
+   - Ash movement.
+   - Light debris-like particles where suitable.
+
+4. Light atmospheric motion
+   - Subtle moving haze in outdoor areas.
+   - Visible wind only sometimes, not constantly overloaded.
+   - Builder-controlled intensity so levels can remain calm when needed.
+
+5. Later object/world reactions
+   - Grass, plants, vines, flags, cloth, loose ropes, water surface ripples, and hanging elements can later react to the same wind profile.
+   - These should be treated as later renderer/object-system integration, not part of the first atmosphere data block.
+
+Useful future parameters
+------------------------
+WindProfile may later need additional fields such as:
+
+- Direction variation.
+- Ambient motion amount.
+- Ground swirl amount.
+- Storm strength.
+- Gust sharpness.
+- Gust duration.
+- Weather influence.
+- Fog influence.
+- Particle influence.
+- Vegetation influence.
+- Indoor damping.
+- Room or volume override support.
+
+AtmosphereEffectProfile should also be able to decide whether it inherits global wind and how strongly:
+
+- InheritWind.
+- WindInfluence.
+- GustInfluence.
+- TurbulenceInfluence.
+- VerticalDriftInfluence.
+
+Implementation direction
+------------------------
+The first practical implementation should not be a large renderer rewrite.
+Recommended order:
+
+1. Keep WindProfile as the global wind source.
+2. Extend effect profiles only where needed for per-effect wind response.
+3. Let render data expose whether weather/effects are wind-affected.
+4. Add visible wind response to weather first.
+5. Add visible wind response to fog/mist/toxic fog next.
+6. Add ground dust/leaves/ash/sand/spores as effect presets after that.
+7. Add vegetation and object reactions later.
+
+Gameplay notes
+--------------
+Wind should usually be visual first.
+Only strong wind, storm gusts, or special volumes should affect gameplay.
+Gameplay influence should be explicit and builder-controlled, not automatic.
+
+Quality/performance notes
+-------------------------
+Wind effects need quality scaling:
+
+- Low: simple particle direction and reduced density.
+- Medium: gust variation and modest turbulence.
+- High: layered fog motion, swirl, and local particle variation.
+- Ultra: richer turbulence, more particles, better local volume behavior.
+
+Wind must not become expensive by default.
+The renderer should be able to skip invisible or very weak wind layers.
+
+Builder-facing goal
+-------------------
+The editor/script interface should eventually feel like a weather/atmosphere preset system rather than raw internal renderer fields.
+Typical builder presets could be:
+
+- Calm outdoor wind.
+- Coastal wind.
+- Snow drift.
+- Dust gusts.
+- Toxic vapor drift.
+- Storm gusts.
+- Alien atmosphere turbulence.
+- Swamp mist movement.
