@@ -257,6 +257,11 @@ TEN::Scripting::AtmosphereRenderData Level::CreateAtmosphereRenderData() const
 	return Atmosphere.CreateRenderData(Weather, WeatherStrength, WeatherClustering);
 }
 
+TEN::Scripting::AtmosphereRenderPlan Level::CreateAtmosphereRenderPlan() const
+{
+	return Atmosphere.CreateRenderPlan(Weather, WeatherStrength, WeatherClustering);
+}
+
 bool Level::GetAtmosphereEnabled() const
 {
 	return Atmosphere.Enabled;
