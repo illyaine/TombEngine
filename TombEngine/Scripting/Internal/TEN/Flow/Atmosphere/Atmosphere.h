@@ -278,6 +278,20 @@ namespace TEN::Scripting
 		static void Register(sol::table& parent);
 	};
 
+	struct AtmosphereRuntimeSnapshot
+	{
+		bool Enabled{ false };
+		WeatherType Type{ WeatherType::None };
+		float Strength{ 1.0f };
+		bool Clustering{ true };
+		WeatherQuality Quality{ WeatherQuality::Auto };
+		RainProfile Rain = {};
+		WindProfile Wind = {};
+		AuroraProfile Aurora = {};
+		int EnabledEffectCount{ 0 };
+		int LocalEffectCount{ 0 };
+	};
+
 	struct Atmosphere
 	{
 		bool Enabled{ false };
@@ -285,6 +299,12 @@ namespace TEN::Scripting
 		WindProfile Wind = {};
 		AuroraProfile Aurora = {};
 		std::vector<AtmosphereEffectProfile> Effects = {};
+
+		AtmosphereRuntimeSnapshot CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const;
+		int GetEnabledEffectCount() const;
+		int GetLocalEffectCount() const;
+		bool HasEnabledEffects() const;
+		bool HasLocalEffects() const;
 
 		static void Register(sol::table& parent);
 	};
