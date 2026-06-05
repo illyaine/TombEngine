@@ -23,7 +23,6 @@ struct Level : public ScriptInterfaceLevel
 	TEN::Scripting::LensFlare LensFlare = {};
 	TEN::Scripting::Starfield Starfield = {};
 	TEN::Scripting::Atmosphere Atmosphere = {};
-	bool AtmosphereSet = false;
 
 	WeatherType Weather				= WeatherType::None;
 	float		WeatherStrength		= 1.0f;
@@ -61,8 +60,7 @@ struct Level : public ScriptInterfaceLevel
 
 	// Atmosphere getters
 	const TEN::Scripting::Atmosphere& GetAtmosphere() const;
-	void SetAtmosphere(const TEN::Scripting::Atmosphere& atmosphere);
-	bool GetAtmosphereSet() const;
+	bool GetAtmosphereEnabled() const;
 
 	// Horizon getters
 	bool GetHorizonEnabled(int index) const override;
