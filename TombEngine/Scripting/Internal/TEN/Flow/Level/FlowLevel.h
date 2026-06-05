@@ -80,6 +80,8 @@ struct Level : public ScriptInterfaceLevel
 
 	bool ResetHub = false;
 
+	Level();
+
 	// TODO: Clean up this mess.
 
 	RGBAColor8Byte GetFogColor() const override;
@@ -94,6 +96,22 @@ struct Level : public ScriptInterfaceLevel
 	static void Register(sol::table& parent);
 	WeatherType GetWeatherType() const override;
 	bool GetWeatherClustering() const override;
+	bool GetAtmosphereWeatherEnabled() const override;
+	float GetAtmosphereRainWindInfluence() const override;
+	float GetAtmosphereRainNearDensity() const override;
+	float GetAtmosphereRainMidDensity() const override;
+	float GetAtmosphereRainFarDensity() const override;
+	bool GetAtmosphereRainImpactsEnabled() const override;
+	int GetAtmosphereRainMaxImpactsPerFrame() const override;
+	bool GetAtmosphereRainScreenDropsEnabled() const override;
+	float GetAtmosphereRainScreenDropDensity() const override;
+	float GetAtmosphereRainScreenDropFadeSpeed() const override;
+	float GetAtmosphereWindDirection() const override;
+	float GetAtmosphereWindStrength() const override;
+	float GetAtmosphereWindGustStrength() const override;
+	float GetAtmosphereWindGustFrequency() const override;
+	float GetAtmosphereWindTurbulence() const override;
+	float GetAtmosphereWindVerticalDrift() const override;
 	float GetFogMinDistance() const override;
 	float GetFogMaxDistance() const override;
 	float GetFarView() const override;
