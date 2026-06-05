@@ -172,6 +172,143 @@ void AuroraProfile::Register(sol::table& parent)
 	);
 }
 
+/*** Data for one generated or anchored atmosphere effect layer. To be used with @{Flow.Atmosphere.effects}.
+@tenprimitive Flow.AtmosphereEffectProfile
+@pragma nostrip
+*/
+void AtmosphereEffectProfile::Register(sol::table& parent)
+{
+	using ctors = sol::constructors<AtmosphereEffectProfile()>;
+	parent.new_usertype<AtmosphereEffectProfile>("AtmosphereEffectProfile",
+		ctors(),
+		sol::call_constructor, ctors(),
+
+		/// (bool) Enable this effect layer.
+		//@mem enabled
+		"enabled", &AtmosphereEffectProfile::Enabled,
+
+		/// (AtmosphereEffectType) Select the base effect type, such as leaf fall, ground fog, dust, ash, or a custom preset.
+		//@mem type
+		"type", &AtmosphereEffectProfile::Type,
+
+		/// (AtmosphereEffectScope) Select whether this effect is global or anchored to a nullmesh, room, or volume.
+		//@mem scope
+		"scope", &AtmosphereEffectProfile::Scope,
+
+		/// (AtmosphereEffectRenderMode) Choose generated rendering, an optional sprite texture, a bridge to an existing effect, or a custom renderer later.
+		//@mem renderMode
+		"renderMode", &AtmosphereEffectProfile::RenderMode,
+
+		/// (string) Optional preset name for generated or custom atmosphere effects.
+		//@mem presetName
+		"presetName", &AtmosphereEffectProfile::PresetName,
+
+		/// (string) Optional nullmesh or object name used as emitter or anchor when scope is Nullmesh.
+		//@mem anchorName
+		"anchorName", &AtmosphereEffectProfile::AnchorName,
+
+		/// (string) Optional texture name used only when renderMode is Sprite or a custom path explicitly asks for it.
+		//@mem textureName
+		"textureName", &AtmosphereEffectProfile::TextureName,
+
+		/// (float) Horizontal influence radius around the effect source.
+		//@mem radius
+		"radius", &AtmosphereEffectProfile::Radius,
+
+		/// (float) Vertical effect height.
+		//@mem height
+		"height", &AtmosphereEffectProfile::Height,
+
+		/// (float) Density multiplier for generated particles, sheets, or volume slices.
+		//@mem density
+		"density", &AtmosphereEffectProfile::Density,
+
+		/// (float) Movement or animation speed.
+		//@mem speed
+		"speed", &AtmosphereEffectProfile::Speed,
+
+		/// (float) Movement direction in degrees.
+		//@mem direction
+		"direction", &AtmosphereEffectProfile::Direction,
+
+		/// (float) Local turbulence multiplier.
+		//@mem turbulence
+		"turbulence", &AtmosphereEffectProfile::Turbulence,
+
+		/// (float) Vertical drift multiplier.
+		//@mem verticalDrift
+		"verticalDrift", &AtmosphereEffectProfile::VerticalDrift,
+
+		/// (float) Minimum generated element size.
+		//@mem minSize
+		"minSize", &AtmosphereEffectProfile::MinSize,
+
+		/// (float) Maximum generated element size.
+		//@mem maxSize
+		"maxSize", &AtmosphereEffectProfile::MaxSize,
+
+		/// (float) Lifetime for generated moving elements.
+		//@mem lifetime
+		"lifetime", &AtmosphereEffectProfile::Lifetime,
+
+		/// (float) Distance used to fade the effect in or out near limits.
+		//@mem fadeDistance
+		"fadeDistance", &AtmosphereEffectProfile::FadeDistance,
+
+		/// (float) Alpha multiplier.
+		//@mem alpha
+		"alpha", &AtmosphereEffectProfile::Alpha,
+
+		/// (float) Detail amount for generated noise, shapes, or internal variation.
+		//@mem generatedDetail
+		"generatedDetail", &AtmosphereEffectProfile::GeneratedDetail,
+
+		/// (float) Softness for generated layer edges or volume impression.
+		//@mem generatedSoftness
+		"generatedSoftness", &AtmosphereEffectProfile::GeneratedSoftness,
+
+		/// (float) Variation amount for generated shapes.
+		//@mem generatedVariation
+		"generatedVariation", &AtmosphereEffectProfile::GeneratedVariation,
+
+		/// (int) Seed for deterministic generated effect variation. Zero lets the engine choose a stable default.
+		//@mem generatedSeed
+		"generatedSeed", &AtmosphereEffectProfile::GeneratedSeed,
+
+		/// (bool) Test generated movement against level geometry.
+		//@mem collideWithGeometry
+		"collideWithGeometry", &AtmosphereEffectProfile::CollideWithGeometry,
+
+		/// (bool) Stop generated movement at walls instead of passing through them.
+		//@mem stopAtWalls
+		"stopAtWalls", &AtmosphereEffectProfile::StopAtWalls,
+
+		/// (bool) Stop generated movement at floors instead of passing through them.
+		//@mem stopAtFloors
+		"stopAtFloors", &AtmosphereEffectProfile::StopAtFloors,
+
+		/// (bool) Stop generated movement at ceilings instead of passing through them.
+		//@mem stopAtCeilings
+		"stopAtCeilings", &AtmosphereEffectProfile::StopAtCeilings,
+
+		/// (bool) Keep the generated effect inside the active room or anchored room where possible.
+		//@mem clampToRoom
+		"clampToRoom", &AtmosphereEffectProfile::ClampToRoom,
+
+		/// (bool) Add the global wind profile to this effect's local movement.
+		//@mem inheritWind
+		"inheritWind", &AtmosphereEffectProfile::InheritWind,
+
+		/// (@{Color}) Primary generated color.
+		//@mem colorA
+		"colorA", sol::property(&AtmosphereEffectProfile::GetColorA, &AtmosphereEffectProfile::SetColorA),
+
+		/// (@{Color}) Secondary generated color.
+		//@mem colorB
+		"colorB", sol::property(&AtmosphereEffectProfile::GetColorB, &AtmosphereEffectProfile::SetColorB)
+	);
+}
+
 /*** Atmosphere settings. To be used with @{Flow.Level.atmosphere}.
 @tenprimitive Flow.Atmosphere
 @pragma nostrip
@@ -187,10 +324,41 @@ void Atmosphere::Register(sol::table& parent)
 			{ "Auto", WeatherQuality::Auto }
 		});
 
+	parent.new_enum<AtmosphereEffectType>("AtmosphereEffectType",
+		{
+			{ "None", AtmosphereEffectType::None },
+			{ "GroundFog", AtmosphereEffectType::GroundFog },
+			{ "Mist", AtmosphereEffectType::Mist },
+			{ "SnowstormVeil", AtmosphereEffectType::SnowstormVeil },
+			{ "SandstormVeil", AtmosphereEffectType::SandstormVeil },
+			{ "DustSheet", AtmosphereEffectType::DustSheet },
+			{ "AshFall", AtmosphereEffectType::AshFall },
+			{ "LeafFall", AtmosphereEffectType::LeafFall },
+			{ "MagicParticles", AtmosphereEffectType::MagicParticles },
+			{ "Custom", AtmosphereEffectType::Custom }
+		});
+
+	parent.new_enum<AtmosphereEffectScope>("AtmosphereEffectScope",
+		{
+			{ "Global", AtmosphereEffectScope::Global },
+			{ "Nullmesh", AtmosphereEffectScope::Nullmesh },
+			{ "Room", AtmosphereEffectScope::Room },
+			{ "Volume", AtmosphereEffectScope::Volume }
+		});
+
+	parent.new_enum<AtmosphereEffectRenderMode>("AtmosphereEffectRenderMode",
+		{
+			{ "Generated", AtmosphereEffectRenderMode::Generated },
+			{ "Sprite", AtmosphereEffectRenderMode::Sprite },
+			{ "ExistingEffect", AtmosphereEffectRenderMode::ExistingEffect },
+			{ "Custom", AtmosphereEffectRenderMode::Custom }
+		});
+
 	RainProfile::Register(parent);
 	WeatherProfile::Register(parent);
 	WindProfile::Register(parent);
 	AuroraProfile::Register(parent);
+	AtmosphereEffectProfile::Register(parent);
 
 	using ctors = sol::constructors<Atmosphere()>;
 	parent.new_usertype<Atmosphere>("Atmosphere",
@@ -211,7 +379,11 @@ void Atmosphere::Register(sol::table& parent)
 
 		/// (@{Flow.AuroraProfile}) Aurora sky effect settings.
 		//@mem aurora
-		"aurora", &Atmosphere::Aurora
+		"aurora", &Atmosphere::Aurora,
+
+		/// (@{Flow.AtmosphereEffectProfile}[]) Generated, anchored, or custom atmosphere effect layers.
+		//@mem effects
+		"effects", &Atmosphere::Effects
 	);
 }
 
@@ -249,4 +421,28 @@ ScriptColor AuroraProfile::GetColorB() const
 ScriptColor AuroraProfile::GetColorC() const
 {
 	return ScriptColor{ ColorCR, ColorCG, ColorCB };
+}
+
+void AtmosphereEffectProfile::SetColorA(ScriptColor const& color)
+{
+	ColorAR = color.GetR();
+	ColorAG = color.GetG();
+	ColorAB = color.GetB();
+}
+
+void AtmosphereEffectProfile::SetColorB(ScriptColor const& color)
+{
+	ColorBR = color.GetR();
+	ColorBG = color.GetG();
+	ColorBB = color.GetB();
+}
+
+ScriptColor AtmosphereEffectProfile::GetColorA() const
+{
+	return ScriptColor{ ColorAR, ColorAG, ColorAB };
+}
+
+ScriptColor AtmosphereEffectProfile::GetColorB() const
+{
+	return ScriptColor{ ColorBR, ColorBG, ColorBB };
 }
