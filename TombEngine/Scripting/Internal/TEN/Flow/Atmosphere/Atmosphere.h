@@ -74,6 +74,96 @@ namespace TEN::Scripting
 		{ "Auto", WeatherQuality::Auto }
 	};
 
+	/// Constants for generated or bridged atmosphere effect types.
+	// @enum Flow.AtmosphereEffectType
+	// @pragma nostrip
+	static const std::unordered_map<std::string, AtmosphereEffectType> ATMOSPHERE_EFFECT_TYPES
+	{
+		/// No atmosphere effect.
+		// @mem None
+		{ "None", AtmosphereEffectType::None },
+
+		/// Generated ground fog.
+		// @mem GroundFog
+		{ "GroundFog", AtmosphereEffectType::GroundFog },
+
+		/// Generated drifting mist.
+		// @mem Mist
+		{ "Mist", AtmosphereEffectType::Mist },
+
+		/// Generated snowstorm veil.
+		// @mem SnowstormVeil
+		{ "SnowstormVeil", AtmosphereEffectType::SnowstormVeil },
+
+		/// Generated sandstorm veil.
+		// @mem SandstormVeil
+		{ "SandstormVeil", AtmosphereEffectType::SandstormVeil },
+
+		/// Generated dust sheet.
+		// @mem DustSheet
+		{ "DustSheet", AtmosphereEffectType::DustSheet },
+
+		/// Generated ash fall.
+		// @mem AshFall
+		{ "AshFall", AtmosphereEffectType::AshFall },
+
+		/// Generated leaf fall.
+		// @mem LeafFall
+		{ "LeafFall", AtmosphereEffectType::LeafFall },
+
+		/// Generated magic particles.
+		// @mem MagicParticles
+		{ "MagicParticles", AtmosphereEffectType::MagicParticles },
+
+		/// Custom atmosphere effect.
+		// @mem Custom
+		{ "Custom", AtmosphereEffectType::Custom }
+	};
+
+	/// Constants for atmosphere effect scopes.
+	// @enum Flow.AtmosphereEffectScope
+	// @pragma nostrip
+	static const std::unordered_map<std::string, AtmosphereEffectScope> ATMOSPHERE_EFFECT_SCOPES
+	{
+		/// Global atmosphere effect.
+		// @mem Global
+		{ "Global", AtmosphereEffectScope::Global },
+
+		/// Nullmesh or object anchored atmosphere effect.
+		// @mem Nullmesh
+		{ "Nullmesh", AtmosphereEffectScope::Nullmesh },
+
+		/// Room-bound atmosphere effect.
+		// @mem Room
+		{ "Room", AtmosphereEffectScope::Room },
+
+		/// Volume-bound atmosphere effect.
+		// @mem Volume
+		{ "Volume", AtmosphereEffectScope::Volume }
+	};
+
+	/// Constants for atmosphere effect render modes.
+	// @enum Flow.AtmosphereEffectRenderMode
+	// @pragma nostrip
+	static const std::unordered_map<std::string, AtmosphereEffectRenderMode> ATMOSPHERE_EFFECT_RENDER_MODES
+	{
+		/// Engine-generated visual layer.
+		// @mem Generated
+		{ "Generated", AtmosphereEffectRenderMode::Generated },
+
+		/// Optional external sprite or texture path.
+		// @mem Sprite
+		{ "Sprite", AtmosphereEffectRenderMode::Sprite },
+
+		/// Bridge to an existing engine effect.
+		// @mem ExistingEffect
+		{ "ExistingEffect", AtmosphereEffectRenderMode::ExistingEffect },
+
+		/// Custom or future renderer-specific effect path.
+		// @mem Custom
+		{ "Custom", AtmosphereEffectRenderMode::Custom }
+	};
+
 	struct RainProfile
 	{
 		float WindInfluence{ 0.0f };
