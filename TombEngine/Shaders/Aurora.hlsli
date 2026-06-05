@@ -94,6 +94,14 @@ float3 DoAuroraScreenWorldBands(float2 pixelPosition, float frame)
 	return AuroraColorFromUv(AuroraScreenWorldUv(pixelPosition), frame);
 }
 
+float3 DoAuroraFullscreenDome(float2 pixelPosition, float frame)
+{
+	float2 screenUv = pixelPosition * InvViewSize;
+	float edgeFade = smoothstep(0.00f, 0.08f, screenUv.x) * (1.0f - smoothstep(0.92f, 1.0f, screenUv.x));
+	edgeFade *= smoothstep(0.02f, 0.20f, screenUv.y) * (1.0f - smoothstep(0.90f, 1.0f, screenUv.y));
+	return DoAuroraScreenWorldBands(pixelPosition, frame) * edgeFade;
+}
+
 float3 DoAuroraDebugBands(float2 pixelPosition, float frame)
 {
 	return AuroraColorFromUv(AuroraDebugUv(pixelPosition), frame);
