@@ -309,6 +309,20 @@ namespace TEN::Scripting
 		static void Register(sol::table& parent);
 	};
 
+	struct AtmosphereRuntimeController
+	{
+		AtmosphereRuntimeSnapshot Snapshot = {};
+
+		void Reset();
+		void Update(Atmosphere const& atmosphere, WeatherType legacyType, float legacyStrength, bool legacyClustering);
+		const AtmosphereRuntimeSnapshot& GetSnapshot() const;
+		bool IsEnabled() const;
+		bool HasWeather() const;
+		bool HasAurora() const;
+		bool HasEnabledEffects() const;
+		bool HasLocalEffects() const;
+	};
+
 	inline AtmosphereRuntimeSnapshot Atmosphere::CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const
 	{
 		AtmosphereRuntimeSnapshot snapshot = {};
@@ -368,5 +382,45 @@ namespace TEN::Scripting
 	inline bool Atmosphere::HasLocalEffects() const
 	{
 		return GetLocalEffectCount() > 0;
+	}
+
+	inline void AtmosphereRuntimeController::Reset()
+	{
+		Snapshot = {};
+	}
+
+	inline void AtmosphereRuntimeController::Update(Atmosphere const& atmosphere, WeatherType legacyType, float legacyStrength, bool legacyClustering)
+	{
+		Snapshot = atmosphere.CreateRuntimeSnapshot(legacyType, legacyStrength, legacyClustering);
+	}
+
+	inline const AtmosphereRuntimeSnapshot& AtmosphereRuntimeController::GetSnapshot() const
+	{
+		return Snapshot;
+	}
+
+	inline bool AtmosphereRuntimeController::IsEnabled() const
+	{
+		return Snapshot.Enabled;
+	}
+
+	inline bool AtmosphereRuntimeController::HasWeather() const
+	{
+		return Snapshot.Type != WeatherType::None && Snapshot.Strength > 0.0f;
+	}
+
+	inline bool AtmosphereRuntimeController::HasAurora() const
+	{
+		return Snapshot.Enabled && Snapshot.Aurora.Enabled && Snapshot.Aurora.Intensity > 0.0f;
+	}
+
+	inline bool AtmosphereRuntimeController::HasEnabledEffects() const
+	{
+		return Snapshot.EnabledEffectCount > 0;
+	}
+
+	inline bool AtmosphereRuntimeController::HasLocalEffects() const
+	{
+		return Snapshot.LocalEffectCount > 0;
 	}
 }
