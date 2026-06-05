@@ -82,7 +82,7 @@ void Level::Register(sol::table& parent)
 
 /// (@{Flow.Atmosphere}) Atmosphere, weather, wind, and sky effect settings.
 //@mem atmosphere
-		"atmosphere", sol::property(&Level::GetAtmosphere, &Level::SetAtmosphere),
+		"atmosphere", &Level::Atmosphere,
 
 /// (bool) Enable flickering lightning in the sky.
 // Equivalent to classic TRLE's lightning setting, as in the TRC Ireland levels or TR4 Cairo levels.
@@ -194,17 +194,17 @@ bool Level::GetRumbleEnabled() const
 
 bool Level::GetWeatherClustering() const
 {
-	return AtmosphereSet && Atmosphere.Enabled ? Atmosphere.Weather.Clustering : WeatherClustering;
+	return Atmosphere.Enabled ? Atmosphere.Weather.Clustering : WeatherClustering;
 }
 
 float Level::GetWeatherStrength() const
 {
-	return AtmosphereSet && Atmosphere.Enabled ? Atmosphere.Weather.Strength : WeatherStrength;	
+	return Atmosphere.Enabled ? Atmosphere.Weather.Strength : WeatherStrength;	
 }
 
 WeatherType Level::GetWeatherType() const
 {
-	return AtmosphereSet && Atmosphere.Enabled ? Atmosphere.Weather.Type : Weather;
+	return Atmosphere.Enabled ? Atmosphere.Weather.Type : Weather;
 }
 
 RGBAColor8Byte Level::GetFogColor() const
@@ -247,15 +247,9 @@ const TEN::Scripting::Atmosphere& Level::GetAtmosphere() const
 	return Atmosphere;
 }
 
-void Level::SetAtmosphere(const TEN::Scripting::Atmosphere& atmosphere)
+bool Level::GetAtmosphereEnabled() const
 {
-	Atmosphere = atmosphere;
-	AtmosphereSet = true;
-}
-
-bool Level::GetAtmosphereSet() const
-{
-	return AtmosphereSet;
+	return Atmosphere.Enabled;
 }
 
 const TEN::Scripting::Horizon& Level::GetHorizon(int index) const
