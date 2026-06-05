@@ -1,6 +1,7 @@
 #pragma once
 #include "Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.h"
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereCelestial.h"
+#include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereCelestialRender.h"
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereEnvironment.h"
 #include "Scripting/Internal/TEN/Flow/Horizon/Horizon.h"
 #include "Scripting/Internal/TEN/Flow/LensFlare/LensFlare.h"
@@ -26,6 +27,7 @@ struct SkyAtmosphereRenderData
 	int AtmosphereCelestialBodyCount{ 0 };
 	TEN::Scripting::AtmosphereRenderData AtmosphereData = {};
 	TEN::Scripting::AtmosphereRenderPlan AtmospherePlan = {};
+	TEN::Scripting::AtmosphereCelestialRenderData AtmosphereCelestialData = {};
 
 	bool HasLegacySky() const;
 	bool HasAtmosphere() const;
@@ -39,7 +41,7 @@ inline bool SkyAtmosphereRenderData::HasLegacySky() const
 
 inline bool SkyAtmosphereRenderData::HasAtmosphere() const
 {
-	return AtmospherePlan.HasAnyPass() || AtmosphereCelestialEnabled;
+	return AtmospherePlan.HasAnyPass() || AtmosphereCelestialData.HasAnyPass();
 }
 
 inline bool SkyAtmosphereRenderData::HasAnySkyOrAtmosphere() const
@@ -104,6 +106,7 @@ struct Level : public ScriptInterfaceLevel
 	TEN::Scripting::AtmosphereRuntimeSnapshot CreateAtmosphereRuntimeSnapshot() const;
 	TEN::Scripting::AtmosphereRenderData CreateAtmosphereRenderData() const;
 	TEN::Scripting::AtmosphereRenderPlan CreateAtmosphereRenderPlan() const;
+	TEN::Scripting::AtmosphereCelestialRenderData CreateAtmosphereCelestialRenderData() const;
 	SkyAtmosphereRenderData CreateSkyAtmosphereRenderData() const;
 	bool GetAtmosphereEnabled() const;
 	bool GetAtmosphereEnvironmentEnabled() const;
