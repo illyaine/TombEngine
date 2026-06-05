@@ -125,6 +125,7 @@ void Level::Register(sol::table& parent)
 {
 	TEN::Scripting::Atmosphere::Register(parent);
 	TEN::Scripting::AtmosphereEnvironmentProfile::Register(parent);
+	TEN::Scripting::AtmosphereCelestialProfile::Register(parent);
 
 	// Register type.
 	parent.new_usertype<Level>(
@@ -147,7 +148,7 @@ void Level::Register(sol::table& parent)
 		"levelFile", &Level::FileName,
 
 /// (string) Load screen image.
-// Path of the level's load screen file (.png or .jpg), relative to the location of the Tomb Engine executable.
+// Path of the level's load screen file (.png or .jpg), relative to the location of the TombEngine executable.
 //@mem loadScreenFile
 		"loadScreenFile", &Level::LoadScreenFileName,
 		
@@ -193,6 +194,10 @@ void Level::Register(sol::table& parent)
 /// (@{Flow.AtmosphereEnvironmentProfile}) Environment rules for weather, wind, space, and planetary weather.
 //@mem atmosphereEnvironment
 		"atmosphereEnvironment", &Level::AtmosphereEnvironment,
+
+/// (@{Flow.AtmosphereCelestialProfile}) Celestial sky stack for planets, moons, stars, comets, debris, and galaxy layers.
+//@mem atmosphereCelestial
+		"atmosphereCelestial", &Level::AtmosphereCelestial,
 
 /// (bool) Enable flickering lightning in the sky.
 // Equivalent to classic TRLE's lightning setting, as in the TRC Ireland levels or TR4 Cairo levels.
@@ -317,7 +322,7 @@ float Level::GetWeatherStrength() const
 	float strength = GetRawWeatherStrength(*this);
 	bool clustering = GetRawWeatherClustering(*this);
 	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
-	return strength;	
+	return strength;
 }
 
 WeatherType Level::GetWeatherType() const
@@ -374,6 +379,11 @@ const TEN::Scripting::AtmosphereEnvironmentProfile& Level::GetAtmosphereEnvironm
 	return AtmosphereEnvironment;
 }
 
+const TEN::Scripting::AtmosphereCelestialProfile& Level::GetAtmosphereCelestial() const
+{
+	return AtmosphereCelestial;
+}
+
 TEN::Scripting::AtmosphereRuntimeSnapshot Level::CreateAtmosphereRuntimeSnapshot() const
 {
 	TEN::Scripting::AtmosphereRuntimeSnapshot snapshot = Atmosphere.CreateRuntimeSnapshot(Weather, WeatherStrength, WeatherClustering);
@@ -403,6 +413,8 @@ SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
 	data.LensFlareEnabled = LensFlare.GetEnabled();
 	data.StarfieldEnabled = Starfield.GetStarCount() > 0 || Starfield.GetMeteorCount() > 0;
 	data.StormEnabled = Storm;
+	data.AtmosphereCelestialEnabled = GetAtmosphereCelestialEnabled();
+	data.AtmosphereCelestialBodyCount = GetAtmosphereCelestialBodyCount();
 	data.LegacySkyEnabled = data.Layer1Enabled || data.Layer2Enabled || data.Horizon1Enabled || data.Horizon2Enabled || data.LensFlareEnabled || data.StarfieldEnabled || data.StormEnabled;
 	data.AtmosphereData = CreateAtmosphereRenderData();
 	data.AtmospherePlan = CreateAtmosphereRenderPlan();
@@ -417,6 +429,21 @@ bool Level::GetAtmosphereEnabled() const
 bool Level::GetAtmosphereEnvironmentEnabled() const
 {
 	return AtmosphereEnvironment.Enabled;
+}
+
+bool Level::GetAtmosphereCelestialEnabled() const
+{
+	return AtmosphereCelestial.Enabled && AtmosphereCelestial.HasEnabledBodies();
+}
+
+int Level::GetAtmosphereCelestialBodyCount() const
+{
+	return AtmosphereCelestial.GetEnabledBodyCount();
+}
+
+bool Level::GetAtmosphereCelestialHasSpaceBodies() const
+{
+	return AtmosphereCelestial.HasSpaceBodies();
 }
 
 const TEN::Scripting::Horizon& Level::GetHorizon(int index) const
