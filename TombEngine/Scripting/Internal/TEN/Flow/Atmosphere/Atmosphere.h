@@ -36,6 +36,14 @@ namespace TEN::Scripting
 		Volume
 	};
 
+	enum class AtmosphereEffectRenderMode
+	{
+		Generated,
+		Sprite,
+		ExistingEffect,
+		Custom
+	};
+
 	/// Constants for weather quality budgets.
 	// @enum Flow.WeatherQuality
 	// @pragma nostrip
@@ -134,8 +142,10 @@ namespace TEN::Scripting
 		bool Enabled{ false };
 		AtmosphereEffectType Type{ AtmosphereEffectType::None };
 		AtmosphereEffectScope Scope{ AtmosphereEffectScope::Global };
+		AtmosphereEffectRenderMode RenderMode{ AtmosphereEffectRenderMode::Generated };
 		std::string PresetName = {};
 		std::string AnchorName = {};
+		std::string TextureName = {};
 		float Radius{ 1024.0f };
 		float Height{ 512.0f };
 		float Density{ 1.0f };
@@ -148,6 +158,10 @@ namespace TEN::Scripting
 		float Lifetime{ 4.0f };
 		float FadeDistance{ 512.0f };
 		float Alpha{ 1.0f };
+		float GeneratedDetail{ 1.0f };
+		float GeneratedSoftness{ 1.0f };
+		float GeneratedVariation{ 1.0f };
+		int GeneratedSeed{ 0 };
 		bool CollideWithGeometry{ true };
 		bool StopAtWalls{ true };
 		bool StopAtFloors{ true };
