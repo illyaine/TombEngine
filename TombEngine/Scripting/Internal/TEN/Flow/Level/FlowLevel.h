@@ -24,6 +24,10 @@ struct SkyAtmosphereRenderData
 	bool LegacySkyEnabled{ false };
 	bool AtmosphereCelestialEnabled{ false };
 	int AtmosphereCelestialBodyCount{ 0 };
+	bool AtmosphereWindMotionEnabled{ false };
+	bool AtmosphereWindGustsEnabled{ false };
+	bool AtmosphereWindTurbulenceEnabled{ false };
+	bool AtmosphereWindVerticalDriftEnabled{ false };
 	TEN::Scripting::AtmosphereRenderData AtmosphereData = {};
 	TEN::Scripting::AtmosphereRenderPlan AtmospherePlan = {};
 	TEN::Scripting::AtmosphereCelestialRenderData AtmosphereCelestialData = {};
@@ -112,6 +116,10 @@ struct Level : public ScriptInterfaceLevel
 	bool GetAtmosphereCelestialEnabled() const;
 	bool GetAtmosphereHasGameplayHazard() const;
 	float GetAtmosphereHazardDamagePerSecond() const;
+	bool GetAtmosphereWindHasMotion() const;
+	bool GetAtmosphereWindHasGusts() const;
+	bool GetAtmosphereWindHasTurbulence() const;
+	bool GetAtmosphereWindHasVerticalDrift() const;
 	int GetAtmosphereCelestialBodyCount() const;
 	bool GetAtmosphereCelestialHasSpaceBodies() const;
 
