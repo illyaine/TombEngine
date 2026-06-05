@@ -1,7 +1,6 @@
 #pragma once
 #include "Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.h"
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereCelestial.h"
-#include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereCelestialRender.h"
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereEnvironment.h"
 #include "Scripting/Internal/TEN/Flow/Horizon/Horizon.h"
 #include "Scripting/Internal/TEN/Flow/LensFlare/LensFlare.h"
