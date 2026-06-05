@@ -352,6 +352,29 @@ namespace TEN::Scripting
 		int LocalLightShaftCount{ 0 };
 	};
 
+	struct AtmosphereRenderData
+	{
+		bool Enabled{ false };
+		WeatherType WeatherTypeValue{ WeatherType::None };
+		float WeatherStrength{ 1.0f };
+		bool WeatherClustering{ true };
+		WeatherQuality Quality{ WeatherQuality::Auto };
+		RainProfile Rain = {};
+		WindProfile Wind = {};
+		AuroraProfile Aurora = {};
+		MoonProfile Moon = {};
+		std::vector<AtmosphereEffectProfile> Effects = {};
+		std::vector<LightShaftProfile> LightShafts = {};
+
+		bool HasWeather() const;
+		bool HasAurora() const;
+		bool HasMoon() const;
+		bool HasEffects() const;
+		bool HasLocalEffects() const;
+		bool HasLightShafts() const;
+		bool HasLocalLightShafts() const;
+	};
+
 	struct Atmosphere
 	{
 		bool Enabled{ false };
@@ -363,6 +386,7 @@ namespace TEN::Scripting
 		std::vector<LightShaftProfile> LightShafts = {};
 
 		AtmosphereRuntimeSnapshot CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const;
+		AtmosphereRenderData CreateRenderData(WeatherType legacyType, float legacyStrength, bool legacyClustering) const;
 		int GetEnabledEffectCount() const;
 		int GetLocalEffectCount() const;
 		int GetEnabledLightShaftCount() const;
@@ -379,10 +403,12 @@ namespace TEN::Scripting
 	struct AtmosphereRuntimeController
 	{
 		AtmosphereRuntimeSnapshot Snapshot = {};
+		AtmosphereRenderData RenderData = {};
 
 		void Reset();
 		void Update(Atmosphere const& atmosphere, WeatherType legacyType, float legacyStrength, bool legacyClustering);
 		const AtmosphereRuntimeSnapshot& GetSnapshot() const;
+		const AtmosphereRenderData& GetRenderData() const;
 		bool IsEnabled() const;
 		bool HasWeather() const;
 		bool HasAurora() const;
@@ -419,6 +445,45 @@ namespace TEN::Scripting
 		snapshot.EnabledLightShaftCount = GetEnabledLightShaftCount();
 		snapshot.LocalLightShaftCount = GetLocalLightShaftCount();
 		return snapshot;
+	}
+
+	inline AtmosphereRenderData Atmosphere::CreateRenderData(WeatherType legacyType, float legacyStrength, bool legacyClustering) const
+	{
+		AtmosphereRenderData data = {};
+		data.Enabled = Enabled;
+
+		if (!Enabled)
+		{
+			data.WeatherTypeValue = legacyType;
+			data.WeatherStrength = legacyStrength;
+			data.WeatherClustering = legacyClustering;
+			return data;
+		}
+
+		data.WeatherTypeValue = Weather.Type;
+		data.WeatherStrength = Weather.Strength;
+		data.WeatherClustering = Weather.Clustering;
+		data.Quality = Weather.Quality;
+		data.Rain = Weather.Rain;
+		data.Wind = Wind;
+		data.Aurora = Aurora;
+		data.Moon = Moon;
+		data.Effects.reserve(Effects.size());
+		data.LightShafts.reserve(LightShafts.size());
+
+		for (auto const& effect : Effects)
+		{
+			if (effect.Enabled)
+				data.Effects.push_back(effect);
+		}
+
+		for (auto const& shaft : LightShafts)
+		{
+			if (shaft.Enabled)
+				data.LightShafts.push_back(shaft);
+		}
+
+		return data;
 	}
 
 	inline int Atmosphere::GetEnabledEffectCount() const
@@ -498,19 +563,73 @@ namespace TEN::Scripting
 		return GetLocalLightShaftCount() > 0;
 	}
 
+	inline bool AtmosphereRenderData::HasWeather() const
+	{
+		return WeatherTypeValue != WeatherType::None && WeatherStrength > 0.0f;
+	}
+
+	inline bool AtmosphereRenderData::HasAurora() const
+	{
+		return Enabled && Aurora.Enabled && Aurora.Intensity > 0.0f;
+	}
+
+	inline bool AtmosphereRenderData::HasMoon() const
+	{
+		return Enabled && Moon.Enabled && Moon.Intensity > 0.0f;
+	}
+
+	inline bool AtmosphereRenderData::HasEffects() const
+	{
+		return !Effects.empty();
+	}
+
+	inline bool AtmosphereRenderData::HasLocalEffects() const
+	{
+		for (auto const& effect : Effects)
+		{
+			if (effect.Scope != AtmosphereEffectScope::Global)
+				return true;
+		}
+
+		return false;
+	}
+
+	inline bool AtmosphereRenderData::HasLightShafts() const
+	{
+		return !LightShafts.empty();
+	}
+
+	inline bool AtmosphereRenderData::HasLocalLightShafts() const
+	{
+		for (auto const& shaft : LightShafts)
+		{
+			if (shaft.Scope != AtmosphereEffectScope::Global)
+				return true;
+		}
+
+		return false;
+	}
+
 	inline void AtmosphereRuntimeController::Reset()
 	{
 		Snapshot = {};
+		RenderData = {};
 	}
 
 	inline void AtmosphereRuntimeController::Update(Atmosphere const& atmosphere, WeatherType legacyType, float legacyStrength, bool legacyClustering)
 	{
 		Snapshot = atmosphere.CreateRuntimeSnapshot(legacyType, legacyStrength, legacyClustering);
+		RenderData = atmosphere.CreateRenderData(legacyType, legacyStrength, legacyClustering);
 	}
 
 	inline const AtmosphereRuntimeSnapshot& AtmosphereRuntimeController::GetSnapshot() const
 	{
 		return Snapshot;
+	}
+
+	inline const AtmosphereRenderData& AtmosphereRuntimeController::GetRenderData() const
+	{
+		return RenderData;
 	}
 
 	inline bool AtmosphereRuntimeController::IsEnabled() const
@@ -520,36 +639,36 @@ namespace TEN::Scripting
 
 	inline bool AtmosphereRuntimeController::HasWeather() const
 	{
-		return Snapshot.Type != WeatherType::None && Snapshot.Strength > 0.0f;
+		return RenderData.HasWeather();
 	}
 
 	inline bool AtmosphereRuntimeController::HasAurora() const
 	{
-		return Snapshot.Enabled && Snapshot.Aurora.Enabled && Snapshot.Aurora.Intensity > 0.0f;
+		return RenderData.HasAurora();
 	}
 
 	inline bool AtmosphereRuntimeController::HasMoon() const
 	{
-		return Snapshot.Enabled && Snapshot.Moon.Enabled && Snapshot.Moon.Intensity > 0.0f;
+		return RenderData.HasMoon();
 	}
 
 	inline bool AtmosphereRuntimeController::HasEnabledEffects() const
 	{
-		return Snapshot.EnabledEffectCount > 0;
+		return RenderData.HasEffects();
 	}
 
 	inline bool AtmosphereRuntimeController::HasLocalEffects() const
 	{
-		return Snapshot.LocalEffectCount > 0;
+		return RenderData.HasLocalEffects();
 	}
 
 	inline bool AtmosphereRuntimeController::HasLightShafts() const
 	{
-		return Snapshot.EnabledLightShaftCount > 0;
+		return RenderData.HasLightShafts();
 	}
 
 	inline bool AtmosphereRuntimeController::HasLocalLightShafts() const
 	{
-		return Snapshot.LocalLightShaftCount > 0;
+		return RenderData.HasLocalLightShafts();
 	}
 }
