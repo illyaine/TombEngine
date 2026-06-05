@@ -110,6 +110,8 @@ struct Level : public ScriptInterfaceLevel
 	bool GetAtmosphereEnabled() const;
 	bool GetAtmosphereEnvironmentEnabled() const;
 	bool GetAtmosphereCelestialEnabled() const;
+	bool GetAtmosphereHasGameplayHazard() const;
+	float GetAtmosphereHazardDamagePerSecond() const;
 	int GetAtmosphereCelestialBodyCount() const;
 	bool GetAtmosphereCelestialHasSpaceBodies() const;
 
