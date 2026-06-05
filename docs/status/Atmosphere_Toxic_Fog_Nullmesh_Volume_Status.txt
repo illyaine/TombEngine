@@ -1,0 +1,88 @@
+Atmosphere system - toxic fog, nullmesh fog and global outdoor fog notes
+====================================================================
+
+Status
+------
+This file records a later implementation block for atmosphere-linked toxic fog and wobbling fog effects.
+It is intentionally a planning/status note only. No renderer or gameplay activation is implied by this file.
+
+Goal
+----
+The atmosphere system should support toxic and stylized fog on two separate levels:
+
+1. Global level / outdoor atmosphere
+   - Used for broad outdoor conditions, planetary atmosphere, space/alien levels, toxic planets, heavy mist, general ground fog, radiation haze, acid rain ambience, dust or spores.
+   - Should be controlled through the level atmosphere/environment profile.
+   - Should work as a base layer for outside areas and optionally selected rooms or exterior zones.
+
+2. Local nullmesh / volume anchored effects
+   - Used for placed fog sources, toxic gas vents, local poison clouds, swamp mist, magical haze, spores, radiation dust, acid vapor, steam or custom visual effects.
+   - Should be anchored to a nullmesh, object, room, or later volume/zone.
+   - Should have independent size, height, color, density, alpha, speed, turbulence, vertical drift, softness, lifetime, and optional texture/preset settings.
+
+Important separation
+--------------------
+Global atmosphere and local effect volumes must stay separated.
+The global profile defines the broad environment state.
+Local nullmesh/volume effects add or override visible and gameplay-local behavior without forcing the whole level to become toxic.
+
+Chained effect idea
+-------------------
+The system should allow multiple effect layers to be chained or stacked:
+
+- Base outside fog / haze.
+- Local nullmesh fog volume.
+- Optional toxic gameplay component.
+- Optional particles, sparks, spores, dripping acid, radiation shimmer, colored light, sound loop, damage tick, or trigger logic.
+
+This allows complex effects such as:
+
+- A toxic green swamp haze globally outside, with stronger poison clouds around vents.
+- A harmless wobbling fantasy fog globally, with local magic particles in selected nullmesh zones.
+- A space/alien level with no rain, but localized methane vapor or plasma fog around machinery.
+- Acid rain outside, plus stronger acid vapor close to pools or vents.
+- Radiation dust in a room, plus local damage-only zones around broken reactor nullmeshes.
+
+Expected parameters
+-------------------
+Local and global fog/effect profiles should eventually support:
+
+- Enabled state.
+- Scope: global, nullmesh, room, volume.
+- Anchor name or object/nullmesh reference.
+- Preset name.
+- Effect type: ground fog, mist, toxic fog, acid vapor, radiation haze, spores, steam, magic haze, custom.
+- Radius and height.
+- Density and alpha.
+- Primary/secondary color.
+- Movement speed and direction.
+- Turbulence/wobble strength.
+- Vertical drift.
+- Edge softness and fade distance.
+- Geometry interaction: clamp to room, stop at walls, stop at floors, stop at ceilings.
+- Wind inheritance.
+- Optional hazard material/type.
+- Visual-only toggle.
+- Optional damage per second.
+- Optional SFX/VFX chain IDs or preset links.
+
+Gameplay rule
+-------------
+Toxic or damaging fog should never become damaging implicitly just because it looks toxic.
+There should always be a clear visual-only/gameplay toggle and a damage-per-second value.
+This keeps decorative atmosphere safe by default and makes harmful fog intentional.
+
+Implementation notes for later
+------------------------------
+- Reuse the existing atmosphere effect profile path where possible instead of adding a separate service hierarchy.
+- Keep the global atmosphere/environment profile as the broad rule layer.
+- Keep local fog as effect entries with scope Global/Nullmesh/Room/Volume.
+- Avoid new standalone manager/services unless renderer/gameplay integration actually needs them.
+- The renderer can later consume the existing render data and split global/local passes.
+- Gameplay damage can later be resolved from the same effect entries once position/anchor/volume testing exists.
+- Editor integration should expose this in a builder-friendly way as fog/effect presets rather than raw internal technical fields.
+
+Current branch relevance
+------------------------
+The current AtmosphereEffectProfile already has useful early fields for global/nullmesh/room/volume scope, anchor name, radius, height, density, speed, direction, turbulence, vertical drift, size range, fade distance, alpha, generated detail/softness/variation, geometry clamps, wind inheritance, and two colors.
+Future work should extend that path only where necessary instead of creating a parallel toxic-fog system.
