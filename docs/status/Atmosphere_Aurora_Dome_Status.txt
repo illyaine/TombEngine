@@ -10,6 +10,14 @@ Current test state
 - Animation uses the frame counter instead of interpolation frame data.
 - Aurora curtain movement and contrast have been increased for visible test feedback.
 - The legacy horizon mesh remains active and can still expose its square/box-like geometry.
+- Latest screenshot feedback: the current projection is mostly round, but the aurora band still ended too abruptly and looked too uniform in color.
+
+Latest visual tuning
+--------------------
+- Aurora side and screen-edge fades were softened so the band should no longer terminate as sharply at the visible dome edges.
+- Added lightweight procedural noise for curtain/ray variation.
+- Added green/cyan/blue/violet color variation for testing without introducing new renderer-side profile data yet.
+- Kept the changes shader-local and minimal. No new renderer service/provider/wrapper was added.
 
 Why a dome is still needed
 --------------------------
@@ -31,11 +39,14 @@ Open work after the next visual test
 - Add a proper render switch: legacy horizon, atmosphere dome, or both.
 - Add project-file deployment entry for Shaders/Aurora.hlsli if needed by the local Visual Studio/project deployment setup.
 - Move Aurora parameters into the Atmosphere profile instead of hard-coded shader constants.
+- Reduce or replace the temporary sky-grid draw path once the dedicated atmosphere pass exists.
 
 Test checklist
 --------------
 - Aurora should show visible wave/curtain movement.
 - Aurora should not rotate as a fixed screen overlay when the camera turns.
+- Aurora should fade more softly at the dome/screen edges than in the previous screenshot.
+- Aurora should show visible green/cyan/blue/violet variation for test feedback.
 - Horizon should no longer fully cut the aurora, but square horizon geometry may still be visible until the dome exists.
 - Rain is still the legacy TEN rain fallback and not yet the final Atmosphere rain renderer.
 
