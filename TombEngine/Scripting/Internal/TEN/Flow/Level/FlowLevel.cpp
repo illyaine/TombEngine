@@ -41,7 +41,7 @@ void Level::Register(sol::table& parent)
 		"levelFile", &Level::FileName,
 
 /// (string) Load screen image.
-// Path of the level's load screen file (.png or .jpg), relative to the location of the Tomb Engine executable.
+// Path of the level's load screen file (.png or .jpg), relative to the location of the TombEngine executable.
 //@mem loadScreenFile
 		"loadScreenFile", &Level::LoadScreenFileName,
 		
@@ -250,6 +250,11 @@ const TEN::Scripting::Atmosphere& Level::GetAtmosphere() const
 TEN::Scripting::AtmosphereRuntimeSnapshot Level::CreateAtmosphereRuntimeSnapshot() const
 {
 	return Atmosphere.CreateRuntimeSnapshot(Weather, WeatherStrength, WeatherClustering);
+}
+
+TEN::Scripting::AtmosphereRenderData Level::CreateAtmosphereRenderData() const
+{
+	return Atmosphere.CreateRenderData(Weather, WeatherStrength, WeatherClustering);
 }
 
 bool Level::GetAtmosphereEnabled() const
