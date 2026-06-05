@@ -3,8 +3,6 @@
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereCelestial.h"
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereCelestialRender.h"
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereEnvironment.h"
-#include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereEnvironmentRuntime.h"
-#include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereRuntimeState.h"
 #include "Scripting/Internal/TEN/Flow/Horizon/Horizon.h"
 #include "Scripting/Internal/TEN/Flow/LensFlare/LensFlare.h"
 #include "Scripting/Internal/TEN/Flow/SkyLayer/SkyLayer.h"
@@ -109,8 +107,6 @@ struct Level : public ScriptInterfaceLevel
 	TEN::Scripting::AtmosphereRenderData CreateAtmosphereRenderData() const;
 	TEN::Scripting::AtmosphereRenderPlan CreateAtmosphereRenderPlan() const;
 	TEN::Scripting::AtmosphereCelestialRenderData CreateAtmosphereCelestialRenderData() const;
-	TEN::Scripting::AtmosphereEnvironmentRuntimeData CreateAtmosphereEnvironmentRuntimeData() const;
-	TEN::Scripting::AtmosphereRuntimeState CreateAtmosphereRuntimeState() const;
 	SkyAtmosphereRenderData CreateSkyAtmosphereRenderData() const;
 	bool GetAtmosphereEnabled() const;
 	bool GetAtmosphereEnvironmentEnabled() const;
@@ -144,19 +140,3 @@ struct Level : public ScriptInterfaceLevel
 	int	  GetStarfieldMeteorSpawnDensity() const override;
 	float GetStarfieldMeteorVelocity() const override;
 };
-
-inline TEN::Scripting::AtmosphereEnvironmentRuntimeData Level::CreateAtmosphereEnvironmentRuntimeData() const
-{
-	return TEN::Scripting::CreateAtmosphereEnvironmentRuntimeData(AtmosphereEnvironment);
-}
-
-inline TEN::Scripting::AtmosphereRuntimeState Level::CreateAtmosphereRuntimeState() const
-{
-	TEN::Scripting::AtmosphereRuntimeState state = {};
-	state.Snapshot = CreateAtmosphereRuntimeSnapshot();
-	state.RenderData = CreateAtmosphereRenderData();
-	state.RenderPlan = CreateAtmosphereRenderPlan();
-	state.Environment = CreateAtmosphereEnvironmentRuntimeData();
-	state.Celestial = CreateAtmosphereCelestialRenderData();
-	return state;
-}
