@@ -14,6 +14,28 @@ namespace TEN::Scripting
 		Auto
 	};
 
+	enum class AtmosphereEffectType
+	{
+		None,
+		GroundFog,
+		Mist,
+		SnowstormVeil,
+		SandstormVeil,
+		DustSheet,
+		AshFall,
+		LeafFall,
+		Fireflies,
+		MagicParticles
+	};
+
+	enum class AtmosphereEffectScope
+	{
+		Global,
+		Nullmesh,
+		Room,
+		Volume
+	};
+
 	/// Constants for weather quality budgets.
 	// @enum Flow.WeatherQuality
 	// @pragma nostrip
@@ -107,12 +129,53 @@ namespace TEN::Scripting
 		static void Register(sol::table& parent);
 	};
 
+	struct AtmosphereEffectProfile
+	{
+		bool Enabled{ false };
+		AtmosphereEffectType Type{ AtmosphereEffectType::None };
+		AtmosphereEffectScope Scope{ AtmosphereEffectScope::Global };
+		std::string AnchorName = {};
+		float Radius{ 1024.0f };
+		float Height{ 512.0f };
+		float Density{ 1.0f };
+		float Speed{ 0.25f };
+		float Direction{ 0.0f };
+		float Turbulence{ 0.0f };
+		float VerticalDrift{ 0.0f };
+		float MinSize{ 16.0f };
+		float MaxSize{ 64.0f };
+		float Lifetime{ 4.0f };
+		float FadeDistance{ 512.0f };
+		float Alpha{ 1.0f };
+		bool CollideWithGeometry{ true };
+		bool StopAtWalls{ true };
+		bool StopAtFloors{ true };
+		bool StopAtCeilings{ true };
+		bool ClampToRoom{ true };
+		bool InheritWind{ true };
+
+		byte ColorAR{ 255 };
+		byte ColorAG{ 255 };
+		byte ColorAB{ 255 };
+		byte ColorBR{ 255 };
+		byte ColorBG{ 255 };
+		byte ColorBB{ 255 };
+
+		void SetColorA(Types::ScriptColor const& color);
+		void SetColorB(Types::ScriptColor const& color);
+		Types::ScriptColor GetColorA() const;
+		Types::ScriptColor GetColorB() const;
+
+		static void Register(sol::table& parent);
+	};
+
 	struct Atmosphere
 	{
 		bool Enabled{ false };
 		WeatherProfile Weather = {};
 		WindProfile Wind = {};
 		AuroraProfile Aurora = {};
+		std::vector<AtmosphereEffectProfile> Effects = {};
 
 		static void Register(sol::table& parent);
 	};
