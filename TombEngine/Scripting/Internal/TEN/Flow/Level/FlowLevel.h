@@ -1,5 +1,6 @@
 #pragma once
 #include "Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.h"
+#include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereCelestial.h"
 #include "Scripting/Internal/TEN/Flow/Atmosphere/AtmosphereEnvironment.h"
 #include "Scripting/Internal/TEN/Flow/Horizon/Horizon.h"
 #include "Scripting/Internal/TEN/Flow/LensFlare/LensFlare.h"
@@ -21,6 +22,8 @@ struct SkyAtmosphereRenderData
 	bool StarfieldEnabled{ false };
 	bool StormEnabled{ false };
 	bool LegacySkyEnabled{ false };
+	bool AtmosphereCelestialEnabled{ false };
+	int AtmosphereCelestialBodyCount{ 0 };
 	TEN::Scripting::AtmosphereRenderData AtmosphereData = {};
 	TEN::Scripting::AtmosphereRenderPlan AtmospherePlan = {};
 
@@ -36,7 +39,7 @@ inline bool SkyAtmosphereRenderData::HasLegacySky() const
 
 inline bool SkyAtmosphereRenderData::HasAtmosphere() const
 {
-	return AtmospherePlan.HasAnyPass();
+	return AtmospherePlan.HasAnyPass() || AtmosphereCelestialEnabled;
 }
 
 inline bool SkyAtmosphereRenderData::HasAnySkyOrAtmosphere() const
@@ -58,6 +61,7 @@ struct Level : public ScriptInterfaceLevel
 	TEN::Scripting::Starfield Starfield = {};
 	TEN::Scripting::Atmosphere Atmosphere = {};
 	TEN::Scripting::AtmosphereEnvironmentProfile AtmosphereEnvironment = {};
+	TEN::Scripting::AtmosphereCelestialProfile AtmosphereCelestial = {};
 
 	WeatherType Weather				= WeatherType::None;
 	float		WeatherStrength		= 1.0f;
@@ -96,12 +100,16 @@ struct Level : public ScriptInterfaceLevel
 	// Atmosphere getters
 	const TEN::Scripting::Atmosphere& GetAtmosphere() const;
 	const TEN::Scripting::AtmosphereEnvironmentProfile& GetAtmosphereEnvironment() const;
+	const TEN::Scripting::AtmosphereCelestialProfile& GetAtmosphereCelestial() const;
 	TEN::Scripting::AtmosphereRuntimeSnapshot CreateAtmosphereRuntimeSnapshot() const;
 	TEN::Scripting::AtmosphereRenderData CreateAtmosphereRenderData() const;
 	TEN::Scripting::AtmosphereRenderPlan CreateAtmosphereRenderPlan() const;
 	SkyAtmosphereRenderData CreateSkyAtmosphereRenderData() const;
 	bool GetAtmosphereEnabled() const;
 	bool GetAtmosphereEnvironmentEnabled() const;
+	bool GetAtmosphereCelestialEnabled() const;
+	int GetAtmosphereCelestialBodyCount() const;
+	bool GetAtmosphereCelestialHasSpaceBodies() const;
 
 	// Horizon getters
 	bool GetHorizonEnabled(int index) const override;
@@ -128,8 +136,4 @@ struct Level : public ScriptInterfaceLevel
 	int	  GetStarfieldMeteorCount() const override;
 	int	  GetStarfieldMeteorSpawnDensity() const override;
 	float GetStarfieldMeteorVelocity() const override;
-
-	// Utility
-	const SkyLayer& GetSkyLayer(int index) const;
-	const TEN::Scripting::Horizon& GetHorizon(int index) const;
 };
