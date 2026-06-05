@@ -231,6 +231,35 @@ namespace TEN::Scripting
 		static void Register(sol::table& parent);
 	};
 
+	struct MoonProfile
+	{
+		bool Enabled{ false };
+		float Pitch{ -18.0f };
+		float Yaw{ 225.0f };
+		float Size{ 1.0f };
+		float Intensity{ 0.8f };
+		float HaloIntensity{ 0.25f };
+		float LightIntensity{ 0.2f };
+		float Phase{ 1.0f };
+		bool FadeWithFog{ true };
+		bool DrivesLightShafts{ true };
+		std::string TextureName = {};
+
+		byte ColorR{ 220 };
+		byte ColorG{ 230 };
+		byte ColorB{ 255 };
+		byte LightColorR{ 180 };
+		byte LightColorG{ 200 };
+		byte LightColorB{ 255 };
+
+		void SetColor(Types::ScriptColor const& color);
+		void SetLightColor(Types::ScriptColor const& color);
+		Types::ScriptColor GetColor() const;
+		Types::ScriptColor GetLightColor() const;
+
+		static void Register(sol::table& parent);
+	};
+
 	struct AtmosphereEffectProfile
 	{
 		bool Enabled{ false };
@@ -278,6 +307,34 @@ namespace TEN::Scripting
 		static void Register(sol::table& parent);
 	};
 
+	struct LightShaftProfile
+	{
+		bool Enabled{ false };
+		AtmosphereEffectScope Scope{ AtmosphereEffectScope::Global };
+		std::string AnchorName = {};
+		float Pitch{ -45.0f };
+		float Yaw{ 0.0f };
+		float Length{ 4096.0f };
+		float Radius{ 512.0f };
+		float Intensity{ 0.45f };
+		float Density{ 0.35f };
+		float Softness{ 1.0f };
+		float DustDensity{ 0.15f };
+		bool InheritMoonDirection{ false };
+		bool FadeWithFog{ true };
+		bool BlockedByGeometry{ true };
+		bool ClampToRoom{ true };
+
+		byte ColorR{ 230 };
+		byte ColorG{ 235 };
+		byte ColorB{ 255 };
+
+		void SetColor(Types::ScriptColor const& color);
+		Types::ScriptColor GetColor() const;
+
+		static void Register(sol::table& parent);
+	};
+
 	struct AtmosphereRuntimeSnapshot
 	{
 		bool Enabled{ false };
@@ -288,8 +345,11 @@ namespace TEN::Scripting
 		RainProfile Rain = {};
 		WindProfile Wind = {};
 		AuroraProfile Aurora = {};
+		MoonProfile Moon = {};
 		int EnabledEffectCount{ 0 };
 		int LocalEffectCount{ 0 };
+		int EnabledLightShaftCount{ 0 };
+		int LocalLightShaftCount{ 0 };
 	};
 
 	struct Atmosphere
@@ -298,13 +358,20 @@ namespace TEN::Scripting
 		WeatherProfile Weather = {};
 		WindProfile Wind = {};
 		AuroraProfile Aurora = {};
+		MoonProfile Moon = {};
 		std::vector<AtmosphereEffectProfile> Effects = {};
+		std::vector<LightShaftProfile> LightShafts = {};
 
 		AtmosphereRuntimeSnapshot CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const;
 		int GetEnabledEffectCount() const;
 		int GetLocalEffectCount() const;
+		int GetEnabledLightShaftCount() const;
+		int GetLocalLightShaftCount() const;
 		bool HasEnabledEffects() const;
 		bool HasLocalEffects() const;
+		bool HasMoon() const;
+		bool HasLightShafts() const;
+		bool HasLocalLightShafts() const;
 
 		static void Register(sol::table& parent);
 	};
@@ -319,8 +386,11 @@ namespace TEN::Scripting
 		bool IsEnabled() const;
 		bool HasWeather() const;
 		bool HasAurora() const;
+		bool HasMoon() const;
 		bool HasEnabledEffects() const;
 		bool HasLocalEffects() const;
+		bool HasLightShafts() const;
+		bool HasLocalLightShafts() const;
 	};
 
 	inline AtmosphereRuntimeSnapshot Atmosphere::CreateRuntimeSnapshot(WeatherType legacyType, float legacyStrength, bool legacyClustering) const
@@ -343,8 +413,11 @@ namespace TEN::Scripting
 		snapshot.Rain = Weather.Rain;
 		snapshot.Wind = Wind;
 		snapshot.Aurora = Aurora;
+		snapshot.Moon = Moon;
 		snapshot.EnabledEffectCount = GetEnabledEffectCount();
 		snapshot.LocalEffectCount = GetLocalEffectCount();
+		snapshot.EnabledLightShaftCount = GetEnabledLightShaftCount();
+		snapshot.LocalLightShaftCount = GetLocalLightShaftCount();
 		return snapshot;
 	}
 
@@ -374,6 +447,32 @@ namespace TEN::Scripting
 		return count;
 	}
 
+	inline int Atmosphere::GetEnabledLightShaftCount() const
+	{
+		int count = 0;
+
+		for (auto const& shaft : LightShafts)
+		{
+			if (shaft.Enabled)
+				count++;
+		}
+
+		return count;
+	}
+
+	inline int Atmosphere::GetLocalLightShaftCount() const
+	{
+		int count = 0;
+
+		for (auto const& shaft : LightShafts)
+		{
+			if (shaft.Enabled && shaft.Scope != AtmosphereEffectScope::Global)
+				count++;
+		}
+
+		return count;
+	}
+
 	inline bool Atmosphere::HasEnabledEffects() const
 	{
 		return GetEnabledEffectCount() > 0;
@@ -382,6 +481,21 @@ namespace TEN::Scripting
 	inline bool Atmosphere::HasLocalEffects() const
 	{
 		return GetLocalEffectCount() > 0;
+	}
+
+	inline bool Atmosphere::HasMoon() const
+	{
+		return Enabled && Moon.Enabled && Moon.Intensity > 0.0f;
+	}
+
+	inline bool Atmosphere::HasLightShafts() const
+	{
+		return GetEnabledLightShaftCount() > 0;
+	}
+
+	inline bool Atmosphere::HasLocalLightShafts() const
+	{
+		return GetLocalLightShaftCount() > 0;
 	}
 
 	inline void AtmosphereRuntimeController::Reset()
@@ -414,6 +528,11 @@ namespace TEN::Scripting
 		return Snapshot.Enabled && Snapshot.Aurora.Enabled && Snapshot.Aurora.Intensity > 0.0f;
 	}
 
+	inline bool AtmosphereRuntimeController::HasMoon() const
+	{
+		return Snapshot.Enabled && Snapshot.Moon.Enabled && Snapshot.Moon.Intensity > 0.0f;
+	}
+
 	inline bool AtmosphereRuntimeController::HasEnabledEffects() const
 	{
 		return Snapshot.EnabledEffectCount > 0;
@@ -422,5 +541,15 @@ namespace TEN::Scripting
 	inline bool AtmosphereRuntimeController::HasLocalEffects() const
 	{
 		return Snapshot.LocalEffectCount > 0;
+	}
+
+	inline bool AtmosphereRuntimeController::HasLightShafts() const
+	{
+		return Snapshot.EnabledLightShaftCount > 0;
+	}
+
+	inline bool AtmosphereRuntimeController::HasLocalLightShafts() const
+	{
+		return Snapshot.LocalLightShaftCount > 0;
 	}
 }
