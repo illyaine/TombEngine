@@ -4,7 +4,7 @@
 
 This file describes what can be tested from the current `atmosphere_system` branch before renderer activation exists.
 
-The current branch is not expected to show aurora or generated atmosphere visuals yet. The goal of this test pass is to verify that the Flow data shape, legacy weather fallback, enum tables, and non-rendering runtime snapshot path compile and do not break existing levels.
+The current branch is not expected to show aurora, moon, light shafts, or generated atmosphere visuals yet. The goal of this test pass is to verify that the Flow data shape, legacy weather fallback, enum tables, and non-rendering runtime snapshot path compile and do not break existing levels.
 
 ## Expected Current Behavior
 
@@ -15,8 +15,8 @@ Expected visible behavior:
 - Existing levels without level.atmosphere should behave like before.
 - level.atmosphere can be present in Flow/Lua without crashing script loading if the binding compiles.
 - WeatherQuality, AtmosphereEffectType, AtmosphereEffectScope, and AtmosphereEffectRenderMode should be available as Flow tables.
-- Aurora fields should load as data only. They are not rendered yet.
-- Local/nullmesh effects should load as data only. They are not rendered yet.
+- Aurora, moon, and light shaft fields should load as data only. They are not rendered yet.
+- Local/nullmesh effects and local/nullmesh light shafts should load as data only. They are not rendered yet.
 ```
 
 ## Test 1: Legacy Weather Compatibility
@@ -83,6 +83,21 @@ level.atmosphere = Flow.Atmosphere {
 		colorA = Color(80, 180, 255),
 		colorB = Color(120, 255, 180),
 		colorC = Color(180, 120, 255)
+	},
+
+	moon = Flow.MoonProfile {
+		enabled = true,
+		pitch = -18,
+		yaw = 225,
+		size = 1.2,
+		intensity = 0.85,
+		haloIntensity = 0.35,
+		lightIntensity = 0.25,
+		phase = 1.0,
+		fadeWithFog = true,
+		drivesLightShafts = true,
+		color = Color(220, 230, 255),
+		lightColor = Color(180, 200, 255)
 	}
 }
 ```
@@ -92,7 +107,8 @@ Expected result:
 ```text
 - Script loads if Flow binding is correct.
 - Weather getters should use atmosphere.weather values.
-- Aurora is not visible yet because no renderer layer is implemented.
+- Aurora and moon are not visible yet because no renderer layer is implemented.
+- Moon position is script-controlled through pitch/yaw data.
 ```
 
 ## Test 3: Generated Effect Data Shape Only
@@ -159,13 +175,77 @@ Expected result:
 - This workflow is intended to be authored by Tomb Editor Object Parameters later, not by hand-written scripts.
 ```
 
+## Test 5: Global Light Shaft Data Shape Only
+
+Add one global moon-driven light shaft:
+
+```lua
+level.atmosphere.lightShafts = {
+	Flow.LightShaftProfile {
+		enabled = true,
+		scope = AtmosphereEffectScope.Global,
+		inheritMoonDirection = true,
+		length = 4096,
+		radius = 768,
+		intensity = 0.45,
+		density = 0.35,
+		softness = 1.0,
+		dustDensity = 0.15,
+		fadeWithFog = true,
+		blockedByGeometry = true,
+		color = Color(220, 230, 255)
+	}
+}
+```
+
+Expected result:
+
+```text
+- This is data-only for now.
+- No visible shaft should render yet.
+- The shaft can inherit the moon direction later.
+```
+
+## Test 6: Local Nullmesh Light Shaft Data Shape Only
+
+Add one local/nullmesh-style light shaft:
+
+```lua
+level.atmosphere.lightShafts = {
+	Flow.LightShaftProfile {
+		enabled = true,
+		scope = AtmosphereEffectScope.Nullmesh,
+		anchorName = "shaft_window_01",
+		pitch = -45,
+		yaw = 135,
+		length = 3072,
+		radius = 384,
+		intensity = 0.6,
+		density = 0.45,
+		softness = 1.0,
+		dustDensity = 0.25,
+		blockedByGeometry = true,
+		clampToRoom = true,
+		color = Color(255, 235, 190)
+	}
+}
+```
+
+Expected result:
+
+```text
+- This is data-only for now.
+- No visible shaft should render yet.
+- This workflow is intended to be authored by Tomb Editor Object Parameters later.
+```
+
 ## If Compile Fails
 
 Known likely failure points:
 
 ```text
 - Flow table registration for WeatherQuality / AtmosphereEffectType / AtmosphereEffectScope / AtmosphereEffectRenderMode may need to move to FlowHandler MakeReadOnlyTable style.
-- std::vector<AtmosphereEffectProfile> assignment from Lua table may need a table-wrapper pattern.
+- std::vector<AtmosphereEffectProfile> or std::vector<LightShaftProfile> assignment from Lua table may need a table-wrapper pattern.
 - TombEngine.vcxproj noisy diff may need local cleanup.
 ```
 
@@ -186,6 +266,7 @@ This branch is ready for the next implementation step when:
 - TombEngine compiles locally.
 - Existing legacy weather scripts still load.
 - A level script with level.atmosphere loads.
+- MoonProfile and LightShaftProfile load as data.
 - WeatherQuality and AtmosphereEffect* tables are usable in Lua.
 - The .vcxproj diff is cleaned before PR.
 ```
