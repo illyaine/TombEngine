@@ -6,9 +6,9 @@ This file tracks the known compile-sensitive areas of the current `atmosphere_sy
 
 No build has been run for this branch in this environment.
 
-## Highest Risk: Flow Enum Registration
+## Flow Enum Registration
 
-The current atmosphere Flow registration uses `parent.new_enum` for these enum groups:
+The atmosphere Flow enum groups are currently exposed as normal Flow tables from static lookup maps:
 
 ```text
 WeatherQuality
@@ -17,18 +17,9 @@ AtmosphereEffectScope
 AtmosphereEffectRenderMode
 ```
 
-Existing TombEngine Flow code visibly uses read-only tables for classic enum constants, for example `WEATHER_TYPES` is registered through `MakeReadOnlyTable` in `FlowHandler.cpp`.
+The earlier `parent.new_enum` path was removed to reduce sol2 compatibility risk.
 
-If local compile fails around `new_enum`, use the existing TombEngine style instead:
-
-```text
-1. Keep enum values as C++ enum class types.
-2. Add static const unordered_map tables for atmosphere enum values.
-3. Register those tables in FlowHandler with MakeReadOnlyTable.
-4. Remove the parent.new_enum calls from Atmosphere::Register.
-```
-
-Suggested table names:
+Current table names:
 
 ```text
 WEATHER_QUALITIES
@@ -37,7 +28,7 @@ ATMOSPHERE_EFFECT_SCOPES
 ATMOSPHERE_EFFECT_RENDER_MODES
 ```
 
-Suggested script names:
+Current script names:
 
 ```text
 WeatherQuality
@@ -45,6 +36,10 @@ AtmosphereEffectType
 AtmosphereEffectScope
 AtmosphereEffectRenderMode
 ```
+
+Remaining possible risk: these tables are registered inside `Atmosphere::Register` via `parent.set(...)`, not through `FlowHandler::_handler.MakeReadOnlyTable(...)`. This keeps the change localized and avoids a broad `FlowHandler.cpp` edit, but the values may not be read-only like classic `WeatherType`.
+
+If maintainers prefer the existing strict pattern, move registration into `FlowHandler.cpp` later with `MakeReadOnlyTable`.
 
 ## Vector Binding Risk
 
@@ -85,7 +80,7 @@ Recommended local check order:
 
 ```text
 1. Build TombEngine.
-2. If enum registration fails, switch atmosphere enums to MakeReadOnlyTable style.
+2. If table enum registration fails, move atmosphere enum tables to FlowHandler MakeReadOnlyTable registration.
 3. If effects vector binding fails, defer the effects array or wrap it in the existing Flow table style.
 4. Clean TombEngine.vcxproj noisy diff.
 5. Rebuild before opening PR.
