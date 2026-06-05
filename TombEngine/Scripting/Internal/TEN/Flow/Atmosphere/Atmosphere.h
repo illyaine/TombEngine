@@ -117,5 +117,3 @@ namespace TEN::Scripting
 		static void Register(sol::table& parent);
 	};
 }
-
-#include "Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.inl"
