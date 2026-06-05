@@ -62,6 +62,7 @@ struct Level : public ScriptInterfaceLevel
 	const TEN::Scripting::Atmosphere& GetAtmosphere() const;
 	TEN::Scripting::AtmosphereRuntimeSnapshot CreateAtmosphereRuntimeSnapshot() const;
 	TEN::Scripting::AtmosphereRenderData CreateAtmosphereRenderData() const;
+	TEN::Scripting::AtmosphereRenderPlan CreateAtmosphereRenderPlan() const;
 	bool GetAtmosphereEnabled() const;
 
 	// Horizon getters
