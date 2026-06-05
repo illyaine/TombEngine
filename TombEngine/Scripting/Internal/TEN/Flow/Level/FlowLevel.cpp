@@ -5,6 +5,111 @@
 
 using namespace TEN::Scripting;
 
+namespace
+{
+	WeatherType GetRawWeatherType(Level const& level)
+	{
+		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Type : level.Weather;
+	}
+
+	float GetRawWeatherStrength(Level const& level)
+	{
+		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Strength : level.WeatherStrength;
+	}
+
+	bool GetRawWeatherClustering(Level const& level)
+	{
+		return level.Atmosphere.Enabled ? level.Atmosphere.Weather.Clustering : level.WeatherClustering;
+	}
+
+	bool AllowsEnvironmentWeather(AtmosphereEnvironmentProfile const& environment, WeatherType type)
+	{
+		if (!environment.Enabled || type == WeatherType::None)
+			return true;
+
+		if (!environment.AllowsWeatherType(type))
+			return false;
+
+		if (environment.HasHazardousPrecipitation() && !environment.AllowToxicWeather && !environment.ForceAllowPrecipitation)
+			return false;
+
+		return true;
+	}
+
+	void ApplyEnvironmentToWeather(AtmosphereEnvironmentProfile const& environment, WeatherType& type, float& strength, bool& clustering)
+	{
+		if (AllowsEnvironmentWeather(environment, type))
+			return;
+
+		type = WeatherType::None;
+		strength = 0.0f;
+		clustering = false;
+	}
+
+	void ApplyEnvironmentToWind(AtmosphereEnvironmentProfile const& environment, WindProfile& wind)
+	{
+		if (!environment.Enabled || environment.AllowsWind())
+			return;
+
+		wind = {};
+	}
+
+	void ApplyEnvironmentToSnapshot(AtmosphereEnvironmentProfile const& environment, AtmosphereRuntimeSnapshot& snapshot)
+	{
+		ApplyEnvironmentToWeather(environment, snapshot.Type, snapshot.Strength, snapshot.Clustering);
+		ApplyEnvironmentToWind(environment, snapshot.Wind);
+	}
+
+	void ApplyEnvironmentToRenderData(AtmosphereEnvironmentProfile const& environment, AtmosphereRenderData& data)
+	{
+		ApplyEnvironmentToWeather(environment, data.WeatherTypeValue, data.WeatherStrength, data.WeatherClustering);
+		ApplyEnvironmentToWind(environment, data.Wind);
+	}
+
+	AtmosphereRenderPlan CreateRenderPlanFromData(AtmosphereRenderData const& data)
+	{
+		AtmosphereRenderPlan plan = {};
+
+		plan.Enabled = data.Enabled;
+		plan.DrawWeather = data.HasWeather();
+		plan.DrawMoon = data.HasMoon();
+		plan.DrawAurora = data.HasAurora();
+
+		for (auto const& shaft : data.LightShafts)
+		{
+			if (shaft.Scope == AtmosphereEffectScope::Global)
+				plan.DrawGlobalLightShafts = true;
+			else
+				plan.DrawLocalLightShafts = true;
+		}
+
+		for (auto const& effect : data.Effects)
+		{
+			if (effect.Scope == AtmosphereEffectScope::Global)
+				plan.DrawGlobalEffects = true;
+			else
+				plan.DrawLocalEffects = true;
+		}
+
+		if (plan.DrawWeather)
+			plan.PassCount++;
+		if (plan.DrawMoon)
+			plan.PassCount++;
+		if (plan.DrawAurora)
+			plan.PassCount++;
+		if (plan.DrawGlobalLightShafts)
+			plan.PassCount++;
+		if (plan.DrawLocalLightShafts)
+			plan.PassCount++;
+		if (plan.DrawGlobalEffects)
+			plan.PassCount++;
+		if (plan.DrawLocalEffects)
+			plan.PassCount++;
+
+		return plan;
+	}
+}
+
 /***
 Stores level metadata.
 These are things things which aren't present in the compiled level file itself.
@@ -19,6 +124,7 @@ These are things things which aren't present in the compiled level file itself.
 void Level::Register(sol::table& parent)
 {
 	TEN::Scripting::Atmosphere::Register(parent);
+	TEN::Scripting::AtmosphereEnvironmentProfile::Register(parent);
 
 	// Register type.
 	parent.new_usertype<Level>(
@@ -41,7 +147,7 @@ void Level::Register(sol::table& parent)
 		"levelFile", &Level::FileName,
 
 /// (string) Load screen image.
-// Path of the level's load screen file (.png or .jpg), relative to the location of the TombEngine executable.
+// Path of the level's load screen file (.png or .jpg), relative to the location of the Tomb Engine executable.
 //@mem loadScreenFile
 		"loadScreenFile", &Level::LoadScreenFileName,
 		
@@ -83,6 +189,10 @@ void Level::Register(sol::table& parent)
 /// (@{Flow.Atmosphere}) Atmosphere, weather, wind, and sky effect settings.
 //@mem atmosphere
 		"atmosphere", &Level::Atmosphere,
+
+/// (@{Flow.AtmosphereEnvironmentProfile}) Environment rules for weather, wind, space, and planetary weather.
+//@mem atmosphereEnvironment
+		"atmosphereEnvironment", &Level::AtmosphereEnvironment,
 
 /// (bool) Enable flickering lightning in the sky.
 // Equivalent to classic TRLE's lightning setting, as in the TRC Ireland levels or TR4 Cairo levels.
@@ -194,17 +304,29 @@ bool Level::GetRumbleEnabled() const
 
 bool Level::GetWeatherClustering() const
 {
-	return Atmosphere.Enabled ? Atmosphere.Weather.Clustering : WeatherClustering;
+	WeatherType type = GetRawWeatherType(*this);
+	float strength = GetRawWeatherStrength(*this);
+	bool clustering = GetRawWeatherClustering(*this);
+	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
+	return clustering;
 }
 
 float Level::GetWeatherStrength() const
 {
-	return Atmosphere.Enabled ? Atmosphere.Weather.Strength : WeatherStrength;	
+	WeatherType type = GetRawWeatherType(*this);
+	float strength = GetRawWeatherStrength(*this);
+	bool clustering = GetRawWeatherClustering(*this);
+	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
+	return strength;	
 }
 
 WeatherType Level::GetWeatherType() const
 {
-	return Atmosphere.Enabled ? Atmosphere.Weather.Type : Weather;
+	WeatherType type = GetRawWeatherType(*this);
+	float strength = GetRawWeatherStrength(*this);
+	bool clustering = GetRawWeatherClustering(*this);
+	ApplyEnvironmentToWeather(AtmosphereEnvironment, type, strength, clustering);
+	return type;
 }
 
 RGBAColor8Byte Level::GetFogColor() const
@@ -247,19 +369,28 @@ const TEN::Scripting::Atmosphere& Level::GetAtmosphere() const
 	return Atmosphere;
 }
 
+const TEN::Scripting::AtmosphereEnvironmentProfile& Level::GetAtmosphereEnvironment() const
+{
+	return AtmosphereEnvironment;
+}
+
 TEN::Scripting::AtmosphereRuntimeSnapshot Level::CreateAtmosphereRuntimeSnapshot() const
 {
-	return Atmosphere.CreateRuntimeSnapshot(Weather, WeatherStrength, WeatherClustering);
+	TEN::Scripting::AtmosphereRuntimeSnapshot snapshot = Atmosphere.CreateRuntimeSnapshot(Weather, WeatherStrength, WeatherClustering);
+	ApplyEnvironmentToSnapshot(AtmosphereEnvironment, snapshot);
+	return snapshot;
 }
 
 TEN::Scripting::AtmosphereRenderData Level::CreateAtmosphereRenderData() const
 {
-	return Atmosphere.CreateRenderData(Weather, WeatherStrength, WeatherClustering);
+	TEN::Scripting::AtmosphereRenderData data = Atmosphere.CreateRenderData(Weather, WeatherStrength, WeatherClustering);
+	ApplyEnvironmentToRenderData(AtmosphereEnvironment, data);
+	return data;
 }
 
 TEN::Scripting::AtmosphereRenderPlan Level::CreateAtmosphereRenderPlan() const
 {
-	return Atmosphere.CreateRenderPlan(Weather, WeatherStrength, WeatherClustering);
+	return CreateRenderPlanFromData(CreateAtmosphereRenderData());
 }
 
 SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
@@ -281,6 +412,11 @@ SkyAtmosphereRenderData Level::CreateSkyAtmosphereRenderData() const
 bool Level::GetAtmosphereEnabled() const
 {
 	return Atmosphere.Enabled;
+}
+
+bool Level::GetAtmosphereEnvironmentEnabled() const
+{
+	return AtmosphereEnvironment.Enabled;
 }
 
 const TEN::Scripting::Horizon& Level::GetHorizon(int index) const
