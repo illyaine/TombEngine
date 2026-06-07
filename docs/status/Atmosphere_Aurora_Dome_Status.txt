@@ -3,25 +3,31 @@ Atmosphere Aurora / Dome status
 
 Branch: atmosphere_system
 
-Current test state
-------------------
-- Aurora is still rendered through the temporary sky shader prototype path.
-- The shader now samples aurora from per-pixel world sky direction instead of legacy horizon mesh position.
-- Animation uses the frame counter instead of interpolation frame data.
-- Aurora curtain movement and contrast have been increased for visible test feedback.
-- The legacy horizon mesh remains active and can still expose its square/box-like geometry.
-- Latest screenshot feedback: the current projection is mostly round, but the aurora band still ended too abruptly and looked too uniform in color.
-
-Latest visual tuning
+Current branch state
 --------------------
-- Aurora side and screen-edge fades were softened so the band should no longer terminate as sharply at the visible dome edges.
-- Added lightweight procedural noise for curtain/ray variation.
-- Added green/cyan/blue/violet color variation for testing without introducing new renderer-side profile data yet.
-- Kept the changes shader-local and minimal. No new renderer service/provider/wrapper was added.
+- The temporary Aurora shader prototype has been removed from the branch.
+- `Sky.hlsl` is back to the normal TEN sky shader path and must not be used for Aurora routing.
+- `RendererDraw.cpp` is back to the master draw path; the temporary extra sky-grid Aurora draw block has been removed.
+- `Aurora.hlsli` is not part of the current branch anymore.
+- Aurora profile data still exists in the Flow/Atmosphere data model, but no visible Aurora renderer is active yet.
 
-Why a dome is still needed
---------------------------
-The existing TEN horizon is mesh/object based and can look box-shaped. Aurora, galaxy layers, planets, moons, comets, and atmospheric glow should not depend on that legacy horizon mesh. A dedicated Atmosphere Sky Dome or Atmosphere Sky Pass is the correct long-term solution.
+Why the prototype was removed
+-----------------------------
+The previous test path tried to route Aurora through the normal sky shader and sky-grid/horizon drawing path. That caused fragile behavior: normal horizon layers could be affected by Aurora marker logic, and Aurora visibility depended too much on glow intensity and the legacy sky/horizon draw order.
+
+That approach is not PR-quality and should not be kept.
+
+Correct Aurora direction
+------------------------
+Aurora needs a dedicated atmosphere layer, not a `Sky.hlsl` marker hack.
+
+The next implementation should use:
+
+1. A separate Atmosphere/Aurora shader or a dedicated atmosphere sky shader variant.
+2. A renderer-side draw path that is clearly named and isolated from legacy sky/horizon drawing.
+3. Explicit render order instead of `Color.w` sentinel values.
+4. Parameters coming from `Flow.AuroraProfile` / atmosphere render data.
+5. No changes to normal horizon layer rendering unless a legacy/atmosphere switch explicitly requires it.
 
 Desired render order
 --------------------
@@ -32,22 +38,20 @@ Desired render order
 5. Weather
 6. Rooms, objects, overlays
 
-Open work after the next visual test
-------------------------------------
+Open renderer work
+------------------
 - Add a real Atmosphere Sky Dome or shader-only atmosphere background pass.
-- Replace the temporary Color.w > 1.5 prototype marker.
 - Add a proper render switch: legacy horizon, atmosphere dome, or both.
-- Add project-file deployment entry for Shaders/Aurora.hlsli if needed by the local Visual Studio/project deployment setup.
-- Move Aurora parameters into the Atmosphere profile instead of hard-coded shader constants.
-- Reduce or replace the temporary sky-grid draw path once the dedicated atmosphere pass exists.
+- Add a dedicated Aurora pass after the atmosphere background is stable.
+- Move Aurora shader constants to `AuroraProfile` / renderer-facing atmosphere data.
+- Keep local/nullmesh atmosphere emitters separate from global sky Aurora.
 
-Test checklist
---------------
-- Aurora should show visible wave/curtain movement.
-- Aurora should not rotate as a fixed screen overlay when the camera turns.
-- Aurora should fade more softly at the dome/screen edges than in the previous screenshot.
-- Aurora should show visible green/cyan/blue/violet variation for test feedback.
-- Horizon should no longer fully cut the aurora, but square horizon geometry may still be visible until the dome exists.
+Current test checklist
+----------------------
+- Legacy sky and horizon layers should behave as before.
+- Aurora should not be visible yet.
+- Flow atmosphere data should still load after local compile.
+- RendererDraw/Sky shader should no longer contain Aurora prototype leftovers.
 - Rain is still the legacy TEN rain fallback and not yet the final Atmosphere rain renderer.
 
 Build/test status
