@@ -3306,39 +3306,6 @@ namespace TEN::Renderer
 			}
 		}
 
-
-		// Temporary aurora prototype. Draw it over horizon objects for testing with
-		// horizons that contain their own sky/cloud background.
-		if (!reflectionPass)
-		{
-			_shaders.Bind(Shader::Sky);
-			SetDepthState(DepthState::None);
-			SetBlendMode(BlendMode::Additive);
-			SetCullMode(CullMode::CounterClockwise);
-
-			_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-			_context->IASetVertexBuffers(0, 1, _skyVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
-			_context->IASetIndexBuffer(_skyIndexBuffer.Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-
-			for (int i = 0; i < 2; i++)
-			{
-				auto translation = Matrix::CreateTranslation(
-					renderView.Camera.WorldPosition.x - i * SKY_SIZE,
-					renderView.Camera.WorldPosition.y - 1536.0f,
-					renderView.Camera.WorldPosition.z);
-
-				_stSky.World = rotation * translation;
-				_stSky.Color = Color(1.0f, 1.0f, 1.0f, 2.0f);
-				_stSky.ApplyFogBulbs = 0;
-				_stSky.Ambient = Vector4::One;
-				UpdateConstantBuffer(_stSky, _cbSky);
-
-				DrawIndexedTriangles(SKY_INDICES_COUNT, 0, 0);
-
-				_numMoveablesDrawCalls++;
-			}
-		}
-
 		// Eventually draw the sun sprite.
 		if (!renderView.LensFlaresToDraw.empty() && renderView.LensFlaresToDraw[0].IsGlobal && !reflectionPass)
 		{
