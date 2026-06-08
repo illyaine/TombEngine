@@ -1,0 +1,12 @@
+TEN Aurora Header LDoc Clean Fix 92
+
+Purpose:
+- Remove remaining LDoc enum/member tags from Atmosphere.h.
+- Keep C++ declarations and runtime data unchanged.
+- Fix LDoc error: Module already declared / class cannot have multiple values.
+
+Changed:
+- Removed @enum, @pragma and @mem lines in Atmosphere.h.
+- Converted triple slash comments to normal double slash comments.
+
+Build not run.

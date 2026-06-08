@@ -1,4 +1,3 @@
-#include "./CBCamera.hlsli"
 #include "./CBAtmosphereAurora.hlsli"
 
 struct PostProcessVertexShaderInput
@@ -43,59 +42,49 @@ float AuroraNoise(float2 value)
 		u.y);
 }
 
-float2 GetAuroraSkyUv(PixelShaderInput input)
-{
-	float2 screenUv = input.Position.xy * InvViewSize;
-	float cameraYaw = atan2(CamDirectionWS.x, CamDirectionWS.z) / 6.2831853f;
-
-	float x = frac(input.UV.x * 1.35f + cameraYaw + 0.5f);
-	float y = saturate(1.0f - screenUv.y);
-
-	return float2(x, y);
-}
-
 float AuroraLayerBand(float2 uv, float height, float width, float waveScale, float waveStrength, float time, float offset)
 {
 	float x = uv.x;
 	float y = uv.y;
 
-	float coarse = AuroraNoise(float2(x * waveScale * 2.4f + time * 0.22f + offset, time * 0.050f + offset));
-	float fine = AuroraNoise(float2(x * waveScale * 11.0f - time * 0.16f + offset * 2.0f, y * 7.0f + offset));
+	float coarse = AuroraNoise(float2(x * waveScale * 2.7f + time * 0.24f + offset, time * 0.055f + offset));
+	float fine = AuroraNoise(float2(x * waveScale * 12.0f - time * 0.18f + offset * 2.0f, y * 8.0f + offset));
 	float wave = (coarse - 0.5f) * waveStrength * width;
 
 	float center = saturate(height + wave);
 	float distanceFromBand = abs(y - center);
-	float band = 1.0f - smoothstep(width * 0.10f, width, distanceFromBand);
+	float band = 1.0f - smoothstep(width * 0.12f, width, distanceFromBand);
 
-	float curtains = pow(saturate(0.24f + fine * 0.88f), 2.4f);
-	float streaks = pow(saturate(sin((x + coarse * 0.18f + offset + time * 0.020f) * 76.0f) * 0.5f + 0.5f), 3.0f);
-	float skyFade = smoothstep(0.22f, 0.38f, y) * (1.0f - smoothstep(0.86f, 0.99f, y));
+	float curtains = pow(saturate(0.25f + fine * 0.90f), 2.2f);
+	float streaks = pow(saturate(sin((x + coarse * 0.18f + offset + time * 0.025f) * 74.0f) * 0.5f + 0.5f), 3.0f);
+	float skyFade = smoothstep(0.04f, 0.18f, y) * (1.0f - smoothstep(0.70f, 0.96f, y));
 
 	return band * lerp(curtains, streaks, 0.32f) * skyFade;
 }
 
 float4 PS(PixelShaderInput input) : SV_Target
 {
-	float2 uv = GetAuroraSkyUv(input);
-
 	float intensity = saturate(AuroraControls.x);
-	float speed = AuroraControls.y;
-	float height = saturate(AuroraControls.z);
-	float width = max(AuroraControls.w * 0.38f, 0.022f);
+	float speed = max(AuroraControls.y, 0.01f);
+	float height = saturate(1.0f - AuroraControls.z);
+	float width = max(AuroraControls.w * 0.42f, 0.035f);
 	float waveScale = max(AuroraWaves.x, 0.05f);
 	float waveStrength = saturate(AuroraWaves.y);
 	float transparency = saturate(AuroraWaves.z);
 	float time = AuroraTime.x * speed;
 
+	float2 uv = input.UV;
+	uv.x = frac(uv.x * 1.18f + time * 0.035f);
+
 	float layerA = AuroraLayerBand(uv, height, width, waveScale, waveStrength, time, 0.0f);
-	float layerB = AuroraLayerBand(uv, height + width * 0.32f, width * 0.72f, waveScale * 1.35f, waveStrength * 0.78f, time * 0.85f, 12.7f);
-	float layerC = AuroraLayerBand(uv, height - width * 0.28f, width * 0.58f, waveScale * 1.75f, waveStrength * 0.60f, time * 0.68f, 31.4f);
+	float layerB = AuroraLayerBand(uv, height + width * 0.35f, width * 0.70f, waveScale * 1.35f, waveStrength * 0.78f, time * 0.85f, 12.7f);
+	float layerC = AuroraLayerBand(uv, height - width * 0.30f, width * 0.58f, waveScale * 1.75f, waveStrength * 0.60f, time * 0.68f, 31.4f);
 
 	float3 color = AuroraColorA.rgb * layerA + AuroraColorB.rgb * layerB + AuroraColorC.rgb * layerC;
 	float alpha = saturate((layerA + layerB * 0.62f + layerC * 0.42f) * transparency);
 	alpha *= intensity > 0.0f ? 1.0f : 0.0f;
 
-	float glow = 0.035f;
+	float glow = 0.04f;
 	color *= intensity;
 	color += color * glow;
 

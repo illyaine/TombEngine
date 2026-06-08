@@ -1,0 +1,17 @@
+TEN Aurora Visibility Restore 91
+
+Purpose:
+- Restore reliable Aurora visibility after the camera-direction shader variant became invisible.
+- Keep the Aurora render pass after the horizon so it appears in front of the horizon object.
+- Keep visible motion for testing.
+
+Changes:
+- AtmosphereAurora.hlsl no longer depends on CBCamera.hlsli for this test pass.
+- Uses stable fullscreen UVs, known to render visibly in the earlier debug pass.
+- Uses AuroraHash/AuroraNoise names to avoid HLSL helper collisions.
+- Keeps stronger debug speed and transparency so motion is visible.
+- Keeps LDoc-clean Atmosphere.cpp and ScriptColor getter fixes.
+
+Notes:
+- This is a visibility restore/test pass, not the final PR-quality spatial sky projection.
+- Once visibility and order are confirmed again, the next step is to reintroduce sky anchoring carefully without hiding the band.

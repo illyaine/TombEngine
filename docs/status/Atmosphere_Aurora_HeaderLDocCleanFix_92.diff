@@ -1,0 +1,149 @@
+--- TombEngine/Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.h
++++ TombEngine/Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.h
+@@ -57,119 +57,88 @@
+ 		GeneratedEffects
+ 	};
+ 
+-	/// Constants for weather quality budgets.
+-	// @enum Flow.WeatherQuality
+-	// @pragma nostrip
++	// Constants for weather quality budgets.
+ 	static const std::unordered_map<std::string, WeatherQuality> WEATHER_QUALITIES
+ 	{
+-		/// Low weather quality budget.
+-		// @mem Low
++		// Low weather quality budget.
+ 		{ "Low", WeatherQuality::Low },
+ 
+-		/// Medium weather quality budget.
+-		// @mem Medium
++		// Medium weather quality budget.
+ 		{ "Medium", WeatherQuality::Medium },
+ 
+-		/// High weather quality budget.
+-		// @mem High
++		// High weather quality budget.
+ 		{ "High", WeatherQuality::High },
+ 
+-		/// Ultra weather quality budget.
+-		// @mem Ultra
++		// Ultra weather quality budget.
+ 		{ "Ultra", WeatherQuality::Ultra },
+ 
+-		/// Automatic weather quality budget.
+-		// @mem Auto
++		// Automatic weather quality budget.
+ 		{ "Auto", WeatherQuality::Auto }
+ 	};
+ 
+-	/// Constants for generated or bridged atmosphere effect types.
+-	// @enum Flow.AtmosphereEffectType
+-	// @pragma nostrip
++	// Constants for generated or bridged atmosphere effect types.
+ 	static const std::unordered_map<std::string, AtmosphereEffectType> ATMOSPHERE_EFFECT_TYPES
+ 	{
+-		/// No atmosphere effect.
+-		// @mem None
++		// No atmosphere effect.
+ 		{ "None", AtmosphereEffectType::None },
+ 
+-		/// Generated ground fog.
+-		// @mem GroundFog
++		// Generated ground fog.
+ 		{ "GroundFog", AtmosphereEffectType::GroundFog },
+ 
+-		/// Generated drifting mist.
+-		// @mem Mist
++		// Generated drifting mist.
+ 		{ "Mist", AtmosphereEffectType::Mist },
+ 
+-		/// Generated snowstorm veil.
+-		// @mem SnowstormVeil
++		// Generated snowstorm veil.
+ 		{ "SnowstormVeil", AtmosphereEffectType::SnowstormVeil },
+ 
+-		/// Generated sandstorm veil.
+-		// @mem SandstormVeil
++		// Generated sandstorm veil.
+ 		{ "SandstormVeil", AtmosphereEffectType::SandstormVeil },
+ 
+-		/// Generated dust sheet.
+-		// @mem DustSheet
++		// Generated dust sheet.
+ 		{ "DustSheet", AtmosphereEffectType::DustSheet },
+ 
+-		/// Generated ash fall.
+-		// @mem AshFall
++		// Generated ash fall.
+ 		{ "AshFall", AtmosphereEffectType::AshFall },
+ 
+-		/// Generated leaf fall.
+-		// @mem LeafFall
++		// Generated leaf fall.
+ 		{ "LeafFall", AtmosphereEffectType::LeafFall },
+ 
+-		/// Generated magic particles.
+-		// @mem MagicParticles
++		// Generated magic particles.
+ 		{ "MagicParticles", AtmosphereEffectType::MagicParticles },
+ 
+-		/// Custom atmosphere effect.
+-		// @mem Custom
++		// Custom atmosphere effect.
+ 		{ "Custom", AtmosphereEffectType::Custom }
+ 	};
+ 
+-	/// Constants for atmosphere effect scopes.
+-	// @enum Flow.AtmosphereEffectScope
+-	// @pragma nostrip
++	// Constants for atmosphere effect scopes.
+ 	static const std::unordered_map<std::string, AtmosphereEffectScope> ATMOSPHERE_EFFECT_SCOPES
+ 	{
+-		/// Global atmosphere effect.
+-		// @mem Global
++		// Global atmosphere effect.
+ 		{ "Global", AtmosphereEffectScope::Global },
+ 
+-		/// Nullmesh or object anchored atmosphere effect.
+-		// @mem Nullmesh
++		// Nullmesh or object anchored atmosphere effect.
+ 		{ "Nullmesh", AtmosphereEffectScope::Nullmesh },
+ 
+-		/// Room-bound atmosphere effect.
+-		// @mem Room
++		// Room-bound atmosphere effect.
+ 		{ "Room", AtmosphereEffectScope::Room },
+ 
+-		/// Volume-bound atmosphere effect.
+-		// @mem Volume
++		// Volume-bound atmosphere effect.
+ 		{ "Volume", AtmosphereEffectScope::Volume }
+ 	};
+ 
+-	/// Constants for atmosphere effect render modes.
+-	// @enum Flow.AtmosphereEffectRenderMode
+-	// @pragma nostrip
++	// Constants for atmosphere effect render modes.
+ 	static const std::unordered_map<std::string, AtmosphereEffectRenderMode> ATMOSPHERE_EFFECT_RENDER_MODES
+ 	{
+-		/// Engine-generated visual layer.
+-		// @mem Generated
++		// Engine-generated visual layer.
+ 		{ "Generated", AtmosphereEffectRenderMode::Generated },
+ 
+-		/// Optional external sprite or texture path.
+-		// @mem Sprite
++		// Optional external sprite or texture path.
+ 		{ "Sprite", AtmosphereEffectRenderMode::Sprite },
+ 
+-		/// Bridge to an existing engine effect.
+-		// @mem ExistingEffect
++		// Bridge to an existing engine effect.
+ 		{ "ExistingEffect", AtmosphereEffectRenderMode::ExistingEffect },
+ 
+-		/// Custom or future renderer-specific effect path.
+-		// @mem Custom
++		// Custom or future renderer-specific effect path.
+ 		{ "Custom", AtmosphereEffectRenderMode::Custom }
+ 	};
+ 
