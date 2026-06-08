@@ -344,3 +344,68 @@ float Level::GetStarfieldMeteorVelocity() const
 {
 	return Starfield.GetMeteorVelocity();
 }
+
+bool Level::GetAtmosphereEnabled() const
+{
+	return Atmosphere.Enabled;
+}
+
+bool Level::GetAtmosphereAuroraEnabled() const
+{
+	return Atmosphere.Enabled && Atmosphere.Aurora.Enabled;
+}
+
+float Level::GetAtmosphereAuroraIntensity() const
+{
+	return Atmosphere.Aurora.Intensity;
+}
+
+float Level::GetAtmosphereAuroraSpeed() const
+{
+	return Atmosphere.Aurora.Speed;
+}
+
+float Level::GetAtmosphereAuroraHeight() const
+{
+	return Atmosphere.Aurora.Height;
+}
+
+float Level::GetAtmosphereAuroraWidth() const
+{
+	return Atmosphere.Aurora.Width;
+}
+
+float Level::GetAtmosphereAuroraWaveScale() const
+{
+	return Atmosphere.Aurora.WaveScale;
+}
+
+float Level::GetAtmosphereAuroraWaveStrength() const
+{
+	return Atmosphere.Aurora.WaveStrength;
+}
+
+float Level::GetAtmosphereAuroraTransparency() const
+{
+	return Atmosphere.Aurora.Transparency;
+}
+
+bool Level::GetAtmosphereAuroraFadeWithFog() const
+{
+	return Atmosphere.Aurora.FadeWithFog;
+}
+
+Color Level::GetAtmosphereAuroraColorA() const
+{
+	return RGBAColor8Byte(Atmosphere.Aurora.ColorAR, Atmosphere.Aurora.ColorAG, Atmosphere.Aurora.ColorAB);
+}
+
+Color Level::GetAtmosphereAuroraColorB() const
+{
+	return RGBAColor8Byte(Atmosphere.Aurora.ColorBR, Atmosphere.Aurora.ColorBG, Atmosphere.Aurora.ColorBB);
+}
+
+Color Level::GetAtmosphereAuroraColorC() const
+{
+	return RGBAColor8Byte(Atmosphere.Aurora.ColorCR, Atmosphere.Aurora.ColorCG, Atmosphere.Aurora.ColorCB);
+}
