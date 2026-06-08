@@ -26,20 +26,20 @@ PixelShaderInput VS(PostProcessVertexShaderInput input)
 	return output;
 }
 
-float Hash(float2 value)
+float AuroraHash(float2 value)
 {
 	return frac(sin(dot(value, float2(127.1f, 311.7f))) * 43758.5453f);
 }
 
-float Noise(float2 value)
+float AuroraNoise(float2 value)
 {
 	float2 i = floor(value);
 	float2 f = frac(value);
 	float2 u = f * f * (3.0f - 2.0f * f);
 
 	return lerp(
-		lerp(Hash(i + float2(0.0f, 0.0f)), Hash(i + float2(1.0f, 0.0f)), u.x),
-		lerp(Hash(i + float2(0.0f, 1.0f)), Hash(i + float2(1.0f, 1.0f)), u.x),
+		lerp(AuroraHash(i + float2(0.0f, 0.0f)), AuroraHash(i + float2(1.0f, 0.0f)), u.x),
+		lerp(AuroraHash(i + float2(0.0f, 1.0f)), AuroraHash(i + float2(1.0f, 1.0f)), u.x),
 		u.y);
 }
 
@@ -64,8 +64,8 @@ float LayerBand(float2 uv, float height, float width, float waveScale, float wav
 	float x = uv.x;
 	float y = uv.y;
 
-	float coarse = Noise(float2(x * waveScale * 2.4f + time * 0.14f + offset, time * 0.035f + offset));
-	float fine = Noise(float2(x * waveScale * 11.0f - time * 0.10f + offset * 2.0f, y * 7.0f + offset));
+	float coarse = AuroraNoise(float2(x * waveScale * 2.4f + time * 0.14f + offset, time * 0.035f + offset));
+	float fine = AuroraNoise(float2(x * waveScale * 11.0f - time * 0.10f + offset * 2.0f, y * 7.0f + offset));
 	float wave = (coarse - 0.5f) * waveStrength * width;
 
 	float center = saturate(height + wave);
