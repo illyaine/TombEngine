@@ -1,0 +1,18 @@
+TEN Aurora LDoc Clean Fix 90
+
+Progress: about 90 percent for the current Aurora debug/render pass.
+
+Purpose:
+- Stop LDoc from interpreting Atmosphere.cpp profile comments as module/class/member documentation.
+- Keep the C++ ScriptColor getter fixes from the previous package.
+- Do not change RendererDraw.cpp or the Aurora shader in this package.
+
+Changes:
+- Removed @tenprimitive and @pragma nostrip tags from Atmosphere.cpp profile comments.
+- Removed //@mem LDoc member markers from Atmosphere.cpp profile bindings.
+- Converted triple-slash comments inside Atmosphere.cpp profile bindings to plain C++ comments.
+- Removed @{...} LDoc link markup from normal C++ comments.
+
+Build/test:
+- Not built here.
+- Expected to fix: LDoc "class cannot have multiple values; {mem,module}" and earlier duplicate module warnings from this file.

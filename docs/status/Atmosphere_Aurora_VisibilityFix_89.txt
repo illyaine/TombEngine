@@ -1,0 +1,28 @@
+TEN Aurora Visibility Fix 89
+
+Status: about 89 percent.
+
+Purpose:
+- Restore visible Aurora after the camera-direction shader pass became too strict on some camera/projection states.
+- Keep Aurora in front of the Horizon by using the patched RendererDraw.cpp from pass 86.
+- Keep stronger debug movement from pass 86.
+- Keep the hard LDoc fix from pass 88.
+- Keep ScriptColor getter compile fixes.
+
+Shader changes:
+- Keeps camera yaw anchoring through CamDirectionWS.
+- Uses screen vertical position for stable visible placement.
+- Does not use the previous per-pixel inverse projection world ray for vertical placement, because that made the Aurora disappear in the current test scene.
+- AuroraHash/AuroraNoise names avoid collisions with shared shader helpers.
+
+Expected result:
+- Aurora visible again.
+- Aurora rendered after Horizon, before global sun sprite.
+- Aurora visibly moving with debug speed.
+- Less white/overbright than the first visibility debug band.
+
+Temporary debug state:
+- FORCE_AURORA_DEBUG_VISIBILITY remains true in FlowLevel.cpp.
+- Remove or set it to false before PR-final once the visual pass is confirmed.
+
+Build not run in this environment.

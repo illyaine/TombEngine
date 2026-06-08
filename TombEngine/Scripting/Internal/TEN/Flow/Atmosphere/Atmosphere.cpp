@@ -4,9 +4,7 @@
 using namespace TEN::Scripting;
 using namespace TEN::Scripting::Types;
 
-/* Rain weather settings. To be used with @{Flow.WeatherProfile.rain}.
-@tenprimitive Flow.RainProfile
-@pragma nostrip
+/* Rain weather settings. To be used with Flow.WeatherProfile.rain.
 */
 void RainProfile::Register(sol::table& parent)
 {
@@ -15,35 +13,27 @@ void RainProfile::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (float) How much wind affects rain direction.
-		//@mem windInfluence
+		// (float) How much wind affects rain direction.
 		"windInfluence", &RainProfile::WindInfluence,
 
-		/// (float) Near weather density multiplier.
-		//@mem nearDensity
+		// (float) Near weather density multiplier.
 		"nearDensity", &RainProfile::NearDensity,
 
-		/// (float) Mid-range weather density multiplier.
-		//@mem midDensity
+		// (float) Mid-range weather density multiplier.
 		"midDensity", &RainProfile::MidDensity,
 
-		/// (float) Far weather density multiplier.
-		//@mem farDensity
+		// (float) Far weather density multiplier.
 		"farDensity", &RainProfile::FarDensity,
 
-		/// (bool) Enable rain impact effects.
-		//@mem impacts
+		// (bool) Enable rain impact effects.
 		"impacts", &RainProfile::Impacts,
 
-		/// (int) Maximum rain impact events per frame.
-		//@mem maxImpactsPerFrame
+		// (int) Maximum rain impact events per frame.
 		"maxImpactsPerFrame", &RainProfile::MaxImpactsPerFrame
 	);
 }
 
-/* Weather profile settings. To be used with @{Flow.Atmosphere.weather}.
-@tenprimitive Flow.WeatherProfile
-@pragma nostrip
+/* Weather profile settings. To be used with Flow.Atmosphere.weather.
 */
 void WeatherProfile::Register(sol::table& parent)
 {
@@ -52,31 +42,24 @@ void WeatherProfile::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (WeatherType) Weather type.
-		//@mem type
+		// (WeatherType) Weather type.
 		"type", &WeatherProfile::Type,
 
-		/// (float) Weather strength.
-		//@mem strength
+		// (float) Weather strength.
 		"strength", &WeatherProfile::Strength,
 
-		/// (bool) Use clustered weather particles.
-		//@mem clustering
+		// (bool) Use clustered weather particles.
 		"clustering", &WeatherProfile::Clustering,
 
-		/// (WeatherQuality) Weather quality budget.
-		//@mem quality
+		// (WeatherQuality) Weather quality budget.
 		"quality", &WeatherProfile::Quality,
 
-		/// (@{Flow.RainProfile}) Rain-specific settings.
-		//@mem rain
+		// (Flow.RainProfile) Rain-specific settings.
 		"rain", &WeatherProfile::Rain
 	);
 }
 
-/* Wind profile settings. To be used with @{Flow.Atmosphere.wind}.
-@tenprimitive Flow.WindProfile
-@pragma nostrip
+/* Wind profile settings. To be used with Flow.Atmosphere.wind.
 */
 void WindProfile::Register(sol::table& parent)
 {
@@ -85,35 +68,27 @@ void WindProfile::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (float) Wind direction in degrees.
-		//@mem direction
+		// (float) Wind direction in degrees.
 		"direction", &WindProfile::Direction,
 
-		/// (float) Base wind strength.
-		//@mem strength
+		// (float) Base wind strength.
 		"strength", &WindProfile::Strength,
 
-		/// (float) Gust strength.
-		//@mem gustStrength
+		// (float) Gust strength.
 		"gustStrength", &WindProfile::GustStrength,
 
-		/// (float) Gust frequency.
-		//@mem gustFrequency
+		// (float) Gust frequency.
 		"gustFrequency", &WindProfile::GustFrequency,
 
-		/// (float) Wind turbulence.
-		//@mem turbulence
+		// (float) Wind turbulence.
 		"turbulence", &WindProfile::Turbulence,
 
-		/// (float) Vertical wind drift.
-		//@mem verticalDrift
+		// (float) Vertical wind drift.
 		"verticalDrift", &WindProfile::VerticalDrift
 	);
 }
 
-/* Aurora sky effect settings. To be used with @{Flow.Atmosphere.aurora}.
-@tenprimitive Flow.AuroraProfile
-@pragma nostrip
+/* Aurora sky effect settings. To be used with Flow.Atmosphere.aurora.
 */
 void AuroraProfile::Register(sol::table& parent)
 {
@@ -122,59 +97,45 @@ void AuroraProfile::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (bool) Enable aurora sky effect.
-		//@mem enabled
+		// (bool) Enable aurora sky effect.
 		"enabled", &AuroraProfile::Enabled,
 
-		/// (float) Aurora intensity.
-		//@mem intensity
+		// (float) Aurora intensity.
 		"intensity", &AuroraProfile::Intensity,
 
-		/// (float) Aurora animation speed.
-		//@mem speed
+		// (float) Aurora animation speed.
 		"speed", &AuroraProfile::Speed,
 
-		/// (float) Aurora height in sky space.
-		//@mem height
+		// (float) Aurora height in sky space.
 		"height", &AuroraProfile::Height,
 
-		/// (float) Aurora width in sky space.
-		//@mem width
+		// (float) Aurora width in sky space.
 		"width", &AuroraProfile::Width,
 
-		/// (float) Aurora wave scale.
-		//@mem waveScale
+		// (float) Aurora wave scale.
 		"waveScale", &AuroraProfile::WaveScale,
 
-		/// (float) Aurora wave strength.
-		//@mem waveStrength
+		// (float) Aurora wave strength.
 		"waveStrength", &AuroraProfile::WaveStrength,
 
-		/// (@{Color}) First aurora color.
-		//@mem colorA
+		// (Color) First aurora color.
 		"colorA", sol::property(&AuroraProfile::GetColorA, &AuroraProfile::SetColorA),
 
-		/// (@{Color}) Second aurora color.
-		//@mem colorB
+		// (Color) Second aurora color.
 		"colorB", sol::property(&AuroraProfile::GetColorB, &AuroraProfile::SetColorB),
 
-		/// (@{Color}) Third aurora color.
-		//@mem colorC
+		// (Color) Third aurora color.
 		"colorC", sol::property(&AuroraProfile::GetColorC, &AuroraProfile::SetColorC),
 
-		/// (float) Aurora transparency.
-		//@mem transparency
+		// (float) Aurora transparency.
 		"transparency", &AuroraProfile::Transparency,
 
-		/// (bool) Fade aurora with level fog.
-		//@mem fadeWithFog
+		// (bool) Fade aurora with level fog.
 		"fadeWithFog", &AuroraProfile::FadeWithFog
 	);
 }
 
-/* Moon sky object settings. To be used with @{Flow.Atmosphere.moon}.
-@tenprimitive Flow.MoonProfile
-@pragma nostrip
+/* Moon sky object settings. To be used with Flow.Atmosphere.moon.
 */
 void MoonProfile::Register(sol::table& parent)
 {
@@ -183,63 +144,48 @@ void MoonProfile::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (bool) Enable moon sky object.
-		//@mem enabled
+		// (bool) Enable moon sky object.
 		"enabled", &MoonProfile::Enabled,
 
-		/// (float) Moon pitch angle in degrees.
-		//@mem pitch
+		// (float) Moon pitch angle in degrees.
 		"pitch", &MoonProfile::Pitch,
 
-		/// (float) Moon yaw angle in degrees.
-		//@mem yaw
+		// (float) Moon yaw angle in degrees.
 		"yaw", &MoonProfile::Yaw,
 
-		/// (float) Relative moon size.
-		//@mem size
+		// (float) Relative moon size.
 		"size", &MoonProfile::Size,
 
-		/// (float) Visible moon brightness.
-		//@mem intensity
+		// (float) Visible moon brightness.
 		"intensity", &MoonProfile::Intensity,
 
-		/// (float) Moon halo brightness.
-		//@mem haloIntensity
+		// (float) Moon halo brightness.
 		"haloIntensity", &MoonProfile::HaloIntensity,
 
-		/// (float) Global moon light influence.
-		//@mem lightIntensity
+		// (float) Global moon light influence.
 		"lightIntensity", &MoonProfile::LightIntensity,
 
-		/// (float) Moon phase from 0.0 to 1.0.
-		//@mem phase
+		// (float) Moon phase from 0.0 to 1.0.
 		"phase", &MoonProfile::Phase,
 
-		/// (bool) Fade moon with fog.
-		//@mem fadeWithFog
+		// (bool) Fade moon with fog.
 		"fadeWithFog", &MoonProfile::FadeWithFog,
 
-		/// (bool) Allow moon direction to drive matching light shafts.
-		//@mem drivesLightShafts
+		// (bool) Allow moon direction to drive matching light shafts.
 		"drivesLightShafts", &MoonProfile::DrivesLightShafts,
 
-		/// (string) Optional moon texture name.
-		//@mem textureName
+		// (string) Optional moon texture name.
 		"textureName", &MoonProfile::TextureName,
 
-		/// (@{Color}) Visible moon color.
-		//@mem color
+		// (Color) Visible moon color.
 		"color", sol::property(&MoonProfile::GetColor, &MoonProfile::SetColor),
 
-		/// (@{Color}) Moonlight color.
-		//@mem lightColor
+		// (Color) Moonlight color.
 		"lightColor", sol::property(&MoonProfile::GetLightColor, &MoonProfile::SetLightColor)
 	);
 }
 
-/* Data for one generated or anchored atmosphere effect layer. To be used with @{Flow.Atmosphere.effects}.
-@tenprimitive Flow.AtmosphereEffectProfile
-@pragma nostrip
+/* Data for one generated or anchored atmosphere effect layer. To be used with Flow.Atmosphere.effects.
 */
 void AtmosphereEffectProfile::Register(sol::table& parent)
 {
@@ -248,135 +194,102 @@ void AtmosphereEffectProfile::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (bool) Enable this effect layer.
-		//@mem enabled
+		// (bool) Enable this effect layer.
 		"enabled", &AtmosphereEffectProfile::Enabled,
 
-		/// (AtmosphereEffectType) Select the base effect type, such as leaf fall, ground fog, dust, ash, or a custom preset.
-		//@mem type
+		// (AtmosphereEffectType) Select the base effect type, such as leaf fall, ground fog, dust, ash, or a custom preset.
 		"type", &AtmosphereEffectProfile::Type,
 
-		/// (AtmosphereEffectScope) Select whether this effect is global or anchored to a nullmesh, room, or volume.
-		//@mem scope
+		// (AtmosphereEffectScope) Select whether this effect is global or anchored to a nullmesh, room, or volume.
 		"scope", &AtmosphereEffectProfile::Scope,
 
-		/// (AtmosphereEffectRenderMode) Choose generated rendering, an optional sprite texture, a bridge to an existing effect, or a custom renderer later.
-		//@mem renderMode
+		// (AtmosphereEffectRenderMode) Choose generated rendering, an optional sprite texture, a bridge to an existing effect, or a custom renderer later.
 		"renderMode", &AtmosphereEffectProfile::RenderMode,
 
-		/// (string) Optional preset name for generated or custom atmosphere effects.
-		//@mem presetName
+		// (string) Optional preset name for generated or custom atmosphere effects.
 		"presetName", &AtmosphereEffectProfile::PresetName,
 
-		/// (string) Optional nullmesh or object name used as emitter or anchor when scope is Nullmesh.
-		//@mem anchorName
+		// (string) Optional nullmesh or object name used as emitter or anchor when scope is Nullmesh.
 		"anchorName", &AtmosphereEffectProfile::AnchorName,
 
-		/// (string) Optional texture name used only when renderMode is Sprite or a custom path explicitly asks for it.
-		//@mem textureName
+		// (string) Optional texture name used only when renderMode is Sprite or a custom path explicitly asks for it.
 		"textureName", &AtmosphereEffectProfile::TextureName,
 
-		/// (float) Horizontal influence radius around the effect source.
-		//@mem radius
+		// (float) Horizontal influence radius around the effect source.
 		"radius", &AtmosphereEffectProfile::Radius,
 
-		/// (float) Vertical effect height.
-		//@mem height
+		// (float) Vertical effect height.
 		"height", &AtmosphereEffectProfile::Height,
 
-		/// (float) Density multiplier for generated particles, sheets, or volume slices.
-		//@mem density
+		// (float) Density multiplier for generated particles, sheets, or volume slices.
 		"density", &AtmosphereEffectProfile::Density,
 
-		/// (float) Movement or animation speed.
-		//@mem speed
+		// (float) Movement or animation speed.
 		"speed", &AtmosphereEffectProfile::Speed,
 
-		/// (float) Movement direction in degrees.
-		//@mem direction
+		// (float) Movement direction in degrees.
 		"direction", &AtmosphereEffectProfile::Direction,
 
-		/// (float) Local turbulence multiplier.
-		//@mem turbulence
+		// (float) Local turbulence multiplier.
 		"turbulence", &AtmosphereEffectProfile::Turbulence,
 
-		/// (float) Vertical drift multiplier.
-		//@mem verticalDrift
+		// (float) Vertical drift multiplier.
 		"verticalDrift", &AtmosphereEffectProfile::VerticalDrift,
 
-		/// (float) Minimum generated element size.
-		//@mem minSize
+		// (float) Minimum generated element size.
 		"minSize", &AtmosphereEffectProfile::MinSize,
 
-		/// (float) Maximum generated element size.
-		//@mem maxSize
+		// (float) Maximum generated element size.
 		"maxSize", &AtmosphereEffectProfile::MaxSize,
 
-		/// (float) Lifetime for generated moving elements.
-		//@mem lifetime
+		// (float) Lifetime for generated moving elements.
 		"lifetime", &AtmosphereEffectProfile::Lifetime,
 
-		/// (float) Distance used to fade the effect in or out near limits.
-		//@mem fadeDistance
+		// (float) Distance used to fade the effect in or out near limits.
 		"fadeDistance", &AtmosphereEffectProfile::FadeDistance,
 
-		/// (float) Alpha multiplier.
-		//@mem alpha
+		// (float) Alpha multiplier.
 		"alpha", &AtmosphereEffectProfile::Alpha,
 
-		/// (float) Detail amount for generated noise, shapes, or internal variation.
-		//@mem generatedDetail
+		// (float) Detail amount for generated noise, shapes, or internal variation.
 		"generatedDetail", &AtmosphereEffectProfile::GeneratedDetail,
 
-		/// (float) Softness for generated layer edges or volume impression.
-		//@mem generatedSoftness
+		// (float) Softness for generated layer edges or volume impression.
 		"generatedSoftness", &AtmosphereEffectProfile::GeneratedSoftness,
 
-		/// (float) Variation amount for generated shapes.
-		//@mem generatedVariation
+		// (float) Variation amount for generated shapes.
 		"generatedVariation", &AtmosphereEffectProfile::GeneratedVariation,
 
-		/// (int) Seed for deterministic generated effect variation. Zero lets the engine choose a stable default.
-		//@mem generatedSeed
+		// (int) Seed for deterministic generated effect variation. Zero lets the engine choose a stable default.
 		"generatedSeed", &AtmosphereEffectProfile::GeneratedSeed,
 
-		/// (bool) Test generated movement against level geometry.
-		//@mem collideWithGeometry
+		// (bool) Test generated movement against level geometry.
 		"collideWithGeometry", &AtmosphereEffectProfile::CollideWithGeometry,
 
-		/// (bool) Stop generated movement at walls instead of passing through them.
-		//@mem stopAtWalls
+		// (bool) Stop generated movement at walls instead of passing through them.
 		"stopAtWalls", &AtmosphereEffectProfile::StopAtWalls,
 
-		/// (bool) Stop generated movement at floors instead of passing through them.
-		//@mem stopAtFloors
+		// (bool) Stop generated movement at floors instead of passing through them.
 		"stopAtFloors", &AtmosphereEffectProfile::StopAtFloors,
 
-		/// (bool) Stop generated movement at ceilings instead of passing through them.
-		//@mem stopAtCeilings
+		// (bool) Stop generated movement at ceilings instead of passing through them.
 		"stopAtCeilings", &AtmosphereEffectProfile::StopAtCeilings,
 
-		/// (bool) Keep the generated effect inside the active room or anchored room where possible.
-		//@mem clampToRoom
+		// (bool) Keep the generated effect inside the active room or anchored room where possible.
 		"clampToRoom", &AtmosphereEffectProfile::ClampToRoom,
 
-		/// (bool) Add the global wind profile to this effect's local movement.
-		//@mem inheritWind
+		// (bool) Add the global wind profile to this effect's local movement.
 		"inheritWind", &AtmosphereEffectProfile::InheritWind,
 
-		/// (@{Color}) Primary generated color.
-		//@mem colorA
+		// (Color) Primary generated color.
 		"colorA", sol::property(&AtmosphereEffectProfile::GetColorA, &AtmosphereEffectProfile::SetColorA),
 
-		/// (@{Color}) Secondary generated color.
-		//@mem colorB
+		// (Color) Secondary generated color.
 		"colorB", sol::property(&AtmosphereEffectProfile::GetColorB, &AtmosphereEffectProfile::SetColorB)
 	);
 }
 
-/* Data for one global or anchored light shaft. To be used with @{Flow.Atmosphere.lightShafts}.
-@tenprimitive Flow.LightShaftProfile
-@pragma nostrip
+/* Data for one global or anchored light shaft. To be used with Flow.Atmosphere.lightShafts.
 */
 void LightShaftProfile::Register(sol::table& parent)
 {
@@ -385,75 +298,57 @@ void LightShaftProfile::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (bool) Enable this light shaft.
-		//@mem enabled
+		// (bool) Enable this light shaft.
 		"enabled", &LightShaftProfile::Enabled,
 
-		/// (AtmosphereEffectScope) Select global, nullmesh, room, or volume scope.
-		//@mem scope
+		// (AtmosphereEffectScope) Select global, nullmesh, room, or volume scope.
 		"scope", &LightShaftProfile::Scope,
 
-		/// (string) Optional nullmesh or object name used as source or anchor.
-		//@mem anchorName
+		// (string) Optional nullmesh or object name used as source or anchor.
 		"anchorName", &LightShaftProfile::AnchorName,
 
-		/// (float) Light shaft pitch angle in degrees.
-		//@mem pitch
+		// (float) Light shaft pitch angle in degrees.
 		"pitch", &LightShaftProfile::Pitch,
 
-		/// (float) Light shaft yaw angle in degrees.
-		//@mem yaw
+		// (float) Light shaft yaw angle in degrees.
 		"yaw", &LightShaftProfile::Yaw,
 
-		/// (float) Light shaft length.
-		//@mem length
+		// (float) Light shaft length.
 		"length", &LightShaftProfile::Length,
 
-		/// (float) Light shaft radius.
-		//@mem radius
+		// (float) Light shaft radius.
 		"radius", &LightShaftProfile::Radius,
 
-		/// (float) Light shaft brightness.
-		//@mem intensity
+		// (float) Light shaft brightness.
 		"intensity", &LightShaftProfile::Intensity,
 
-		/// (float) Internal volumetric density.
-		//@mem density
+		// (float) Internal volumetric density.
 		"density", &LightShaftProfile::Density,
 
-		/// (float) Edge softness.
-		//@mem softness
+		// (float) Edge softness.
 		"softness", &LightShaftProfile::Softness,
 
-		/// (float) Dust shimmer density inside the shaft.
-		//@mem dustDensity
+		// (float) Dust shimmer density inside the shaft.
 		"dustDensity", &LightShaftProfile::DustDensity,
 
-		/// (bool) Use the moon direction instead of this profile's pitch/yaw.
-		//@mem inheritMoonDirection
+		// (bool) Use the moon direction instead of this profile's pitch/yaw.
 		"inheritMoonDirection", &LightShaftProfile::InheritMoonDirection,
 
-		/// (bool) Fade with fog.
-		//@mem fadeWithFog
+		// (bool) Fade with fog.
 		"fadeWithFog", &LightShaftProfile::FadeWithFog,
 
-		/// (bool) Allow geometry to block the shaft.
-		//@mem blockedByGeometry
+		// (bool) Allow geometry to block the shaft.
 		"blockedByGeometry", &LightShaftProfile::BlockedByGeometry,
 
-		/// (bool) Keep local shafts inside the anchored room where possible.
-		//@mem clampToRoom
+		// (bool) Keep local shafts inside the anchored room where possible.
 		"clampToRoom", &LightShaftProfile::ClampToRoom,
 
-		/// (@{Color}) Light shaft color.
-		//@mem color
+		// (Color) Light shaft color.
 		"color", sol::property(&LightShaftProfile::GetColor, &LightShaftProfile::SetColor)
 	);
 }
 
-/* Atmosphere settings. To be used with @{Flow.Level.atmosphere}.
-@tenprimitive Flow.Atmosphere
-@pragma nostrip
+/* Atmosphere settings. To be used with Flow.Level.atmosphere.
 */
 void Atmosphere::Register(sol::table& parent)
 {
@@ -475,32 +370,25 @@ void Atmosphere::Register(sol::table& parent)
 		ctors(),
 		sol::call_constructor, ctors(),
 
-		/// (bool) Enable atmosphere profile processing.
-		//@mem enabled
+		// (bool) Enable atmosphere profile processing.
 		"enabled", &Atmosphere::Enabled,
 
-		/// (@{Flow.WeatherProfile}) Weather settings.
-		//@mem weather
+		// (Flow.WeatherProfile) Weather settings.
 		"weather", &Atmosphere::Weather,
 
-		/// (@{Flow.WindProfile}) Wind settings.
-		//@mem wind
+		// (Flow.WindProfile) Wind settings.
 		"wind", &Atmosphere::Wind,
 
-		/// (@{Flow.AuroraProfile}) Aurora sky effect settings.
-		//@mem aurora
+		// (Flow.AuroraProfile) Aurora sky effect settings.
 		"aurora", &Atmosphere::Aurora,
 
-		/// (@{Flow.MoonProfile}) Moon sky object settings.
-		//@mem moon
+		// (Flow.MoonProfile) Moon sky object settings.
 		"moon", &Atmosphere::Moon,
 
-		/// (@{Flow.AtmosphereEffectProfile}[]) Generated, anchored, or custom atmosphere effect layers.
-		//@mem effects
+		// (Flow.AtmosphereEffectProfile[]) Generated, anchored, or custom atmosphere effect layers.
 		"effects", &Atmosphere::Effects,
 
-		/// (@{Flow.LightShaftProfile}[]) Global or anchored light shafts.
-		//@mem lightShafts
+		// (Flow.LightShaftProfile[]) Global or anchored light shafts.
 		"lightShafts", &Atmosphere::LightShafts
 	);
 }
