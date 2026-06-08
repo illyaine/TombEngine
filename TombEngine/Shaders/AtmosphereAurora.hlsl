@@ -1,3 +1,4 @@
+#include "./CBCamera.hlsli"
 #include "./CBAtmosphereAurora.hlsli"
 
 struct PostProcessVertexShaderInput
@@ -42,6 +43,22 @@ float Noise(float2 value)
 		u.y);
 }
 
+float2 GetSkyUv(PixelShaderInput input)
+{
+	float2 screenUv = input.Position.xy * InvViewSize;
+	float2 clip = screenUv * 2.0f - 1.0f;
+	clip.y = -clip.y;
+
+	float4 viewPosition = mul(float4(clip, 1.0f, 1.0f), InverseProjection);
+	viewPosition.xyz /= max(abs(viewPosition.w), 0.0001f);
+
+	float3 direction = normalize(mul(float4(viewPosition.xyz, 0.0f), InverseView).xyz);
+	float yaw = atan2(direction.x, direction.z) / 6.2831853f;
+	float pitch = saturate(direction.y * 0.5f + 0.5f);
+
+	return float2(frac(yaw + 0.5f), pitch);
+}
+
 float LayerBand(float2 uv, float height, float width, float waveScale, float waveStrength, float time, float offset)
 {
 	float x = uv.x;
@@ -57,14 +74,14 @@ float LayerBand(float2 uv, float height, float width, float waveScale, float wav
 
 	float curtains = pow(saturate(0.30f + fine * 0.90f), 2.2f);
 	float streaks = pow(saturate(sin((x + coarse * 0.18f + offset) * 72.0f) * 0.5f + 0.5f), 3.4f);
-	float skyFade = smoothstep(0.025f, 0.12f, y) * (1.0f - smoothstep(0.48f, 0.72f, y));
+	float skyFade = smoothstep(0.025f, 0.12f, y) * (1.0f - smoothstep(0.58f, 0.82f, y));
 
 	return band * lerp(curtains, streaks, 0.28f) * skyFade;
 }
 
 float4 PS(PixelShaderInput input) : SV_Target
 {
-	float2 uv = input.UV;
+	float2 uv = GetSkyUv(input);
 
 	float intensity = saturate(AuroraControls.x);
 	float speed = AuroraControls.y;
@@ -83,7 +100,7 @@ float4 PS(PixelShaderInput input) : SV_Target
 	float alpha = saturate((layerA + layerB * 0.70f + layerC * 0.50f) * transparency);
 	alpha *= intensity > 0.0f ? 1.0f : 0.0f;
 
-	float glow = 0.055f;
+	float glow = 0.045f;
 	color *= intensity;
 	color += color * glow;
 
