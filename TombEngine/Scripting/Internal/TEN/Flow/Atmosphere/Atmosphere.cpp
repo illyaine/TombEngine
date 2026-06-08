@@ -4,7 +4,7 @@
 using namespace TEN::Scripting;
 using namespace TEN::Scripting::Types;
 
-/*** Rain weather settings. To be used with @{Flow.WeatherProfile.rain}.
+/** Rain weather settings. To be used with @{Flow.WeatherProfile.rain}.
 @tenprimitive Flow.RainProfile
 @pragma nostrip
 */
@@ -41,7 +41,7 @@ void RainProfile::Register(sol::table& parent)
 	);
 }
 
-/*** Weather profile settings. To be used with @{Flow.Atmosphere.weather}.
+/** Weather profile settings. To be used with @{Flow.Atmosphere.weather}.
 @tenprimitive Flow.WeatherProfile
 @pragma nostrip
 */
@@ -74,7 +74,7 @@ void WeatherProfile::Register(sol::table& parent)
 	);
 }
 
-/*** Wind profile settings. To be used with @{Flow.Atmosphere.wind}.
+/** Wind profile settings. To be used with @{Flow.Atmosphere.wind}.
 @tenprimitive Flow.WindProfile
 @pragma nostrip
 */
@@ -111,7 +111,7 @@ void WindProfile::Register(sol::table& parent)
 	);
 }
 
-/*** Aurora sky effect settings. To be used with @{Flow.Atmosphere.aurora}.
+/** Aurora sky effect settings. To be used with @{Flow.Atmosphere.aurora}.
 @tenprimitive Flow.AuroraProfile
 @pragma nostrip
 */
@@ -172,7 +172,7 @@ void AuroraProfile::Register(sol::table& parent)
 	);
 }
 
-/*** Moon sky object settings. To be used with @{Flow.Atmosphere.moon}.
+/** Moon sky object settings. To be used with @{Flow.Atmosphere.moon}.
 @tenprimitive Flow.MoonProfile
 @pragma nostrip
 */
@@ -237,7 +237,7 @@ void MoonProfile::Register(sol::table& parent)
 	);
 }
 
-/*** Data for one generated or anchored atmosphere effect layer. To be used with @{Flow.Atmosphere.effects}.
+/** Data for one generated or anchored atmosphere effect layer. To be used with @{Flow.Atmosphere.effects}.
 @tenprimitive Flow.AtmosphereEffectProfile
 @pragma nostrip
 */
@@ -374,7 +374,7 @@ void AtmosphereEffectProfile::Register(sol::table& parent)
 	);
 }
 
-/*** Data for one global or anchored light shaft. To be used with @{Flow.Atmosphere.lightShafts}.
+/** Data for one global or anchored light shaft. To be used with @{Flow.Atmosphere.lightShafts}.
 @tenprimitive Flow.LightShaftProfile
 @pragma nostrip
 */
@@ -451,7 +451,7 @@ void LightShaftProfile::Register(sol::table& parent)
 	);
 }
 
-/*** Atmosphere settings. To be used with @{Flow.Level.atmosphere}.
+/** Atmosphere settings. To be used with @{Flow.Level.atmosphere}.
 @tenprimitive Flow.Atmosphere
 @pragma nostrip
 */
@@ -528,17 +528,17 @@ void AuroraProfile::SetColorC(ScriptColor const& color)
 
 ScriptColor AuroraProfile::GetColorA() const
 {
-	return ScriptColor{ ColorAR, ColorAG, ColorAB };
+	return RGBAColor8Byte(ColorAR, ColorAG, ColorAB);
 }
 
 ScriptColor AuroraProfile::GetColorB() const
 {
-	return ScriptColor{ ColorBR, ColorBG, ColorBB };
+	return RGBAColor8Byte(ColorBR, ColorBG, ColorBB);
 }
 
 ScriptColor AuroraProfile::GetColorC() const
 {
-	return ScriptColor{ ColorCR, ColorCG, ColorCB };
+	return RGBAColor8Byte(ColorCR, ColorCG, ColorCB);
 }
 
 void MoonProfile::SetColor(ScriptColor const& color)
@@ -557,12 +557,12 @@ void MoonProfile::SetLightColor(ScriptColor const& color)
 
 ScriptColor MoonProfile::GetColor() const
 {
-	return ScriptColor{ ColorR, ColorG, ColorB };
+	return RGBAColor8Byte(ColorR, ColorG, ColorB);
 }
 
 ScriptColor MoonProfile::GetLightColor() const
 {
-	return ScriptColor{ LightColorR, LightColorG, LightColorB };
+	return RGBAColor8Byte(LightColorR, LightColorG, LightColorB);
 }
 
 void AtmosphereEffectProfile::SetColorA(ScriptColor const& color)
@@ -581,12 +581,12 @@ void AtmosphereEffectProfile::SetColorB(ScriptColor const& color)
 
 ScriptColor AtmosphereEffectProfile::GetColorA() const
 {
-	return ScriptColor{ ColorAR, ColorAG, ColorAB };
+	return RGBAColor8Byte(ColorAR, ColorAG, ColorAB);
 }
 
 ScriptColor AtmosphereEffectProfile::GetColorB() const
 {
-	return ScriptColor{ ColorBR, ColorBG, ColorBB };
+	return RGBAColor8Byte(ColorBR, ColorBG, ColorBB);
 }
 
 void LightShaftProfile::SetColor(ScriptColor const& color)
@@ -598,5 +598,5 @@ void LightShaftProfile::SetColor(ScriptColor const& color)
 
 ScriptColor LightShaftProfile::GetColor() const
 {
-	return ScriptColor{ ColorR, ColorG, ColorB };
+	return RGBAColor8Byte(ColorR, ColorG, ColorB);
 }
