@@ -13,6 +13,7 @@ Current branch state
 - A dedicated Aurora shader foundation now exists, but the renderer draw call is not mounted yet.
 - The Aurora shader no longer depends on `FogColor.a` for visibility/fading.
 - The Aurora shader no longer includes `CBCamera.hlsli`; it only depends on `CBAtmosphereAurora.hlsli`.
+- Aurora intensity controls color brightness. Transparency controls alpha. Intensity only disables alpha when it is exactly zero.
 - `ConstantBufferRegister::AtmosphereAurora` is reserved as register 9 and matches `CBAtmosphereAurora.hlsli` register `b9`.
 
 Added Aurora foundation files
@@ -76,6 +77,7 @@ Completed renderer foundation work
 - Added `Shader::AtmosphereAurora` and loaded `AtmosphereAurora.hlsl` in `ShaderManager`.
 - Reserved `ConstantBufferRegister::AtmosphereAurora = 9` for the Aurora pass.
 - Removed the unused camera constant-buffer dependency from `AtmosphereAurora.hlsl`.
+- Decoupled Aurora output alpha from intensity, so low intensity still remains renderable when transparency is set.
 - Kept the `TombEngine.vcxproj` diff limited to necessary file additions.
 
 Lua test example
