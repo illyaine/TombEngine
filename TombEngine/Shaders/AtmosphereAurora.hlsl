@@ -76,7 +76,6 @@ float4 PS(PixelShaderInput input) : SV_Target
 	float waveScale = max(AuroraWaves.x, 0.05f);
 	float waveStrength = saturate(AuroraWaves.y);
 	float transparency = saturate(AuroraWaves.z);
-	float fadeWithFog = saturate(AuroraWaves.w);
 	float time = AuroraTime.x * speed;
 
 	float layerA = LayerBand(uv, height, width, waveScale, waveStrength, time, 0.0f);
@@ -86,10 +85,9 @@ float4 PS(PixelShaderInput input) : SV_Target
 	float3 color = AuroraColorA.rgb * layerA + AuroraColorB.rgb * layerB + AuroraColorC.rgb * layerC;
 	float alpha = saturate((layerA + layerB * 0.75f + layerC * 0.55f) * transparency);
 
-	float fogFade = fadeWithFog > 0.5f ? saturate(1.0f - FogColor.a * 0.35f) : 1.0f;
 	float glow = 0.06f;
-	color *= intensity * fogFade;
+	color *= intensity;
 	color += color * glow;
 
-	return float4(color, alpha * intensity * fogFade);
+	return float4(color, alpha * intensity);
 }
