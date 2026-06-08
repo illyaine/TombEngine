@@ -163,3 +163,184 @@ const SkyLayer& Level::GetSkyLayer(int index) const
 	TENAssert(index == 0 || index == 1, "Sky layer index must be 0 or 1.");
 	return (index == 0 ? Layer1 : Layer2);
 }
+
+RGBAColor8Byte Level::GetSkyLayerColor(int index) const
+{
+	return GetSkyLayer(index).GetColor();
+}
+
+bool Level::GetSkyLayerEnabled(int index) const
+{
+	return GetSkyLayer(index).Enabled;
+}
+
+short Level::GetSkyLayerSpeed(int index) const
+{
+	return GetSkyLayer(index).CloudSpeed;
+}
+
+LaraType Level::GetLaraType() const
+{
+	return Type;
+}
+
+bool Level::GetResetHubEnabled() const
+{
+	return ResetHub;
+}
+
+bool Level::GetStormEnabled() const
+{
+	return Storm;
+}
+
+bool Level::GetRumbleEnabled() const
+{
+	return Rumble;
+}
+
+bool Level::GetWeatherClustering() const
+{
+	return WeatherClustering;
+}
+
+float Level::GetWeatherStrength() const
+{
+	return WeatherStrength;	
+}
+
+WeatherType Level::GetWeatherType() const
+{
+	return Weather;
+}
+
+RGBAColor8Byte Level::GetFogColor() const
+{
+	return Fog.GetColor();
+}
+
+float Level::GetFogMinDistance() const
+{
+	return Fog.MinDistance;
+}
+
+float Level::GetFogMaxDistance() const
+{
+	return Fog.MaxDistance;
+}
+
+float Level::GetFarView() const
+{
+	return float(LevelFarView);
+}
+
+void Level::SetSecrets(int secrets)
+{
+	LevelSecrets = secrets;
+}
+
+int Level::GetSecrets() const
+{
+	return LevelSecrets;
+}
+
+std::string Level::GetAmbientTrack() const
+{
+	return AmbientTrack;
+}
+
+const TEN::Scripting::Horizon& Level::GetHorizon(int index) const
+{
+	TENAssert(index == 0 || index == 1, "Horizon index must be 0 or 1.");
+	return (index == 0 ? Horizon1 : Horizon2);
+}
+
+bool Level::GetHorizon1Enabled() const
+{
+	return Horizon1.GetEnabled();
+}
+
+void Level::SetHorizon1Enabled(bool enabled)
+{
+	Horizon1.SetEnabled(enabled);
+}
+
+bool Level::GetHorizonEnabled(int index) const
+{
+	return GetHorizon(index).GetEnabled();
+}
+
+GAME_OBJECT_ID Level::GetHorizonObjectID(int index) const
+{
+	return GetHorizon(index).GetObjectID();
+}
+
+float Level::GetHorizonTransparency(int index) const
+{
+	return GetHorizon(index).GetTransparency();
+}
+
+Vector3 Level::GetHorizonPosition(int index) const
+{
+	return GetHorizon(index).GetPosition().ToVector3();
+}
+
+EulerAngles Level::GetHorizonOrientation(int index) const
+{
+	return GetHorizon(index).GetRotation().ToEulerAngles();
+}
+
+Vector3 Level::GetHorizonPrevPosition(int index) const
+{
+	return GetHorizon(index).GetPrevPosition().ToVector3();
+}
+
+EulerAngles Level::GetHorizonPrevOrientation(int index) const
+{
+	return GetHorizon(index).GetPrevRotation().ToEulerAngles();
+}
+
+bool Level::GetLensFlareEnabled() const
+{
+	return LensFlare.GetEnabled();
+}
+
+int Level::GetLensFlareSunSpriteID() const
+{
+	return LensFlare.GetSunSpriteID();
+}
+
+short Level::GetLensFlarePitch() const
+{
+	return ANGLE(LensFlare.GetPitch());
+}
+
+short Level::GetLensFlareYaw() const
+{
+	return ANGLE(LensFlare.GetYaw());
+}
+
+Color Level::GetLensFlareColor() const
+{
+	return LensFlare.GetColor();
+}
+
+int Level::GetStarfieldStarCount() const
+{
+	return Starfield.GetStarCount();
+}
+
+int Level::GetStarfieldMeteorCount() const
+{
+	return Starfield.GetMeteorCount();
+}
+
+int Level::GetStarfieldMeteorSpawnDensity() const
+{
+	return Starfield.GetMeteorSpawnDensity();
+}
+
+float Level::GetStarfieldMeteorVelocity() const
+{
+	return Starfield.GetMeteorVelocity();
+}
