@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -900,9 +900,6 @@ if not exist "%ScriptsDir%\Strings.lua" xcopy /Y "$(SolutionDir)Scripts\Strings.
     <ClInclude Include="Scripting\Internal\TEN\Effects\EffectsFunctions.h" />
     <ClInclude Include="Scripting\Internal\TEN\Flow\Settings\Settings.h" />
     <ClInclude Include="Scripting\Internal\TEN\Flow\FlowHandler.h" />
-    <ClInclude Include="Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.h" />
-    <ClInclude Include="Scripting\Internal\TEN\Flow\Atmosphere\AtmosphereCelestial.h" />
-    <ClInclude Include="Scripting\Internal\TEN\Flow\Atmosphere\AtmosphereEnvironment.h" />
     <ClInclude Include="Scripting\Internal\TEN\Flow\Fog\Fog.h" />
     <ClInclude Include="Scripting\Internal\TEN\Flow\Enums\FreezeModes.h" />
     <ClInclude Include="Scripting\Internal\TEN\Flow\Enums\GameStatuses.h" />
@@ -1376,7 +1373,6 @@ if not exist "%ScriptsDir%\Strings.lua" xcopy /Y "$(SolutionDir)Scripts\Strings.
     <ClCompile Include="Scripting\Internal\TEN\Effects\EffectsFunctions.cpp" />
     <ClCompile Include="Scripting\Internal\TEN\Flow\Settings\Settings.cpp" />
     <ClCompile Include="Scripting\Internal\TEN\Flow\FlowHandler.cpp" />
-    <ClCompile Include="Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp" />
     <ClCompile Include="Scripting\Internal\TEN\Flow\Fog\Fog.cpp" />
     <ClCompile Include="Scripting\Internal\TEN\Flow\InventoryItem\InventoryItem.cpp" />
     <ClCompile Include="Scripting\Internal\TEN\Flow\LensFlare\LensFlare.cpp" />
