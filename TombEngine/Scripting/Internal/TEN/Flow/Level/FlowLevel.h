@@ -4,6 +4,7 @@
 #include "Scripting/Internal/TEN/Flow/SkyLayer/SkyLayer.h"
 #include "Scripting/Internal/TEN/Flow/Starfield/Starfield.h"
 #include "Scripting/Internal/TEN/Flow/Fog/Fog.h"
+#include "Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.h"
 #include "Scripting/Include/ScriptInterfaceLevel.h"
 #include "Scripting/Internal/TEN/Flow/InventoryItem/InventoryItem.h"
 
@@ -21,6 +22,7 @@ struct Level : public ScriptInterfaceLevel
 	TEN::Scripting::Horizon Horizon2 = {};
 	TEN::Scripting::LensFlare LensFlare = {};
 	TEN::Scripting::Starfield Starfield = {};
+	TEN::Scripting::Atmosphere Atmosphere = {};
 
 	WeatherType Weather				= WeatherType::None;
 	float		WeatherStrength		= 1.0f;
