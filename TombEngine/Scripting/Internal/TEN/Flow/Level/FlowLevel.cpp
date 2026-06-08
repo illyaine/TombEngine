@@ -5,6 +5,11 @@
 
 using namespace TEN::Scripting;
 
+namespace
+{
+	constexpr bool FORCE_AURORA_DEBUG_VISIBILITY = true;
+}
+
 /***
 Stores level metadata.
 These are things things which aren't present in the compiled level file itself.
@@ -295,7 +300,7 @@ Vector3 Level::GetHorizonPrevPosition(int index) const
 	return GetHorizon(index).GetPrevPosition().ToVector3();
 }
 
-EulerAngles Level::GetHorizonPrevOrientation(int index) const
+EulerAngles Level::GetHorizonPrevOrientation() const
 {
 	return GetHorizon(index).GetPrevRotation().ToEulerAngles();
 }
@@ -347,52 +352,52 @@ float Level::GetStarfieldMeteorVelocity() const
 
 bool Level::GetAtmosphereEnabled() const
 {
-	return Atmosphere.Enabled;
+	return FORCE_AURORA_DEBUG_VISIBILITY || Atmosphere.Enabled;
 }
 
 bool Level::GetAtmosphereAuroraEnabled() const
 {
-	return Atmosphere.Enabled && Atmosphere.Aurora.Enabled;
+	return FORCE_AURORA_DEBUG_VISIBILITY || (Atmosphere.Enabled && Atmosphere.Aurora.Enabled);
 }
 
 float Level::GetAtmosphereAuroraIntensity() const
 {
-	return Atmosphere.Aurora.Intensity;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.85f : Atmosphere.Aurora.Intensity;
 }
 
 float Level::GetAtmosphereAuroraSpeed() const
 {
-	return Atmosphere.Aurora.Speed;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.02f : Atmosphere.Aurora.Speed;
 }
 
 float Level::GetAtmosphereAuroraHeight() const
 {
-	return Atmosphere.Aurora.Height;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.55f : Atmosphere.Aurora.Height;
 }
 
 float Level::GetAtmosphereAuroraWidth() const
 {
-	return Atmosphere.Aurora.Width;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.50f : Atmosphere.Aurora.Width;
 }
 
 float Level::GetAtmosphereAuroraWaveScale() const
 {
-	return Atmosphere.Aurora.WaveScale;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 1.0f : Atmosphere.Aurora.WaveScale;
 }
 
 float Level::GetAtmosphereAuroraWaveStrength() const
 {
-	return Atmosphere.Aurora.WaveStrength;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.65f : Atmosphere.Aurora.WaveStrength;
 }
 
 float Level::GetAtmosphereAuroraTransparency() const
 {
-	return Atmosphere.Aurora.Transparency;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.85f : Atmosphere.Aurora.Transparency;
 }
 
 bool Level::GetAtmosphereAuroraFadeWithFog() const
 {
-	return Atmosphere.Aurora.FadeWithFog;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? false : Atmosphere.Aurora.FadeWithFog;
 }
 
 Color Level::GetAtmosphereAuroraColorA() const
