@@ -11,6 +11,8 @@ Current branch state
 - `Aurora.hlsli` is not part of the current branch anymore.
 - Aurora profile data exists in the Flow/Atmosphere data model.
 - A dedicated Aurora shader foundation now exists, but the renderer draw call is not mounted yet.
+- The Aurora shader no longer depends on `FogColor.a` for visibility/fading.
+- `ConstantBufferRegister::AtmosphereAurora` is reserved as register 9 and matches `CBAtmosphereAurora.hlsli` register `b9`.
 
 Added Aurora foundation files
 -----------------------------
@@ -23,6 +25,7 @@ Added Aurora foundation files
   - Uses intensity as brightness control, not as a hard visibility threshold.
   - Uses transparency as output alpha control.
   - Uses height, width, speed, waveScale and waveStrength as visible shape controls.
+  - Does not use fog alpha or horizon marker values as routing/fade inputs.
 - `TombEngine/Renderer/ConstantBuffers/AtmosphereAuroraBuffer.h`
   - Renderer-side 16-byte aligned constant buffer mirror.
 
@@ -55,8 +58,8 @@ Desired render order
 
 Open renderer work
 ------------------
-- Add `Shader::AtmosphereAurora` and load `AtmosphereAurora.hlsl` in `ShaderManager`.
 - Add `CAtmosphereAuroraBuffer` to `Renderer` and bind it to `b9` for the Aurora pass.
+- Populate the Aurora constant buffer from the Flow atmosphere Aurora profile.
 - Add a clean renderer call, preferably `DrawAtmosphereAurora(...)`.
 - Mount the pass only when:
   - at least one outside/sky room is visible,
@@ -64,7 +67,13 @@ Open renderer work
   - `levelPtr->GetAtmosphereAuroraEnabled()` is true,
   - intensity and transparency are greater than zero.
 - Keep the pass isolated from legacy sky, horizon, starfield and lens flare draw code.
-- Reduce the current `TombEngine.vcxproj` diff to only necessary file additions before PR.
+- Keep `RendererDraw.cpp` unchanged until the existing sky/horizon render order is fully mapped.
+
+Completed renderer foundation work
+----------------------------------
+- Added `Shader::AtmosphereAurora` and loaded `AtmosphereAurora.hlsl` in `ShaderManager`.
+- Reserved `ConstantBufferRegister::AtmosphereAurora = 9` for the Aurora pass.
+- Kept the `TombEngine.vcxproj` diff limited to necessary file additions.
 
 Lua test example
 ----------------
