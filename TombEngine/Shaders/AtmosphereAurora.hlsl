@@ -83,10 +83,11 @@ float4 PS(PixelShaderInput input) : SV_Target
 
 	float3 color = AuroraColorA.rgb * layerA + AuroraColorB.rgb * layerB + AuroraColorC.rgb * layerC;
 	float alpha = saturate((layerA + layerB * 0.75f + layerC * 0.55f) * transparency);
+	alpha *= intensity > 0.0f ? 1.0f : 0.0f;
 
 	float glow = 0.06f;
 	color *= intensity;
 	color += color * glow;
 
-	return float4(color, alpha * intensity);
+	return float4(color, alpha);
 }
