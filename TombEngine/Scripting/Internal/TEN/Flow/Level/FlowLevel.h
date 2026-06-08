@@ -86,6 +86,21 @@ struct Level : public ScriptInterfaceLevel
 	int	  GetStarfieldMeteorSpawnDensity() const override;
 	float GetStarfieldMeteorVelocity() const override;
 
+	// Atmosphere getters
+	bool GetAtmosphereEnabled() const override;
+	bool GetAtmosphereAuroraEnabled() const override;
+	float GetAtmosphereAuroraIntensity() const override;
+	float GetAtmosphereAuroraSpeed() const override;
+	float GetAtmosphereAuroraHeight() const override;
+	float GetAtmosphereAuroraWidth() const override;
+	float GetAtmosphereAuroraWaveScale() const override;
+	float GetAtmosphereAuroraWaveStrength() const override;
+	float GetAtmosphereAuroraTransparency() const override;
+	bool GetAtmosphereAuroraFadeWithFog() const override;
+	Color GetAtmosphereAuroraColorA() const override;
+	Color GetAtmosphereAuroraColorB() const override;
+	Color GetAtmosphereAuroraColorC() const override;
+
 	// Utility
 	const SkyLayer& GetSkyLayer(int index) const;
 	const TEN::Scripting::Horizon& GetHorizon(int index) const;
