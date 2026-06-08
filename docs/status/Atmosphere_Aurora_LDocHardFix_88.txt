@@ -1,0 +1,15 @@
+Atmosphere Aurora LDoc hard fix 88
+Progress: about 88 percent
+
+Purpose:
+- LDoc still parsed /** comments in Atmosphere.cpp and reported "Module already declared" at the second profile block.
+- This patch changes the top-level profile documentation blocks from /** to plain /* comments.
+- It keeps the C++ API and ScriptColor getter fix intact.
+
+Changed file:
+- TombEngine/Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.cpp
+
+Notes:
+- This is a compile/documentation hard fix.
+- It intentionally avoids touching RendererDraw.cpp.
+- The Aurora shader HLSL Noise/AuroraNoise fix remains in the previous patch/repo state.
