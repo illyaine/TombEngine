@@ -12,7 +12,6 @@ struct PixelShaderInput
 	float4 Position: SV_POSITION;
 	float2 UV: TEXCOORD0;
 	float4 Color: COLOR0;
-	float4 PositionCopy: TEXCOORD1;
 };
 
 PixelShaderInput VS(PostProcessVertexShaderInput input)
@@ -22,7 +21,6 @@ PixelShaderInput VS(PostProcessVertexShaderInput input)
 	output.Position = float4(input.Position, 1.0f);
 	output.UV = input.UV;
 	output.Color = input.Color;
-	output.PositionCopy = output.Position;
 
 	return output;
 }
@@ -49,19 +47,19 @@ float LayerBand(float2 uv, float height, float width, float waveScale, float wav
 	float x = uv.x;
 	float y = uv.y;
 
-	float coarse = Noise(float2(x * waveScale * 3.0f + time * 0.18f + offset, time * 0.05f + offset));
-	float fine = Noise(float2(x * waveScale * 13.0f - time * 0.12f + offset * 2.0f, y * 8.0f + offset));
+	float coarse = Noise(float2(x * waveScale * 2.4f + time * 0.06f + offset, time * 0.015f + offset));
+	float fine = Noise(float2(x * waveScale * 11.0f - time * 0.045f + offset * 2.0f, y * 7.0f + offset));
 	float wave = (coarse - 0.5f) * waveStrength * width;
 
 	float center = saturate(height + wave);
 	float distanceFromBand = abs(y - center);
-	float band = 1.0f - smoothstep(width * 0.20f, width, distanceFromBand);
+	float band = 1.0f - smoothstep(width * 0.12f, width, distanceFromBand);
 
-	float curtains = pow(saturate(0.35f + fine * 0.85f), 2.0f);
-	float streaks = pow(saturate(sin((x + coarse * 0.22f + offset) * 90.0f) * 0.5f + 0.5f), 3.0f);
-	float topFade = smoothstep(0.08f, 0.22f, y) * (1.0f - smoothstep(0.96f, 1.0f, y));
+	float curtains = pow(saturate(0.30f + fine * 0.90f), 2.2f);
+	float streaks = pow(saturate(sin((x + coarse * 0.18f + offset) * 72.0f) * 0.5f + 0.5f), 3.4f);
+	float skyFade = smoothstep(0.025f, 0.12f, y) * (1.0f - smoothstep(0.48f, 0.72f, y));
 
-	return band * lerp(curtains, streaks, 0.35f) * topFade;
+	return band * lerp(curtains, streaks, 0.28f) * skyFade;
 }
 
 float4 PS(PixelShaderInput input) : SV_Target
@@ -70,22 +68,22 @@ float4 PS(PixelShaderInput input) : SV_Target
 
 	float intensity = saturate(AuroraControls.x);
 	float speed = AuroraControls.y;
-	float height = saturate(AuroraControls.z);
-	float width = max(AuroraControls.w, 0.02f);
+	float height = saturate(1.0f - AuroraControls.z);
+	float width = max(AuroraControls.w * 0.35f, 0.018f);
 	float waveScale = max(AuroraWaves.x, 0.05f);
 	float waveStrength = saturate(AuroraWaves.y);
 	float transparency = saturate(AuroraWaves.z);
 	float time = AuroraTime.x * speed;
 
 	float layerA = LayerBand(uv, height, width, waveScale, waveStrength, time, 0.0f);
-	float layerB = LayerBand(uv, height + width * 0.22f, width * 0.78f, waveScale * 1.35f, waveStrength * 0.85f, time * 0.82f, 12.7f);
-	float layerC = LayerBand(uv, height - width * 0.18f, width * 0.62f, waveScale * 1.75f, waveStrength * 0.65f, time * 0.68f, 31.4f);
+	float layerB = LayerBand(uv, height + width * 0.35f, width * 0.72f, waveScale * 1.35f, waveStrength * 0.78f, time * 0.72f, 12.7f);
+	float layerC = LayerBand(uv, height - width * 0.30f, width * 0.58f, waveScale * 1.75f, waveStrength * 0.60f, time * 0.55f, 31.4f);
 
 	float3 color = AuroraColorA.rgb * layerA + AuroraColorB.rgb * layerB + AuroraColorC.rgb * layerC;
-	float alpha = saturate((layerA + layerB * 0.75f + layerC * 0.55f) * transparency);
+	float alpha = saturate((layerA + layerB * 0.70f + layerC * 0.50f) * transparency);
 	alpha *= intensity > 0.0f ? 1.0f : 0.0f;
 
-	float glow = 0.06f;
+	float glow = 0.055f;
 	color *= intensity;
 	color += color * glow;
 
