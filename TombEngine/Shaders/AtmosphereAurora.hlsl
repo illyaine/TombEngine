@@ -1,4 +1,3 @@
-#include "./CBCamera.hlsli"
 #include "./CBAtmosphereAurora.hlsli"
 
 struct PostProcessVertexShaderInput
