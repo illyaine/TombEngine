@@ -12,6 +12,7 @@ Current branch state
 - Aurora profile data exists in the Flow/Atmosphere data model.
 - A dedicated Aurora shader foundation now exists, but the renderer draw call is not mounted yet.
 - The Aurora shader no longer depends on `FogColor.a` for visibility/fading.
+- The Aurora shader no longer includes `CBCamera.hlsli`; it only depends on `CBAtmosphereAurora.hlsli`.
 - `ConstantBufferRegister::AtmosphereAurora` is reserved as register 9 and matches `CBAtmosphereAurora.hlsli` register `b9`.
 
 Added Aurora foundation files
@@ -26,6 +27,7 @@ Added Aurora foundation files
   - Uses transparency as output alpha control.
   - Uses height, width, speed, waveScale and waveStrength as visible shape controls.
   - Does not use fog alpha or horizon marker values as routing/fade inputs.
+  - Does not require the camera constant buffer.
 - `TombEngine/Renderer/ConstantBuffers/AtmosphereAuroraBuffer.h`
   - Renderer-side 16-byte aligned constant buffer mirror.
 
@@ -73,6 +75,7 @@ Completed renderer foundation work
 ----------------------------------
 - Added `Shader::AtmosphereAurora` and loaded `AtmosphereAurora.hlsl` in `ShaderManager`.
 - Reserved `ConstantBufferRegister::AtmosphereAurora = 9` for the Aurora pass.
+- Removed the unused camera constant-buffer dependency from `AtmosphereAurora.hlsl`.
 - Kept the `TombEngine.vcxproj` diff limited to necessary file additions.
 
 Lua test example
