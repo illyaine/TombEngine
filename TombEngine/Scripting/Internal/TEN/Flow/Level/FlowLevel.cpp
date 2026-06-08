@@ -300,7 +300,7 @@ Vector3 Level::GetHorizonPrevPosition(int index) const
 	return GetHorizon(index).GetPrevPosition().ToVector3();
 }
 
-EulerAngles Level::GetHorizonPrevOrientation() const
+EulerAngles Level::GetHorizonPrevOrientation(int index) const
 {
 	return GetHorizon(index).GetPrevRotation().ToEulerAngles();
 }
