@@ -528,17 +528,17 @@ void AuroraProfile::SetColorC(ScriptColor const& color)
 
 ScriptColor AuroraProfile::GetColorA() const
 {
-	return RGBAColor8Byte(ColorAR, ColorAG, ColorAB);
+	return ScriptColor{ ColorAR, ColorAG, ColorAB };
 }
 
 ScriptColor AuroraProfile::GetColorB() const
 {
-	return RGBAColor8Byte(ColorBR, ColorBG, ColorBB);
+	return ScriptColor{ ColorBR, ColorBG, ColorBB };
 }
 
 ScriptColor AuroraProfile::GetColorC() const
 {
-	return RGBAColor8Byte(ColorCR, ColorCG, ColorCB);
+	return ScriptColor{ ColorCR, ColorCG, ColorCB };
 }
 
 void MoonProfile::SetColor(ScriptColor const& color)
@@ -557,12 +557,12 @@ void MoonProfile::SetLightColor(ScriptColor const& color)
 
 ScriptColor MoonProfile::GetColor() const
 {
-	return RGBAColor8Byte(ColorR, ColorG, ColorB);
+	return ScriptColor{ ColorR, ColorG, ColorB };
 }
 
 ScriptColor MoonProfile::GetLightColor() const
 {
-	return RGBAColor8Byte(LightColorR, LightColorG, LightColorB);
+	return ScriptColor{ LightColorR, LightColorG, LightColorB };
 }
 
 void AtmosphereEffectProfile::SetColorA(ScriptColor const& color)
@@ -581,12 +581,12 @@ void AtmosphereEffectProfile::SetColorB(ScriptColor const& color)
 
 ScriptColor AtmosphereEffectProfile::GetColorA() const
 {
-	return RGBAColor8Byte(ColorAR, ColorAG, ColorAB);
+	return ScriptColor{ ColorAR, ColorAG, ColorAB };
 }
 
 ScriptColor AtmosphereEffectProfile::GetColorB() const
 {
-	return RGBAColor8Byte(ColorBR, ColorBG, ColorBB);
+	return ScriptColor{ ColorBR, ColorBG, ColorBB };
 }
 
 void LightShaftProfile::SetColor(ScriptColor const& color)
@@ -598,5 +598,5 @@ void LightShaftProfile::SetColor(ScriptColor const& color)
 
 ScriptColor LightShaftProfile::GetColor() const
 {
-	return RGBAColor8Byte(ColorR, ColorG, ColorB);
+	return ScriptColor{ ColorR, ColorG, ColorB };
 }

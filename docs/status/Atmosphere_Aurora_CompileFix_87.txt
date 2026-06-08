@@ -1,0 +1,38 @@
+Atmosphere Aurora compile fix 87
+===============================
+
+Purpose
+-------
+Fixes the compile errors reported after applying the real-motion Aurora patch.
+
+Fixed errors
+------------
+- C2440 in Atmosphere.cpp: ScriptColor getters returned RGBAColor8Byte.
+  They now return ScriptColor{ ... } directly.
+- HLSL0045 in AtmosphereAurora.hlsl: Noise collided with a helper included through CBCamera.hlsli / Math.hlsli.
+  Aurora-local helpers are now named AuroraHash and AuroraNoise.
+
+Included files
+--------------
+- TombEngine/Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.cpp
+- TombEngine/Shaders/AtmosphereAurora.hlsl
+
+Notes
+-----
+- RendererDraw.cpp is not included in this compile fix. Keep the previously applied real-motion RendererDraw.cpp if it is already in your local tree.
+- FORCE_AURORA_DEBUG_VISIBILITY remains a temporary debug setting in FlowLevel.cpp from the previous package.
+- Build not run by assistant. Local build/test required.
+
+Original reported errors
+------------------------
+Schweregrad	Code	Beschreibung	Projekt	Datei	Zeile	Unterdrückungszustand	Details
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	531		
+Fehler	HLSL0045	Neudefinition von „Noise“.		E:\00GitHub\TombEngine\TombEngine\Shaders\AtmosphereAurora.hlsl	34		
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	536		
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	541		
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	560		
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	565		
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	584		
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	589		
+Fehler	C2440	"return": "RGBAColor8Byte" kann nicht in "TEN::Scripting::Types::ScriptColor" konvertiert werden	TombEngine	E:\00GitHub\TombEngine\TombEngine\Scripting\Internal\TEN\Flow\Atmosphere\Atmosphere.cpp	601		
+

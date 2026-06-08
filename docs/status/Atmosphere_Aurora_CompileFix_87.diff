@@ -1,0 +1,113 @@
+--- a/TombEngine/Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.cpp
++++ b/TombEngine/Scripting/Internal/TEN/Flow/Atmosphere/Atmosphere.cpp
+@@ -4,7 +4,7 @@
+ using namespace TEN::Scripting;
+ using namespace TEN::Scripting::Types;
+ 
+-/*** Rain weather settings. To be used with @{Flow.WeatherProfile.rain}.
++/** Rain weather settings. To be used with @{Flow.WeatherProfile.rain}.
+ @tenprimitive Flow.RainProfile
+ @pragma nostrip
+ */
+@@ -41,7 +41,7 @@
+ 	);
+ }
+ 
+-/*** Weather profile settings. To be used with @{Flow.Atmosphere.weather}.
++/** Weather profile settings. To be used with @{Flow.Atmosphere.weather}.
+ @tenprimitive Flow.WeatherProfile
+ @pragma nostrip
+ */
+@@ -74,7 +74,7 @@
+ 	);
+ }
+ 
+-/*** Wind profile settings. To be used with @{Flow.Atmosphere.wind}.
++/** Wind profile settings. To be used with @{Flow.Atmosphere.wind}.
+ @tenprimitive Flow.WindProfile
+ @pragma nostrip
+ */
+@@ -111,7 +111,7 @@
+ 	);
+ }
+ 
+-/*** Aurora sky effect settings. To be used with @{Flow.Atmosphere.aurora}.
++/** Aurora sky effect settings. To be used with @{Flow.Atmosphere.aurora}.
+ @tenprimitive Flow.AuroraProfile
+ @pragma nostrip
+ */
+@@ -172,7 +172,7 @@
+ 	);
+ }
+ 
+-/*** Moon sky object settings. To be used with @{Flow.Atmosphere.moon}.
++/** Moon sky object settings. To be used with @{Flow.Atmosphere.moon}.
+ @tenprimitive Flow.MoonProfile
+ @pragma nostrip
+ */
+@@ -237,7 +237,7 @@
+ 	);
+ }
+ 
+-/*** Data for one generated or anchored atmosphere effect layer. To be used with @{Flow.Atmosphere.effects}.
++/** Data for one generated or anchored atmosphere effect layer. To be used with @{Flow.Atmosphere.effects}.
+ @tenprimitive Flow.AtmosphereEffectProfile
+ @pragma nostrip
+ */
+@@ -374,7 +374,7 @@
+ 	);
+ }
+ 
+-/*** Data for one global or anchored light shaft. To be used with @{Flow.Atmosphere.lightShafts}.
++/** Data for one global or anchored light shaft. To be used with @{Flow.Atmosphere.lightShafts}.
+ @tenprimitive Flow.LightShaftProfile
+ @pragma nostrip
+ */
+@@ -451,7 +451,7 @@
+ 	);
+ }
+ 
+-/*** Atmosphere settings. To be used with @{Flow.Level.atmosphere}.
++/** Atmosphere settings. To be used with @{Flow.Level.atmosphere}.
+ @tenprimitive Flow.Atmosphere
+ @pragma nostrip
+ */
+
+--- a/TombEngine/Shaders/AtmosphereAurora.hlsl
++++ b/TombEngine/Shaders/AtmosphereAurora.hlsl
+@@ -26,20 +26,20 @@
+ 	return output;
+ }
+ 
+-float Hash(float2 value)
++float AuroraHash(float2 value)
+ {
+ 	return frac(sin(dot(value, float2(127.1f, 311.7f))) * 43758.5453f);
+ }
+ 
+-float Noise(float2 value)
++float AuroraNoise(float2 value)
+ {
+ 	float2 i = floor(value);
+ 	float2 f = frac(value);
+ 	float2 u = f * f * (3.0f - 2.0f * f);
+ 
+ 	return lerp(
+-		lerp(Hash(i + float2(0.0f, 0.0f)), Hash(i + float2(1.0f, 0.0f)), u.x),
+-		lerp(Hash(i + float2(0.0f, 1.0f)), Hash(i + float2(1.0f, 1.0f)), u.x),
++		lerp(AuroraHash(i + float2(0.0f, 0.0f)), AuroraHash(i + float2(1.0f, 0.0f)), u.x),
++		lerp(AuroraHash(i + float2(0.0f, 1.0f)), AuroraHash(i + float2(1.0f, 1.0f)), u.x),
+ 		u.y);
+ }
+ 
+@@ -64,8 +64,8 @@
+ 	float x = uv.x;
+ 	float y = uv.y;
+ 
+-	float coarse = Noise(float2(x * waveScale * 2.4f + time * 0.14f + offset, time * 0.035f + offset));
+-	float fine = Noise(float2(x * waveScale * 11.0f - time * 0.10f + offset * 2.0f, y * 7.0f + offset));
++	float coarse = AuroraNoise(float2(x * waveScale * 2.4f + time * 0.14f + offset, time * 0.035f + offset));
++	float fine = AuroraNoise(float2(x * waveScale * 11.0f - time * 0.10f + offset * 2.0f, y * 7.0f + offset));
+ 	float wave = (coarse - 0.5f) * waveStrength * width;
+ 
+ 	float center = saturate(height + wave);
