@@ -64,4 +64,19 @@ public:
 	virtual int	  GetStarfieldMeteorCount() const = 0;
 	virtual int	  GetStarfieldMeteorSpawnDensity() const = 0;
 	virtual float GetStarfieldMeteorVelocity() const = 0;
+
+	// Atmosphere getters
+	virtual bool GetAtmosphereEnabled() const = 0;
+	virtual bool GetAtmosphereAuroraEnabled() const = 0;
+	virtual float GetAtmosphereAuroraIntensity() const = 0;
+	virtual float GetAtmosphereAuroraSpeed() const = 0;
+	virtual float GetAtmosphereAuroraHeight() const = 0;
+	virtual float GetAtmosphereAuroraWidth() const = 0;
+	virtual float GetAtmosphereAuroraWaveScale() const = 0;
+	virtual float GetAtmosphereAuroraWaveStrength() const = 0;
+	virtual float GetAtmosphereAuroraTransparency() const = 0;
+	virtual bool GetAtmosphereAuroraFadeWithFog() const = 0;
+	virtual Color GetAtmosphereAuroraColorA() const = 0;
+	virtual Color GetAtmosphereAuroraColorB() const = 0;
+	virtual Color GetAtmosphereAuroraColorC() const = 0;
 };
