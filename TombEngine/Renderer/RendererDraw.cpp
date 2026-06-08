@@ -3058,10 +3058,15 @@ namespace TEN::Renderer
 		const auto colorB = levelPtr->GetAtmosphereAuroraColorB();
 		const auto colorC = levelPtr->GetAtmosphereAuroraColorC();
 		const float refreshRate = _refreshRate > 0 ? (float)_refreshRate : 60.0f;
+		auto normalizeAuroraColor = [](const Color& color)
+		{
+			const float scale = (color.x > 1.0f || color.y > 1.0f || color.z > 1.0f) ? (1.0f / 255.0f) : 1.0f;
+			return Vector4(color.x * scale, color.y * scale, color.z * scale, 1.0f);
+		};
 
-		_stAtmosphereAurora.ColorA = Vector4(colorA.x, colorA.y, colorA.z, 1.0f);
-		_stAtmosphereAurora.ColorB = Vector4(colorB.x, colorB.y, colorB.z, 1.0f);
-		_stAtmosphereAurora.ColorC = Vector4(colorC.x, colorC.y, colorC.z, 1.0f);
+		_stAtmosphereAurora.ColorA = normalizeAuroraColor(colorA);
+		_stAtmosphereAurora.ColorB = normalizeAuroraColor(colorB);
+		_stAtmosphereAurora.ColorC = normalizeAuroraColor(colorC);
 		_stAtmosphereAurora.Controls = Vector4(
 			levelPtr->GetAtmosphereAuroraIntensity(),
 			levelPtr->GetAtmosphereAuroraSpeed(),
@@ -3172,9 +3177,6 @@ namespace TEN::Renderer
 				_numMoveablesDrawCalls++;
 			}
 		}
-
-		if (!reflectionPass)
-			DrawAtmosphereAurora(renderView);
 
 		_context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
 
@@ -3373,6 +3375,9 @@ namespace TEN::Renderer
 				}
 			}
 		}
+
+		if (!reflectionPass)
+			DrawAtmosphereAurora(renderView);
 
 		// Eventually draw the sun sprite.
 		if (!renderView.LensFlaresToDraw.empty() && renderView.LensFlaresToDraw[0].IsGlobal && !reflectionPass)

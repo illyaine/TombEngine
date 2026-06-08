@@ -362,37 +362,37 @@ bool Level::GetAtmosphereAuroraEnabled() const
 
 float Level::GetAtmosphereAuroraIntensity() const
 {
-	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.85f : Atmosphere.Aurora.Intensity;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.72f : Atmosphere.Aurora.Intensity;
 }
 
 float Level::GetAtmosphereAuroraSpeed() const
 {
-	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.02f : Atmosphere.Aurora.Speed;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.12f : Atmosphere.Aurora.Speed;
 }
 
 float Level::GetAtmosphereAuroraHeight() const
 {
-	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.55f : Atmosphere.Aurora.Height;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.68f : Atmosphere.Aurora.Height;
 }
 
 float Level::GetAtmosphereAuroraWidth() const
 {
-	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.50f : Atmosphere.Aurora.Width;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.38f : Atmosphere.Aurora.Width;
 }
 
 float Level::GetAtmosphereAuroraWaveScale() const
 {
-	return FORCE_AURORA_DEBUG_VISIBILITY ? 1.0f : Atmosphere.Aurora.WaveScale;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 1.45f : Atmosphere.Aurora.WaveScale;
 }
 
 float Level::GetAtmosphereAuroraWaveStrength() const
 {
-	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.65f : Atmosphere.Aurora.WaveStrength;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.70f : Atmosphere.Aurora.WaveStrength;
 }
 
 float Level::GetAtmosphereAuroraTransparency() const
 {
-	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.85f : Atmosphere.Aurora.Transparency;
+	return FORCE_AURORA_DEBUG_VISIBILITY ? 0.58f : Atmosphere.Aurora.Transparency;
 }
 
 bool Level::GetAtmosphereAuroraFadeWithFog() const
