@@ -40,6 +40,7 @@
 #include "Renderer/ConstantBuffers/PostProcessBuffer.h"
 #include "Renderer/ConstantBuffers/SMAABuffer.h"
 #include "Renderer/ConstantBuffers/SkyBuffer.h"
+#include "Renderer/ConstantBuffers/AtmosphereAuroraBuffer.h"
 #include "Renderer/Structures/RendererBone.h"
 #include "Renderer/Structures/RendererDoor.h"
 #include "Renderer/Structures/RendererStringToDraw.h"
@@ -188,6 +189,8 @@ namespace TEN::Renderer
 		ConstantBuffer<CSMAABuffer> _cbSMAABuffer;
 		CSkyBuffer _stSky;
 		ConstantBuffer<CSkyBuffer> _cbSky;
+		CAtmosphereAuroraBuffer _stAtmosphereAurora;
+		ConstantBuffer<CAtmosphereAuroraBuffer> _cbAtmosphereAurora;
 		CMaterialBuffer _stMaterial;
 		ConstantBuffer<CMaterialBuffer> _cbMaterial;
 
@@ -435,6 +438,7 @@ namespace TEN::Renderer
 		void PrepareSingleLaserBeam(RenderView& view);
 		void DrawHorizonAndSky(ID3D11DepthStencilView* depthStencilView, RenderView& renderView, bool reflectionPass = false);
 		void DrawHorizonAndSkyForReflections(RenderView& renderView);
+		void DrawAtmosphereAurora(RenderView& renderView);
 		void DrawRooms(RenderView& view, RendererPass rendererPass);
 		void DrawItems(RenderView& view, RendererPass rendererPass, bool onlyPlayer = false);
 		void DrawAnimatingItem(RendererItem* item, RenderView& view, RendererPass rendererPass);

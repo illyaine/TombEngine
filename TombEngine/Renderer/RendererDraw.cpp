@@ -3044,6 +3044,63 @@ namespace TEN::Renderer
 		SetCullMode(CullMode::CounterClockwise);
 	}
 
+	void Renderer::DrawAtmosphereAurora(RenderView& renderView)
+	{
+		auto* levelPtr = g_GameFlow->GetLevel(CurrentLevel);
+
+		if (!levelPtr->GetAtmosphereEnabled() ||
+			!levelPtr->GetAtmosphereAuroraEnabled() ||
+			levelPtr->GetAtmosphereAuroraIntensity() <= EPSILON ||
+			levelPtr->GetAtmosphereAuroraTransparency() <= EPSILON)
+			return;
+
+		const auto colorA = levelPtr->GetAtmosphereAuroraColorA();
+		const auto colorB = levelPtr->GetAtmosphereAuroraColorB();
+		const auto colorC = levelPtr->GetAtmosphereAuroraColorC();
+		const float refreshRate = _refreshRate > 0 ? (float)_refreshRate : 60.0f;
+
+		_stAtmosphereAurora.ColorA = Vector4(colorA.x, colorA.y, colorA.z, 1.0f);
+		_stAtmosphereAurora.ColorB = Vector4(colorB.x, colorB.y, colorB.z, 1.0f);
+		_stAtmosphereAurora.ColorC = Vector4(colorC.x, colorC.y, colorC.z, 1.0f);
+		_stAtmosphereAurora.Controls = Vector4(
+			levelPtr->GetAtmosphereAuroraIntensity(),
+			levelPtr->GetAtmosphereAuroraSpeed(),
+			levelPtr->GetAtmosphereAuroraHeight(),
+			levelPtr->GetAtmosphereAuroraWidth());
+		_stAtmosphereAurora.Waves = Vector4(
+			levelPtr->GetAtmosphereAuroraWaveScale(),
+			levelPtr->GetAtmosphereAuroraWaveStrength(),
+			levelPtr->GetAtmosphereAuroraTransparency(),
+			levelPtr->GetAtmosphereAuroraFadeWithFog() ? 1.0f : 0.0f);
+		_stAtmosphereAurora.Time = Vector4(((float)GlobalCounter + GetInterpolationFactor()) / refreshRate, 0.0f, 0.0f, 0.0f);
+
+		UpdateConstantBuffer(_stAtmosphereAurora, _cbAtmosphereAurora);
+		BindConstantBufferPS(ConstantBufferRegister::AtmosphereAurora, _cbAtmosphereAurora.get());
+
+		bool wasFullscreenPass = _doingFullscreenPass;
+		_doingFullscreenPass = true;
+
+		SetBlendMode(BlendMode::AlphaBlend);
+		SetDepthState(DepthState::None);
+		SetCullMode(CullMode::None);
+
+		_shaders.Bind(Shader::AtmosphereAurora);
+		_context->RSSetViewports(1, &renderView.Viewport);
+		_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		_context->IASetInputLayout(_fullscreenTriangleInputLayout.Get());
+
+		unsigned int stride = sizeof(PostProcessVertex);
+		unsigned int offset = 0;
+		_context->IASetVertexBuffers(0, 1, _fullscreenTriangleVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
+
+		DrawTriangles(3, 0);
+
+		_context->IASetInputLayout(_inputLayout.Get());
+
+		_doingFullscreenPass = wasFullscreenPass;
+		SetCullMode(CullMode::CounterClockwise, true);
+	}
+
 	void Renderer::DrawHorizonAndSky(ID3D11DepthStencilView* depthStencilView, RenderView& renderView, bool reflectionPass)
 	{
 		constexpr auto STAR_SIZE = 2;
@@ -3062,7 +3119,15 @@ namespace TEN::Renderer
 			}
 		}
 
-		if ((!levelPtr->GetHorizonEnabled(0) && !levelPtr->GetHorizonEnabled(1)) || (!anyOutsideRooms && !reflectionPass))
+		bool drawHorizon = levelPtr->GetHorizonEnabled(0) || levelPtr->GetHorizonEnabled(1);
+		bool drawAurora =
+			!reflectionPass &&
+			levelPtr->GetAtmosphereEnabled() &&
+			levelPtr->GetAtmosphereAuroraEnabled() &&
+			levelPtr->GetAtmosphereAuroraIntensity() > EPSILON &&
+			levelPtr->GetAtmosphereAuroraTransparency() > EPSILON;
+
+		if ((!drawHorizon && !drawAurora) || (!anyOutsideRooms && !reflectionPass))
 			return;
 
 		if (Lara.Control.Look.OpticRange != 0)
@@ -3107,6 +3172,9 @@ namespace TEN::Renderer
 				_numMoveablesDrawCalls++;
 			}
 		}
+
+		if (!reflectionPass)
+			DrawAtmosphereAurora(renderView);
 
 		_context->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1, 0);
 

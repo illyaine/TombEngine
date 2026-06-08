@@ -62,6 +62,7 @@ namespace TEN::Renderer
 		_cbCameraMatrices = CreateConstantBuffer<CCameraMatrixBuffer>();
 		_cbItem = CreateConstantBuffer<CItemBuffer>();
 		_cbSky = CreateConstantBuffer<CSkyBuffer>();
+		_cbAtmosphereAurora = CreateConstantBuffer<CAtmosphereAuroraBuffer>();
 		_cbLights = CreateConstantBuffer<CLightBuffer>();
 		_cbShadowMap = CreateConstantBuffer<CShadowLightBuffer>();
 		_cbRoom = CreateConstantBuffer<CRoomBuffer>();
