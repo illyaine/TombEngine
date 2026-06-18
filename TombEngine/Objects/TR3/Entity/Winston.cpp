@@ -21,6 +21,8 @@ using namespace TEN::Math;
 // NOTES:
 // ItemFlags[0]: defeat timer.
 // ItemFlags[1]: type.
+// ItemFlags[2]: static stuck recovery timer.
+// ItemFlags[3]: static stuck recovery turn direction.
 
 namespace TEN::Entities::Creatures::TR3
 {
@@ -30,6 +32,12 @@ namespace TEN::Entities::Creatures::TR3
 
 	constexpr auto WINSTON_RECOVER_HIT_POINTS = 16;
 	constexpr auto WINSTON_DEFEAT_TIMER_MAX = 5 * FPS;
+
+	constexpr auto WINSTON_STATIC_COLLISION_RADIUS = CLICK(1);
+	constexpr auto WINSTON_STATIC_COLLISION_HEIGHT = CLICK(3);
+	constexpr auto WINSTON_STUCK_RECOVERY_TIME = FPS / 2;
+	constexpr auto WINSTON_STUCK_RECOVERY_TURN = ANGLE(22.5f);
+	constexpr auto WINSTON_STUCK_RECOVERY_TURN_STRONG = ANGLE(45.0f);
 
 	enum WinstonState
 	{
@@ -80,6 +88,41 @@ namespace TEN::Entities::Creatures::TR3
 		Army = 1
 	};
 
+	static bool TestWinstonStaticCollision(ItemInfo& item, const Pose& previousPose, short forwardAngle)
+	{
+		CollisionInfo coll = {};
+		coll.Setup.Radius = WINSTON_STATIC_COLLISION_RADIUS;
+		coll.Setup.Height = WINSTON_STATIC_COLLISION_HEIGHT;
+		coll.Setup.ForwardAngle = forwardAngle;
+		coll.Setup.LowerFloorBound = STEPUP_HEIGHT;
+		coll.Setup.UpperFloorBound = -STEPUP_HEIGHT;
+		coll.Setup.LowerCeilingBound = 0;
+		coll.Setup.UpperCeilingBound = MAX_HEIGHT;
+		coll.Setup.ForceSolidStatics = true;
+		coll.Setup.PrevPosition = previousPose.Position;
+
+		auto collisionTestItem = item;
+		GetCollisionInfo(&coll, &collisionTestItem);
+
+		if (!coll.HitStatic)
+			return false;
+
+		item.Pose.Position = previousPose.Position;
+		item.Animation.Velocity.z = 0;
+
+		return true;
+	}
+
+	static void StartWinstonStuckRecovery(ItemInfo& item, const AI_INFO& ai)
+	{
+		const auto turnDirection = ai.angle >= 0 ? 1 : -1;
+		const auto repeatedHit = item.ItemFlags[2] > 0 && item.ItemFlags[3] == turnDirection;
+
+		item.ItemFlags[2] = WINSTON_STUCK_RECOVERY_TIME;
+		item.ItemFlags[3] = turnDirection;
+		item.Pose.Orientation.y += turnDirection * (repeatedHit ? WINSTON_STUCK_RECOVERY_TURN_STRONG : WINSTON_STUCK_RECOVERY_TURN);
+	}
+
 	void InitializeWinston(short itemNumber)
 	{
 		auto& item = g_Level.Items[itemNumber];
@@ -129,6 +172,12 @@ namespace TEN::Entities::Creatures::TR3
 		}
 
 		short headingAngle = CreatureTurn(&item, creature.MaxTurn);
+
+		if (item.ItemFlags[2] > 0)
+		{
+			headingAngle += item.ItemFlags[3] * WINSTON_STUCK_RECOVERY_TURN;
+			item.ItemFlags[2]--;
+		}
 
 		if (item.HitPoints <= 0 && item.TriggerFlags)
 		{
@@ -302,7 +351,14 @@ namespace TEN::Entities::Creatures::TR3
 		if (Random::TestProbability(WINSTON_SHUFFLE_SOUND_CHANCE))
 			SoundEffect(SFX_TR3_WINSTON_SHUFFLE, &item.Pose);
 
+		auto previousPose = item.Pose;
 		CreatureAnimation(itemNumber, headingAngle, 0);
+
+		if (TestWinstonStaticCollision(item, previousPose, item.Pose.Orientation.y))
+		{
+			StartWinstonStuckRecovery(item, ai);
+			creature.Flags &= ~1;
+		}
 	}
 
 	void HitWinston(ItemInfo& target, ItemInfo& source, std::optional<GameVector> pos, int damage, bool isExplosive, int jointIndex)
