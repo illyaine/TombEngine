@@ -23,6 +23,8 @@ using namespace TEN::Math;
 // ItemFlags[1]: type.
 // ItemFlags[2]: static stuck recovery timer.
 // ItemFlags[3]: static stuck recovery turn direction.
+// ItemFlags[4]: repeated static stuck hit counter.
+// ItemFlags[5]: static stuck recovery stage.
 
 namespace TEN::Entities::Creatures::TR3
 {
@@ -36,8 +38,14 @@ namespace TEN::Entities::Creatures::TR3
 	constexpr auto WINSTON_STATIC_COLLISION_RADIUS = CLICK(1);
 	constexpr auto WINSTON_STATIC_COLLISION_HEIGHT = CLICK(3);
 	constexpr auto WINSTON_STUCK_RECOVERY_TIME = FPS / 2;
+	constexpr auto WINSTON_STUCK_RECOVERY_TIME_STRONG = FPS;
 	constexpr auto WINSTON_STUCK_RECOVERY_TURN = ANGLE(22.5f);
 	constexpr auto WINSTON_STUCK_RECOVERY_TURN_STRONG = ANGLE(45.0f);
+	constexpr auto WINSTON_STUCK_RECOVERY_TURN_RESET = ANGLE(90.0f);
+	constexpr auto WINSTON_STUCK_STAGE_1 = FPS / 2;
+	constexpr auto WINSTON_STUCK_STAGE_2 = FPS;
+	constexpr auto WINSTON_STUCK_STAGE_3 = 2 * FPS;
+	constexpr auto WINSTON_STUCK_COUNTER_MAX = 4 * FPS;
 
 	enum WinstonState
 	{
@@ -113,14 +121,67 @@ namespace TEN::Entities::Creatures::TR3
 		return true;
 	}
 
+	static int GetWinstonStuckStage(const ItemInfo& item)
+	{
+		if (item.ItemFlags[4] >= WINSTON_STUCK_STAGE_3)
+			return 3;
+
+		if (item.ItemFlags[4] >= WINSTON_STUCK_STAGE_2)
+			return 2;
+
+		if (item.ItemFlags[4] >= WINSTON_STUCK_STAGE_1)
+			return 1;
+
+		return 0;
+	}
+
+	static void ResetWinstonStuckRecovery(ItemInfo& item)
+	{
+		if (item.ItemFlags[2] > 0)
+			return;
+
+		item.ItemFlags[3] = 0;
+		item.ItemFlags[4] = 0;
+		item.ItemFlags[5] = 0;
+	}
+
 	static void StartWinstonStuckRecovery(ItemInfo& item, const AI_INFO& ai)
 	{
-		const auto turnDirection = ai.angle >= 0 ? 1 : -1;
-		const auto repeatedHit = item.ItemFlags[2] > 0 && item.ItemFlags[3] == turnDirection;
+		if (item.ItemFlags[4] < WINSTON_STUCK_COUNTER_MAX)
+			item.ItemFlags[4]++;
 
-		item.ItemFlags[2] = WINSTON_STUCK_RECOVERY_TIME;
+		const auto stage = GetWinstonStuckStage(item);
+		auto turnDirection = ai.angle >= 0 ? 1 : -1;
+
+		// If Winston keeps hitting statics for too long, alternate the recovery side.
+		// This avoids permanently choosing the wrong wall side near narrow passages.
+		if (stage >= 2 && ((item.ItemFlags[4] / WINSTON_STUCK_STAGE_1) & 1))
+			turnDirection = -turnDirection;
+
+		item.ItemFlags[2] = stage >= 2 ? WINSTON_STUCK_RECOVERY_TIME_STRONG : WINSTON_STUCK_RECOVERY_TIME;
 		item.ItemFlags[3] = turnDirection;
-		item.Pose.Orientation.y += turnDirection * (repeatedHit ? WINSTON_STUCK_RECOVERY_TURN_STRONG : WINSTON_STUCK_RECOVERY_TURN);
+		item.ItemFlags[5] = stage;
+
+		switch (stage)
+		{
+		case 0:
+			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN;
+			break;
+
+		case 1:
+			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_STRONG;
+			break;
+
+		case 2:
+			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_STRONG;
+			item.Animation.TargetState = WINSTON_STATE_WALK_FORWARD;
+			break;
+
+		default:
+			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_RESET;
+			item.Animation.TargetState = WINSTON_STATE_IDLE;
+			break;
+		}
 	}
 
 	void InitializeWinston(short itemNumber)
@@ -175,7 +236,8 @@ namespace TEN::Entities::Creatures::TR3
 
 		if (item.ItemFlags[2] > 0)
 		{
-			headingAngle += item.ItemFlags[3] * WINSTON_STUCK_RECOVERY_TURN;
+			const auto recoveryTurn = item.ItemFlags[5] >= 2 ? WINSTON_STUCK_RECOVERY_TURN_STRONG : WINSTON_STUCK_RECOVERY_TURN;
+			headingAngle += item.ItemFlags[3] * recoveryTurn;
 			item.ItemFlags[2]--;
 		}
 
@@ -358,6 +420,10 @@ namespace TEN::Entities::Creatures::TR3
 		{
 			StartWinstonStuckRecovery(item, ai);
 			creature.Flags &= ~1;
+		}
+		else
+		{
+			ResetWinstonStuckRecovery(item);
 		}
 	}
 
