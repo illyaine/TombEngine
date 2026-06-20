@@ -8,11 +8,9 @@ using namespace TEN::Entities::Effects;
 
 namespace TEN::Effects::Environment 
 {
-	// Keep the logical particle pool and rendered clusters bounded. A full-strength
-	// weather effect previously expanded to more than 32,000 sprite submissions.
 	constexpr auto WEATHER_PARTICLE_SPAWN_DENSITY		 = 32;
-	constexpr auto WEATHER_PARTICLE_CLUSTER_MULT		 = 8.0f;
-	constexpr auto WEATHER_PARTICLE_COUNT_MAX			 = 1024;
+	constexpr auto WEATHER_PARTICLE_CLUSTER_MULT		 = 16.0f;
+	constexpr auto WEATHER_PARTICLE_COUNT_MAX			 = 2048;
 	constexpr auto WEATHER_PARTICLE_COLL_CHECK_DELAY_MAX = 5.0f;
 
 	constexpr auto DUST_SIZE_MAX = 25.0f;
@@ -28,9 +26,7 @@ namespace TEN::Effects::Environment
 	constexpr auto WEATHER_PARTICLE_NEAR_DEATH_LIFE		   = 20.0f;
 	constexpr auto WEATHER_PARTICLE_NEAR_DEATH_MELT_FACTOR = 1.0f - (1.0f / (WEATHER_PARTICLE_NEAR_DEATH_LIFE * 2));
 
-	// Dust is spawned every update. The previous value could keep several thousand
-	// underwater dust particles alive at once because this path has no hard pool cap.
-	constexpr auto DUST_SPAWN_DENSITY = 32;
+	constexpr auto DUST_SPAWN_DENSITY = 300;
 	constexpr auto DUST_LIFE		  = 40;
 	constexpr auto DUST_SPAWN_RADIUS  = BLOCK(10);
 
@@ -151,7 +147,6 @@ namespace TEN::Effects::Environment
 		std::vector<StarParticle>	Stars		   = {};
 		std::vector<MeteorParticle> Meteors		   = {};
 		bool						ResetStarField = true;
-		size_t					StarBlinkCursor = 0;
 
 		// Lens flare
 
