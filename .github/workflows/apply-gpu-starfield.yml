@@ -4,12 +4,16 @@ on:
   push:
     branches:
       - performance/gpu-starfield-bootstrap
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.head_ref == 'performance/gpu-starfield-bootstrap' || github.ref_name == 'performance/gpu-starfield-bootstrap'
     runs-on: ubuntu-latest
     steps:
       - name: Check out bootstrap branch
