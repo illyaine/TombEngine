@@ -59,13 +59,39 @@ jobs:
           if [ "$status" -ne 0 ]; then
             exit "$status"
           fi
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('TombEngine/TombEngine.vcxproj')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('    <None Include="Shaders\\Starfield.hlsl" />\n', '', 1)
+          text = text.replace('    <None Include="Shaders\\CBStarfield.hlsli" />\n', '', 1)
+
+          def clone_none_block(source: str, target: str) -> None:
+              global text
+              pattern = rf'(?ms)^    <None Include="{re.escape(source)}">.*?^    </None>'
+              match = re.search(pattern, text)
+              if not match:
+                  raise RuntimeError(f'Could not locate project block for {source}')
+              block = match.group(0).replace(source, target, 1)
+              text = text[:match.end()] + '\n' + block + text[match.end():]
+
+          clone_none_block('Shaders\\CBSky.hlsli', 'Shaders\\CBStarfield.hlsli')
+          clone_none_block('Shaders\\Sky.hlsl', 'Shaders\\Starfield.hlsl')
+
+          normalized = text.replace('\r\n', '\n').replace('\r', '\n')
+          path.write_bytes(normalized.replace('\n', '\r\n').encode('utf-8'))
+          PY
+
           git diff --check
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add TombEngine
           git commit -m "Move starfield simulation and rendering to the GPU"
-          git push origin HEAD:performance/gpu-starfield
+          git push --force origin HEAD:performance/gpu-starfield
 
       - name: Upload generator diagnostics
         if: always()
