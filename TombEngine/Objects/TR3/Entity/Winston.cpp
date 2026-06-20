@@ -37,15 +37,15 @@ namespace TEN::Entities::Creatures::TR3
 
 	constexpr auto WINSTON_STATIC_COLLISION_RADIUS = CLICK(1);
 	constexpr auto WINSTON_STATIC_COLLISION_HEIGHT = CLICK(3);
-	constexpr auto WINSTON_STUCK_RECOVERY_TIME = FPS / 2;
-	constexpr auto WINSTON_STUCK_RECOVERY_TIME_STRONG = FPS;
-	constexpr auto WINSTON_STUCK_RECOVERY_TURN = ANGLE(22.5f);
-	constexpr auto WINSTON_STUCK_RECOVERY_TURN_STRONG = ANGLE(45.0f);
-	constexpr auto WINSTON_STUCK_RECOVERY_TURN_RESET = ANGLE(90.0f);
+	constexpr auto WINSTON_STUCK_RECOVERY_TIME = FPS / 3;
+	constexpr auto WINSTON_STUCK_RECOVERY_TIME_STRONG = FPS / 2;
+	constexpr auto WINSTON_STUCK_RECOVERY_TURN = ANGLE(11.25f);
+	constexpr auto WINSTON_STUCK_RECOVERY_TURN_MEDIUM = ANGLE(22.5f);
+	constexpr auto WINSTON_STUCK_RECOVERY_TURN_STRONG = ANGLE(33.75f);
 	constexpr auto WINSTON_STUCK_STAGE_1 = FPS / 2;
 	constexpr auto WINSTON_STUCK_STAGE_2 = FPS;
 	constexpr auto WINSTON_STUCK_STAGE_3 = 2 * FPS;
-	constexpr auto WINSTON_STUCK_COUNTER_MAX = 4 * FPS;
+	constexpr auto WINSTON_STUCK_COUNTER_MAX = 3 * FPS;
 
 	enum WinstonState
 	{
@@ -151,12 +151,7 @@ namespace TEN::Entities::Creatures::TR3
 			item.ItemFlags[4]++;
 
 		const auto stage = GetWinstonStuckStage(item);
-		auto turnDirection = ai.angle >= 0 ? 1 : -1;
-
-		// If Winston keeps hitting statics for too long, alternate the recovery side.
-		// This avoids permanently choosing the wrong wall side near narrow passages.
-		if (stage >= 2 && ((item.ItemFlags[4] / WINSTON_STUCK_STAGE_1) & 1))
-			turnDirection = -turnDirection;
+		const auto turnDirection = ai.angle >= 0 ? 1 : -1;
 
 		item.ItemFlags[2] = stage >= 2 ? WINSTON_STUCK_RECOVERY_TIME_STRONG : WINSTON_STUCK_RECOVERY_TIME;
 		item.ItemFlags[3] = turnDirection;
@@ -169,7 +164,7 @@ namespace TEN::Entities::Creatures::TR3
 			break;
 
 		case 1:
-			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_STRONG;
+			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_MEDIUM;
 			break;
 
 		case 2:
@@ -178,8 +173,8 @@ namespace TEN::Entities::Creatures::TR3
 			break;
 
 		default:
-			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_RESET;
-			item.Animation.TargetState = WINSTON_STATE_IDLE;
+			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_MEDIUM;
+			item.Animation.TargetState = WINSTON_STATE_WALK_FORWARD;
 			break;
 		}
 	}
@@ -236,7 +231,7 @@ namespace TEN::Entities::Creatures::TR3
 
 		if (item.ItemFlags[2] > 0)
 		{
-			const auto recoveryTurn = item.ItemFlags[5] >= 2 ? WINSTON_STUCK_RECOVERY_TURN_STRONG : WINSTON_STUCK_RECOVERY_TURN;
+			const auto recoveryTurn = item.ItemFlags[5] >= 2 ? WINSTON_STUCK_RECOVERY_TURN_MEDIUM : WINSTON_STUCK_RECOVERY_TURN;
 			headingAngle += item.ItemFlags[3] * recoveryTurn;
 			item.ItemFlags[2]--;
 		}
