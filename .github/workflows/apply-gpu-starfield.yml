@@ -19,8 +19,9 @@ jobs:
       - name: Check out bootstrap branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           ref: performance/gpu-starfield-bootstrap
+          show-progress: false
 
       - name: Prepare generator
         shell: bash
@@ -39,9 +40,10 @@ jobs:
       - name: Generate clean feature branch
         shell: bash
         run: |
-          git fetch origin master
+          set -o pipefail
+          git fetch --quiet --depth=1 origin master
           git checkout -B performance/gpu-starfield origin/master
-          python /tmp/apply_gpu_starfield.py
+          python /tmp/apply_gpu_starfield.py 2>&1 | tail -n 30
           git diff --check
 
           git config user.name "github-actions[bot]"
