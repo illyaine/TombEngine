@@ -84,6 +84,7 @@ namespace TEN::Effects::Environment
 
 		// Clear starfield.
 		ResetStarField = true;
+		StarBlinkCursor = 0;
 		Stars.clear();
 		Meteors.clear();
 	}
@@ -234,11 +235,16 @@ namespace TEN::Effects::Environment
 	{
 		int starCount = level.GetStarfieldStarCount();
 		if (starCount == 0)
+		{
+			Stars.clear();
+			StarBlinkCursor = 0;
 			return;
+		}
 
 		if (ResetStarField)
 		{
 			Stars.clear();
+			StarBlinkCursor = 0;
 			ResetStarField = false;
 		}
 
@@ -285,10 +291,19 @@ namespace TEN::Effects::Environment
 				Stars.resize(starCount);
 			}
 
+			if (StarBlinkCursor >= Stars.size())
+				StarBlinkCursor = 0;
 		}
 
-		for (auto& star : Stars)
-			star.Blinking = Random::GenerateFloat(0.5f, 1.0f);
+		// Updating thousands of random values every tick is unnecessary for a twinkle effect.
+		// Rotate through a limited batch so the full field still changes continuously.
+		constexpr size_t STAR_BLINK_UPDATE_BUDGET = 512;
+		const auto blinkUpdateCount = std::min(STAR_BLINK_UPDATE_BUDGET, Stars.size());
+		for (size_t i = 0; i < blinkUpdateCount; i++)
+		{
+			Stars[StarBlinkCursor].Blinking = Random::GenerateFloat(0.5f, 1.0f);
+			StarBlinkCursor = (StarBlinkCursor + 1) % Stars.size();
+		}
 
 		if (level.GetStarfieldMeteorCount() > 0)
 		{
@@ -527,7 +542,13 @@ namespace TEN::Effects::Environment
 
 	void EnvironmentController::SpawnDustParticles(const ScriptInterfaceLevel& level)
 	{
-		for (int i = 0; i < DUST_SPAWN_DENSITY; i++)
+		if (Particles.size() >= WEATHER_PARTICLE_COUNT_MAX)
+			return;
+
+		const int availableSlots = WEATHER_PARTICLE_COUNT_MAX - (int)Particles.size();
+		const int spawnCount = std::min(DUST_SPAWN_DENSITY, availableSlots);
+
+		for (int i = 0; i < spawnCount; i++)
 		{
 			// TODO: Use functions in Math::Random namespace.
 			auto pos = Camera.pos.ToVector3i() + Vector3i(
