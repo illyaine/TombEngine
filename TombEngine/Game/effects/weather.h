@@ -166,7 +166,7 @@ namespace TEN::Effects::Environment
 
 		const std::vector<WeatherParticle>& GetParticles() const { return Particles; }
 		const std::vector<StarParticle>&	GetStars() const { return Stars; }
-		const std::vector<MeteorParticle>& GetMeteors() const { return Meteors; }
+		const std::vector<MeteorParticle>&	GetMeteors() const { return Meteors; }
 
 	private:
 		void UpdateWeather(const ScriptInterfaceLevel& level);
