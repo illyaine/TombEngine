@@ -21,10 +21,10 @@ using namespace TEN::Math;
 // NOTES:
 // ItemFlags[0]: defeat timer.
 // ItemFlags[1]: type.
-// ItemFlags[2]: static stuck recovery timer.
+// ItemFlags[2]: static stuck recovery step timer.
 // ItemFlags[3]: static stuck recovery turn direction.
 // ItemFlags[4]: repeated static stuck hit counter.
-// ItemFlags[5]: static stuck recovery stage.
+// ItemFlags[5]: static stuck recovery cooldown timer.
 
 namespace TEN::Entities::Creatures::TR3
 {
@@ -37,15 +37,10 @@ namespace TEN::Entities::Creatures::TR3
 
 	constexpr auto WINSTON_STATIC_COLLISION_RADIUS = CLICK(1);
 	constexpr auto WINSTON_STATIC_COLLISION_HEIGHT = CLICK(3);
-	constexpr auto WINSTON_STUCK_RECOVERY_TIME = FPS / 3;
-	constexpr auto WINSTON_STUCK_RECOVERY_TIME_STRONG = FPS / 2;
-	constexpr auto WINSTON_STUCK_RECOVERY_TURN = ANGLE(11.25f);
-	constexpr auto WINSTON_STUCK_RECOVERY_TURN_MEDIUM = ANGLE(22.5f);
-	constexpr auto WINSTON_STUCK_RECOVERY_TURN_STRONG = ANGLE(33.75f);
-	constexpr auto WINSTON_STUCK_STAGE_1 = FPS / 2;
-	constexpr auto WINSTON_STUCK_STAGE_2 = FPS;
-	constexpr auto WINSTON_STUCK_STAGE_3 = 2 * FPS;
-	constexpr auto WINSTON_STUCK_COUNTER_MAX = 3 * FPS;
+	constexpr auto WINSTON_STUCK_STEP_TIME = FPS / 4;
+	constexpr auto WINSTON_STUCK_COOLDOWN_TIME = FPS / 3;
+	constexpr auto WINSTON_STUCK_SIDE_TURN = ANGLE(45.0f);
+	constexpr auto WINSTON_STUCK_COUNTER_MAX = 8;
 
 	enum WinstonState
 	{
@@ -121,62 +116,31 @@ namespace TEN::Entities::Creatures::TR3
 		return true;
 	}
 
-	static int GetWinstonStuckStage(const ItemInfo& item)
-	{
-		if (item.ItemFlags[4] >= WINSTON_STUCK_STAGE_3)
-			return 3;
-
-		if (item.ItemFlags[4] >= WINSTON_STUCK_STAGE_2)
-			return 2;
-
-		if (item.ItemFlags[4] >= WINSTON_STUCK_STAGE_1)
-			return 1;
-
-		return 0;
-	}
-
 	static void ResetWinstonStuckRecovery(ItemInfo& item)
 	{
-		if (item.ItemFlags[2] > 0)
+		if (item.ItemFlags[2] > 0 || item.ItemFlags[5] > 0)
 			return;
 
 		item.ItemFlags[3] = 0;
 		item.ItemFlags[4] = 0;
-		item.ItemFlags[5] = 0;
 	}
 
 	static void StartWinstonStuckRecovery(ItemInfo& item, const AI_INFO& ai)
 	{
+		if (item.ItemFlags[2] > 0 || item.ItemFlags[5] > 0)
+			return;
+
 		if (item.ItemFlags[4] < WINSTON_STUCK_COUNTER_MAX)
 			item.ItemFlags[4]++;
 
-		const auto stage = GetWinstonStuckStage(item);
-		const auto turnDirection = ai.angle >= 0 ? 1 : -1;
+		const auto preferredDirection = ai.angle >= 0 ? 1 : -1;
+		const auto alternateDirection = (item.ItemFlags[4] & 1) ? preferredDirection : -preferredDirection;
 
-		item.ItemFlags[2] = stage >= 2 ? WINSTON_STUCK_RECOVERY_TIME_STRONG : WINSTON_STUCK_RECOVERY_TIME;
-		item.ItemFlags[3] = turnDirection;
-		item.ItemFlags[5] = stage;
-
-		switch (stage)
-		{
-		case 0:
-			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN;
-			break;
-
-		case 1:
-			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_MEDIUM;
-			break;
-
-		case 2:
-			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_STRONG;
-			item.Animation.TargetState = WINSTON_STATE_WALK_FORWARD;
-			break;
-
-		default:
-			item.Pose.Orientation.y += turnDirection * WINSTON_STUCK_RECOVERY_TURN_MEDIUM;
-			item.Animation.TargetState = WINSTON_STATE_WALK_FORWARD;
-			break;
-		}
+		item.ItemFlags[2] = WINSTON_STUCK_STEP_TIME;
+		item.ItemFlags[3] = alternateDirection;
+		item.ItemFlags[5] = WINSTON_STUCK_COOLDOWN_TIME;
+		item.Pose.Orientation.y += alternateDirection * WINSTON_STUCK_SIDE_TURN;
+		item.Animation.TargetState = WINSTON_STATE_WALK_FORWARD;
 	}
 
 	void InitializeWinston(short itemNumber)
@@ -231,9 +195,12 @@ namespace TEN::Entities::Creatures::TR3
 
 		if (item.ItemFlags[2] > 0)
 		{
-			const auto recoveryTurn = item.ItemFlags[5] >= 2 ? WINSTON_STUCK_RECOVERY_TURN_MEDIUM : WINSTON_STUCK_RECOVERY_TURN;
-			headingAngle += item.ItemFlags[3] * recoveryTurn;
 			item.ItemFlags[2]--;
+			headingAngle = 0;
+		}
+		else if (item.ItemFlags[5] > 0)
+		{
+			item.ItemFlags[5]--;
 		}
 
 		if (item.HitPoints <= 0 && item.TriggerFlags)
