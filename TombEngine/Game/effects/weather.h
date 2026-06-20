@@ -151,6 +151,7 @@ namespace TEN::Effects::Environment
 		std::vector<StarParticle>	Stars		   = {};
 		std::vector<MeteorParticle> Meteors		   = {};
 		bool						ResetStarField = true;
+		size_t					StarBlinkCursor = 0;
 
 		// Lens flare
 
