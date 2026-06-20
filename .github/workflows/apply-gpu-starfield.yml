@@ -32,10 +32,18 @@ jobs:
           path = Path('/tmp/apply_gpu_starfield.py')
           text = path.read_text(encoding='utf-8')
           text = text.replace('ROOT = Path(__file__).resolve().parents[1]', 'ROOT = Path.cwd()', 1)
-          old = '''    if "GetWorldMatrixForSprite(rDrawSprite, renderView)" in renderer_draw[renderer_draw.index("void Renderer::DrawHorizonAndSky"):]:\n        raise RuntimeError("CPU star world-matrix generation still exists")\n'''
-          if old not in text:
+
+          old_validation = '''    if "GetWorldMatrixForSprite(rDrawSprite, renderView)" in renderer_draw[renderer_draw.index("void Renderer::DrawHorizonAndSky"):]:\n        raise RuntimeError("CPU star world-matrix generation still exists")\n'''
+          if old_validation not in text:
               raise SystemExit('Expected temporary validation block was not found')
-          path.write_text(text.replace(old, '', 1), encoding='utf-8')
+          text = text.replace(old_validation, '', 1)
+
+          filters_block = '''    filters = "TombEngine/TombEngine.vcxproj.filters"\n    clone_filter_entry(filters, "Renderer\\\\RendererSprites.cpp", "Renderer\\\\RendererStarfield.cpp")\n    clone_filter_entry(filters, "Renderer\\\\ConstantBuffers\\\\SkyBuffer.h", "Renderer\\\\ConstantBuffers\\\\StarfieldBuffer.h")\n    clone_filter_entry(filters, "Shaders\\\\Sky.hlsl", "Shaders\\\\Starfield.hlsl")\n    clone_filter_entry(filters, "Shaders\\\\CBSky.hlsli", "Shaders\\\\CBStarfield.hlsli")\n\n'''
+          if filters_block not in text:
+              raise SystemExit('Expected Visual Studio filters block was not found')
+          text = text.replace(filters_block, '', 1)
+
+          path.write_text(text, encoding='utf-8')
           PY
 
       - name: Generate clean feature branch
