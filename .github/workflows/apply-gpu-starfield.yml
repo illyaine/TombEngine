@@ -1,0 +1,47 @@
+name: Apply GPU starfield branch
+
+on:
+  push:
+    branches:
+      - performance/gpu-starfield-bootstrap
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out bootstrap branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: performance/gpu-starfield-bootstrap
+
+      - name: Prepare generator
+        shell: bash
+        run: |
+          cp tools/apply_gpu_starfield.py /tmp/apply_gpu_starfield.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/apply_gpu_starfield.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''    if "GetWorldMatrixForSprite(rDrawSprite, renderView)" in renderer_draw[renderer_draw.index("void Renderer::DrawHorizonAndSky"):]:\n        raise RuntimeError("CPU star world-matrix generation still exists")\n'''
+          if old not in text:
+              raise SystemExit('Expected temporary validation block was not found')
+          path.write_text(text.replace(old, '', 1), encoding='utf-8')
+          PY
+
+      - name: Generate clean feature branch
+        shell: bash
+        run: |
+          git fetch origin master
+          git checkout -B performance/gpu-starfield origin/master
+          python /tmp/apply_gpu_starfield.py
+          git diff --check
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add TombEngine
+          git commit -m "Move starfield simulation and rendering to the GPU"
+          git push origin HEAD:performance/gpu-starfield
