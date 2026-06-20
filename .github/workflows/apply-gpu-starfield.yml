@@ -31,6 +31,7 @@ jobs:
           from pathlib import Path
           path = Path('/tmp/apply_gpu_starfield.py')
           text = path.read_text(encoding='utf-8')
+          text = text.replace('ROOT = Path(__file__).resolve().parents[1]', 'ROOT = Path.cwd()', 1)
           old = '''    if "GetWorldMatrixForSprite(rDrawSprite, renderView)" in renderer_draw[renderer_draw.index("void Renderer::DrawHorizonAndSky"):]:\n        raise RuntimeError("CPU star world-matrix generation still exists")\n'''
           if old not in text:
               raise SystemExit('Expected temporary validation block was not found')
