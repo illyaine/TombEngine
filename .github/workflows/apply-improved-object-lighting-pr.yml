@@ -24,14 +24,14 @@ jobs:
           set +e
           python3 - <<'PY' > .github/object-lighting-patch-error.log 2>&1
           from pathlib import Path
-          import textwrap
 
           workflow = Path('.github/workflows/apply-improved-object-lighting.yml').read_text(encoding='utf-8')
           start_marker = "          python3 - <<'PY'\n"
           end_marker = "\n          PY\n\n      - name: Commit source changes"
           start = workflow.index(start_marker) + len(start_marker)
           end = workflow.index(end_marker, start)
-          script = textwrap.dedent(workflow[start:end])
+          source = workflow[start:end]
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in source.splitlines())
           exec(compile(script, '<object-lighting-patch>', 'exec'))
           PY
           status=$?
@@ -39,7 +39,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add .github/object-lighting-patch-error.log
-            git commit -m "Record object lighting patch diagnostics"
+            git commit -m "Update object lighting patch diagnostics"
             git push origin HEAD:${{ github.head_ref }}
             exit $status
           fi
@@ -50,6 +50,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add TombEngine/Renderer/Renderer.h TombEngine/Renderer/RendererFrame.cpp TombEngine/Specific/Input/Input.cpp
+          git add -A TombEngine/Renderer/Renderer.h TombEngine/Renderer/RendererFrame.cpp TombEngine/Specific/Input/Input.cpp .github/object-lighting-patch-error.log
           git commit -m "Improve static and moveable light selection"
           git push origin HEAD:${{ github.head_ref }}
