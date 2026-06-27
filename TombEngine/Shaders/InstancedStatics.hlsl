@@ -25,6 +25,7 @@ struct PixelShaderInput
 	float3 Tangent: TANGENT;
     float3 Binormal : BINORMAL;
     float3 FaceNormal : TEXCOORD3;
+    float3 DynamicTint : TEXCOORD4;
 	uint InstanceID : SV_InstanceID;
 };
 
@@ -46,6 +47,7 @@ PixelShaderInput VS(VertexShaderInput input, uint InstanceID : SV_InstanceID)
 	float wibble = Wibble(input.Effects, DecodeHash(input.AnimationFrameOffsetIndexHash));
 	float3 pos = Move(input.Position, input.Effects, wibble);
 	float3 col = Glow(input.Color.xyz, input.Effects, wibble);
+    float3 dynamicTint = Glow(float3(1.0f, 1.0f, 1.0f), input.Effects, wibble);
 
 	float4 worldPosition = (mul(float4(pos, 1.0f), StaticMeshes[InstanceID].World));
 
@@ -54,6 +56,7 @@ PixelShaderInput VS(VertexShaderInput input, uint InstanceID : SV_InstanceID)
     output.WorldPosition = worldPosition;
 	output.Color = float4(col, input.Color.w);
 	output.Color *= StaticMeshes[InstanceID].Color;
+    output.DynamicTint = dynamicTint * StaticMeshes[InstanceID].Color.xyz;
 	output.PositionCopy = output.Position;
     output.Sheen = DecodeSheen(input.Effects);
 	output.InstanceID = InstanceID;
@@ -108,11 +111,15 @@ PixelShaderOutput PS(PixelShaderInput input)
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), tex.w);
     occlusion *= ambientOcclusion;
 
+    // WADTool stores its baked ambient and editor-light result in vertex colors,
+    // including for meshes configured for dynamic lighting. Dynamic statics must
+    // use the instance tint instead, otherwise the default ambient value of 128
+    // halves both room ambient and every runtime light contribution.
 	float3 color = (mode == 0) ?
 		CombineObjectLights(
 			StaticMeshes[input.InstanceID].AmbientLight.xyz,
-            input.Color.xyz,
-			input.Color.xyz,
+            input.DynamicTint,
+			input.DynamicTint,
 			tex.xyz, 
 			input.WorldPosition, 
 			normal, 
