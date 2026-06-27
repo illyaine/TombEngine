@@ -2,6 +2,7 @@
 #include "./CBCamera.hlsli"
 #include "./CBItem.hlsli"
 #include "./ShaderLight.hlsli"
+#include "./ObjectLighting.hlsli"
 #include "./VertexEffects.hlsli"
 #include "./VertexInput.hlsli"
 #include "./Blending.hlsli"
@@ -109,7 +110,7 @@ PixelShaderOutput PS(PixelShaderInput input)
     occlusion *= ambientOcclusion;
 
 	float3 color = (BoneLightModes[input.Bone / 4][input.Bone % 4] == 0) ?
-		CombineLights(
+		CombineObjectLights(
 			AmbientLight.xyz,
 			input.Color.xyz,
 			tex.xyz, 
@@ -119,17 +120,20 @@ PixelShaderOutput PS(PixelShaderInput input)
 			ItemLights, 
 			NumItemLights,
 			input.FogBulbs.w,
-			emissive, 
 			specular,
-			roughness) :
-		StaticLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, emissive);
+			roughness,
+            occlusion) :
+		StaticObjectLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, occlusion);
 
 	float shadowable = step(0.5f, float((NumItemLights & SHADOWABLE_MASK) == SHADOWABLE_MASK));
 	float3 shadow = DoShadow(input.WorldPosition, normal, color, -0.5f);
 	shadow = DoBlobShadows(input.WorldPosition, shadow);
 	color = lerp(color, shadow, shadowable);
 
-	output.Color = saturate(float4(color * occlusion, tex.w));
+    // Emissive light is self-generated and must not be attenuated by AO or shadows.
+    color = saturate(color + emissive);
+
+	output.Color = saturate(float4(color, tex.w));
 	output.Color = DoFogBulbsForPixel(output.Color, float4(input.FogBulbs.xyz, 1.0f));
 	output.Color = DoDistanceFogForPixel(output.Color, FogColor, input.DistanceFog);
 	output.Color.w *= input.Color.w;
