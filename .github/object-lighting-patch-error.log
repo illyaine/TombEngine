@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "<stdin>", line 10, in <module>
-  File "<object-lighting-patch>", line 1
-    from pathlib import Path
-IndentationError: unexpected indent
