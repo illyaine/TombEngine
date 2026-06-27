@@ -111,38 +111,34 @@ PixelShaderOutput PS(PixelShaderInput input)
 	float3 blendedNormal = normalize(lerp(input.FaceNormal, normal, 0.1f)); // TODO: Make alpha customizable
     output.Color.xyz = CalculateReflections(input.WorldPosition, output.Color.xyz, blendedNormal, specular);
 
-	// Ambient occlusion
+	// Ambient occlusion is an indirect-lighting term. Room vertex colors contain
+	// baked room light and the compiled light result for imported geometry.
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), output.Color.w);
     occlusion *= ambientOcclusion;
 
-	float3 lighting = input.Color.xyz;
+	float3 indirectLighting = input.Color.xyz;
+	float3 directDiffuse = float3(0.0f, 0.0f, 0.0f);
+	float3 directSpecular = float3(0.0f, 0.0f, 0.0f);
 	
-	// Shadows
-	lighting = DoShadow(input.WorldPosition, normal, lighting, -2.5f);
-	lighting = DoBlobShadows(input.WorldPosition, lighting);
+	// Preserve the existing shadow order: room and object shadows affect the
+	// baked/indirect term before runtime room lights are added.
+	indirectLighting = DoShadow(input.WorldPosition, normal, indirectLighting, -2.5f);
+	indirectLighting = DoBlobShadows(input.WorldPosition, indirectLighting);
 
 	bool onlyPointLights = (NumRoomLights & ~LT_MASK) == LT_MASK_POINT;
 	int numLights = NumRoomLights & LT_MASK;
 
 	for (int i = 0; i < numLights; i++)
 	{
-		if (onlyPointLights)
+		if (onlyPointLights || RoomLights[i].Type == LT_POINT)
 		{
-            lighting += DoPointLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
-            lighting += DoSpecularPoint(input.WorldPosition, normal, RoomLights[i], 0.0f, specular, roughness);
+            directDiffuse += DoPointLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
+            directSpecular += DoSpecularPoint(input.WorldPosition, normal, RoomLights[i], 0.0f, specular, roughness);
         }
-		else
+		else if (RoomLights[i].Type == LT_SPOT)
 		{
-			// Room dynamic lights can only be spot or point, so we use simplified function for that.
-
-			float isPoint = step(0.5f, RoomLights[i].Type == LT_POINT);
-			float isSpot  = step(0.5f, RoomLights[i].Type == LT_SPOT);
-
-			float3 pointLight = float3(0.0f, 0.0f, 0.0f);
-			float3 spotLight  = float3(0.0f, 0.0f, 0.0f);
-			DoPointAndSpotLight(input.WorldPosition, normal, RoomLights[i], specular, roughness, pointLight, spotLight);
-			
-			lighting += pointLight * isPoint * ROOM_LIGHT_COEFF + spotLight  * isSpot * ROOM_LIGHT_COEFF;
+            directDiffuse += DoSpotLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
+            directSpecular += DoSpecularSpot(input.WorldPosition, normal, RoomLights[i], 0.0f, specular, roughness);
 		}
 	}
 
@@ -175,7 +171,10 @@ PixelShaderOutput PS(PixelShaderInput input)
 			decalMask = max(decalMask, (edge * fade + hole) * RoomDecals[i].Opacity);
 		}
 
-		lighting *= (1.0 - decalMask);
+        float decalLighting = 1.0f - decalMask;
+		indirectLighting *= decalLighting;
+        directDiffuse *= decalLighting;
+        directSpecular *= decalLighting;
 	}
 
 	// Caustics
@@ -204,16 +203,21 @@ PixelShaderOutput PS(PixelShaderInput input)
 
         float3 caustics = xc + yc + zc;
 
-        lighting += (caustics * attenuation * 2.0f);
+        directDiffuse += (caustics * attenuation * 2.0f);
     }
 
-	// Emissive materials
-    lighting += emissive;
-		
-	// Fog bulbs and final color and light mixing
-	lighting -= float3(input.FogBulbs.w, input.FogBulbs.w, input.FogBulbs.w);
-	output.Color.xyz = output.Color.xyz * lighting * occlusion;
-	output.Color.xyz = saturate(output.Color.xyz);
+    // Compose room and imported geometry lighting. AO only attenuates the
+    // indirect vertex-light term; direct lights and specular remain visible.
+    float3 surfaceLighting = (indirectLighting * occlusion) + directDiffuse;
+    float3 finalColor = (output.Color.xyz * surfaceLighting) + directSpecular;
+
+	// Fog bulbs retain their legacy darkening before the color blend pass.
+	finalColor -= float3(input.FogBulbs.w, input.FogBulbs.w, input.FogBulbs.w);
+
+    // Emissive is self-generated light and must not be suppressed by AO,
+    // room shadows or dark vertex colors.
+    finalColor += emissive;
+	output.Color.xyz = saturate(finalColor);
 
 	output.Color = DoFogBulbsForPixel(output.Color, float4(input.FogBulbs.xyz, 1.0f));
 	output.Color = DoDistanceFogForPixel(output.Color, FogColor, input.DistanceFog);

@@ -30,6 +30,21 @@ namespace TEN::Renderer
 {
 	using TEN::Memory::LinearArrayBuffer;
 
+	void Renderer::ToggleObjectLightingMode()
+	{
+		_useImprovedObjectLighting = !_useImprovedObjectLighting;
+		_invalidateCache = true;
+
+		const char* modeName = _useImprovedObjectLighting ? "Improved" : "Legacy";
+		TENLog(std::string("Object lighting mode: ") + modeName, LogLevel::Info);
+		PrintDebugMessage("Object lighting mode: %s", modeName);
+	}
+
+	bool Renderer::IsImprovedObjectLightingEnabled() const
+	{
+		return _useImprovedObjectLighting;
+	}
+
 	void Renderer::CollectRooms(RenderView& renderView, bool onlyRooms)
 	{
 		constexpr auto VIEW_PORT = Vector4(-1.0f, -1.0f, 1.0f, 1.0f);
@@ -587,22 +602,24 @@ namespace TEN::Renderer
 			if (!isRoomReflected && !renderView.Camera.Frustum.SphereInFrustum(rendererStatic.Sphere.Center, rendererStatic.Sphere.Radius))
 				continue;
 
-			// Collect lights.
-			auto lights = std::vector<RendererLight*>{};
+			// Collect lights. Preserve the previous selection in improved mode for hysteresis.
+			auto lights = _useImprovedObjectLighting ? rendererStatic.LightsToDraw : std::vector<RendererLight*>{};
 			auto cachedRoomLights = std::vector<RendererLightNode>{};
+			const auto lightPosition = _useImprovedObjectLighting ? rendererStatic.Sphere.Center : rendererStatic.Pose.Position.ToVector3();
+			const float lightRadius = _useImprovedObjectLighting ? std::max(rendererStatic.Sphere.Radius, 1.0f) : ITEM_LIGHT_COLLECTION_RADIUS;
 			if (rendererObj.ObjectMeshes.front()->LightMode != LightMode::Static)
 			{
 				if (rendererStatic.CacheLights || _invalidateCache)
 				{
 					// Collect all lights and return cached light for next frames.
-					CollectLights(rendererStatic.Pose.Position.ToVector3(), ITEM_LIGHT_COLLECTION_RADIUS, rendererRoom.RoomNumber, NO_VALUE, false, false, &cachedRoomLights, &lights);
+					CollectLights(lightPosition, lightRadius, rendererRoom.RoomNumber, NO_VALUE, false, false, &cachedRoomLights, &lights, _useImprovedObjectLighting);
 					rendererStatic.CacheLights = false;
 					rendererStatic.CachedRoomLights = cachedRoomLights;
 				}
 				else
 				{
 					// Collect only dynamic lights and use cached lights from rooms.
-					CollectLights(rendererStatic.Pose.Position.ToVector3(), ITEM_LIGHT_COLLECTION_RADIUS, rendererRoom.RoomNumber, NO_VALUE, false, true, &rendererStatic.CachedRoomLights, &lights);
+					CollectLights(lightPosition, lightRadius, rendererRoom.RoomNumber, NO_VALUE, false, true, &rendererStatic.CachedRoomLights, &lights, _useImprovedObjectLighting);
 				}
 			}
 			rendererStatic.LightsToDraw = lights;
@@ -618,12 +635,67 @@ namespace TEN::Renderer
 		}
 	}
 
-	void Renderer::CollectLights(const Vector3& pos, float radius, int roomNumber, int prevRoomNumber, bool prioritizeShadowLight, bool useCachedRoomLights, std::vector<RendererLightNode>* roomsLights, std::vector<RendererLight*>* outputLights)
+	void Renderer::CollectLights(const Vector3& pos, float radius, int roomNumber, int prevRoomNumber, bool prioritizeShadowLight, bool useCachedRoomLights, std::vector<RendererLightNode>* roomsLights, std::vector<RendererLight*>* outputLights, bool useImprovedSelection)
 	{
 		if (_rooms.size() <= roomNumber)
 			return;
 
-		// Now collect lights from dynamic list and from rooms
+		// Preserve the last selected set before rebuilding it. Improved selection uses this
+		// as a small hysteresis bonus to prevent lights from rapidly swapping at boundaries.
+		auto previousLights = useImprovedSelection ? *outputLights : std::vector<RendererLight*>{};
+
+		auto wasPreviouslySelected = [&](RendererLight* light, bool dynamic)
+		{
+			for (auto* previousLight : previousLights)
+			{
+				if (previousLight == nullptr)
+					continue;
+
+				// Room lights have stable addresses. Dynamic lights use their hash because
+				// they are stored in alternating frame buffers.
+				if (!dynamic && previousLight == light)
+					return true;
+
+				if (dynamic && light->Hash != 0 && previousLight->Hash == light->Hash && previousLight->Type == light->Type)
+					return true;
+			}
+
+			return false;
+		};
+
+		auto getLocalIntensity = [&](RendererLight& light, float distance, bool dynamic)
+		{
+			float attenuation = 1.0f - distance / std::max(light.Out, EPSILON);
+			float angularAttenuation = 1.0f;
+
+			if (useImprovedSelection)
+			{
+				// Rank by the nearest point of the object bounds rather than its pivot.
+				float surfaceDistance = std::max(0.0f, distance - radius);
+				attenuation = std::clamp(1.0f - surfaceDistance / std::max(light.Out, EPSILON), 0.0f, 1.0f);
+
+				if (light.Type == LightType::Spot)
+				{
+					auto lightToObject = pos - light.Position;
+					if (lightToObject.LengthSquared() > EPSILON)
+						lightToObject.Normalize();
+
+					// Expand the cone test by the apparent angular radius of the object bounds.
+					float angularAllowance = std::clamp(radius / std::max(distance, radius), 0.0f, 1.0f);
+					float cosine = lightToObject.Dot(light.Direction);
+					float coneRange = std::max(light.InRange - light.OutRange, EPSILON);
+					angularAttenuation = std::clamp((cosine + angularAllowance - light.OutRange) / coneRange, 0.0f, 1.0f);
+				}
+			}
+
+			float intensity = attenuation * angularAttenuation * light.Intensity * light.Luma;
+			if (useImprovedSelection && wasPreviouslySelected(&light, dynamic))
+				intensity *= 1.1f;
+
+			return intensity;
+		};
+
+		// Now collect lights from dynamic list and from rooms.
 		std::vector<RendererLightNode> tempLights;
 		tempLights.reserve(MAX_LIGHTS_DRAW);
 
@@ -632,37 +704,33 @@ namespace TEN::Renderer
 		RendererLight* brightestLight = nullptr;
 		float brightest = 0.0f;
 
-		// Dynamic lights have the priority
 		for (auto& light : _dynamicLights[_dynamicLightList])
 		{
 			float distSqr = Vector3::DistanceSquared(pos, light.Position);
+			float distance = sqrt(distSqr);
 
-			// Collect only lights nearer than 20 sectors
-			if (distSqr >= SQUARE(BLOCK(20)))
+			// Include object bounds in the broad distance test in improved mode.
+			if (useImprovedSelection ? (distance - radius >= BLOCK(20)) : (distSqr >= SQUARE(BLOCK(20))))
 				continue;
 
-			// Check the out radius
 			if (distSqr > SQUARE(light.Out + radius))
 				continue;
 
-			float distance = sqrt(distSqr);
-			float attenuation = 1.0f - distance / light.Out;
-			float intensity = attenuation * light.Intensity * light.Luma;
+			float intensity = getLocalIntensity(light, distance, true);
+			if (useImprovedSelection && intensity <= EPSILON)
+				continue;
 
-			// If collecting shadows, try collecting shadow-casting light.
 			if (prioritizeShadowLight && light.CastShadows && intensity >= brightest)
 			{
 				brightest = intensity;
 				brightestLight = &light;
 			}
 
-			RendererLightNode node = { &light, intensity, distance, 1 };
-			tempLights.push_back(node);
+			tempLights.push_back({ &light, intensity, distance, 1 });
 		}
 
 		if (!useCachedRoomLights)
 		{
-			// Check current room and neighbor rooms.
 			for (int roomToCheck : room.Neighbors)
 			{
 				auto& currentRoom = _rooms[roomToCheck];
@@ -672,60 +740,41 @@ namespace TEN::Renderer
 				{
 					auto& light = currentRoom.Lights[j];
 
-					float intensity = 0;
-					float dist = 0;
+					float intensity = 0.0f;
+					float distance = 0.0f;
 
-					// Check only lights different from sun.
 					if (light.Type == LightType::Sun)
 					{
-						// Suns from non-adjacent rooms not added.
 						if (roomToCheck != roomNumber && (prevRoomNumber != roomToCheck || prevRoomNumber == NO_VALUE))
 							continue;
 
-						// Sun is added without distance checks.
 						intensity = light.Intensity * Luma(light.Color);
 					}
-					else if (light.Type == LightType::Point || light.Type == LightType::Shadow)
+					else if (light.Type == LightType::Point || light.Type == LightType::Shadow || light.Type == LightType::Spot)
 					{
 						float distSqr = Vector3::DistanceSquared(pos, light.Position);
+						distance = sqrt(distSqr);
 
-						// Collect only lights nearer than 20 blocks.
-						if (distSqr >= SQUARE(BLOCK(20)))
+						if (useImprovedSelection ? (distance - radius >= BLOCK(20)) : (distSqr >= SQUARE(BLOCK(20))))
 							continue;
 
-						// Check out radius.
 						if (distSqr > SQUARE(light.Out + radius))
 							continue;
 
-						dist = sqrt(distSqr);
-						float attenuation = 1.0f - dist / light.Out;
-						intensity = attenuation * light.Intensity * Luma(light.Color);
-
-						// If collecting shadows, try collecting shadow-casting light.
-						if (prioritizeShadowLight && light.CastShadows && light.Type == LightType::Point && intensity >= brightest)
+						if (useImprovedSelection)
 						{
-							brightest = intensity;
-							brightestLight = &light;
+							intensity = getLocalIntensity(light, distance, false);
 						}
-					}
-					else if (light.Type == LightType::Spot)
-					{
-						float distSqr = Vector3::DistanceSquared(pos, light.Position);
+						else
+						{
+							float attenuation = 1.0f - distance / light.Out;
+							intensity = attenuation * light.Intensity * ((light.Type == LightType::Spot) ? light.Luma : Luma(light.Color));
+						}
 
-						// Collect only lights nearer than 20 blocks.
-						if (distSqr >= SQUARE(BLOCK(20)))
+						if (useImprovedSelection && intensity <= EPSILON)
 							continue;
 
-						// Check range.
-						if (distSqr > SQUARE(light.Out + radius))
-							continue;
-
-						dist = sqrt(distSqr);
-						float attenuation = 1.0f - dist / light.Out;
-						intensity = attenuation * light.Intensity * light.Luma;
-
-						// If collecting shadows, try collecting shadow-casting light.
-						if (prioritizeShadowLight && light.CastShadows && intensity >= brightest)
+						if (prioritizeShadowLight && light.CastShadows && light.Type != LightType::Shadow && intensity >= brightest)
 						{
 							brightest = intensity;
 							brightestLight = &light;
@@ -733,11 +782,10 @@ namespace TEN::Renderer
 					}
 					else
 					{
-						// Invalid light type.
 						continue;
 					}
 
-					RendererLightNode node = { &light, intensity, dist, 0 };
+					RendererLightNode node = { &light, intensity, distance, 0 };
 
 					if (roomsLights != nullptr)
 						roomsLights->push_back(node);
@@ -752,29 +800,31 @@ namespace TEN::Renderer
 				tempLights.push_back(node);
 		}
 
-		// Sort lights.
 		if (tempLights.size() > MAX_LIGHTS_PER_ITEM)
 		{
-			std::sort(tempLights.begin(), tempLights.end(), [](const RendererLightNode& a, const RendererLightNode& b)
+			std::sort(tempLights.begin(), tempLights.end(), [useImprovedSelection](const RendererLightNode& a, const RendererLightNode& b)
 			{
-				return (a.Dynamic == b.Dynamic) ? (a.LocalIntensity > b.LocalIntensity) : (a.Dynamic > b.Dynamic);
+				if (!useImprovedSelection)
+					return (a.Dynamic == b.Dynamic) ? (a.LocalIntensity > b.LocalIntensity) : (a.Dynamic > b.Dynamic);
+
+				if (a.LocalIntensity == b.LocalIntensity)
+					return a.Dynamic > b.Dynamic;
+
+				return a.LocalIntensity > b.LocalIntensity;
 			});
 		}
 
-		// Put actual lights in provided vector.
 		outputLights->clear();
 
-		// Add brightest ligh, if collecting shadow light is specified, even if it's far in range.
 		if (prioritizeShadowLight && brightestLight)
 			outputLights->push_back(brightestLight);
 
-		// Add max 8 lights per item, including shadow light for player eventually.
-		for (auto& l : tempLights)
+		for (auto& light : tempLights)
 		{
-			if (prioritizeShadowLight && brightestLight == l.Light)
+			if (prioritizeShadowLight && brightestLight == light.Light)
 				continue;
 
-			outputLights->push_back(l.Light);
+			outputLights->push_back(light.Light);
 
 			if (outputLights->size() == MAX_LIGHTS_PER_ITEM)
 				break;
@@ -803,7 +853,27 @@ namespace TEN::Renderer
 
 	void Renderer::CollectLightsForItem(RendererItem* item)
 	{
-		CollectLights(item->Position, ITEM_LIGHT_COLLECTION_RADIUS, item->RoomNumber, item->PrevRoomNumber, false, false, nullptr, &item->LightsToDraw);
+		if (!_useImprovedObjectLighting)
+		{
+			CollectLights(item->Position, ITEM_LIGHT_COLLECTION_RADIUS, item->RoomNumber, item->PrevRoomNumber, false, false, nullptr, &item->LightsToDraw);
+			return;
+		}
+
+		auto spheres = GetSpheres(item->ItemNumber);
+		auto lightSphere = BoundingSphere(item->Position, ITEM_LIGHT_COLLECTION_RADIUS);
+
+		if (!spheres.empty())
+		{
+			lightSphere = spheres.front();
+			for (size_t i = 1; i < spheres.size(); i++)
+			{
+				auto mergedSphere = BoundingSphere();
+				BoundingSphere::CreateMerged(mergedSphere, lightSphere, spheres[i]);
+				lightSphere = mergedSphere;
+			}
+		}
+
+		CollectLights(lightSphere.Center, std::max(lightSphere.Radius, 1.0f), item->RoomNumber, item->PrevRoomNumber, false, false, nullptr, &item->LightsToDraw, true);
 	}
 
 	void Renderer::CalculateLightFades(RendererItem *item)
