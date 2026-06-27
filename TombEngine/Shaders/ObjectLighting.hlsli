@@ -53,27 +53,22 @@ float3 CombineObjectLights(
         }
     }
 
-    // Ambient and direct light may use different tint inputs. Moveable ambient
-    // already contains the instance tint on the CPU, while runtime direct light
-    // still needs the complete vertex and instance tint in the shader.
     ambientTint = saturate(ambientTint);
     directTint = saturate(directTint);
 
-    // Ambient occlusion only affects indirect ambient light; it must not erase
-    // direct lights or material specular response.
     float3 ambientTerm = saturate(ambient - saturate(shadow)) * tex * ambientTint * occlusion;
     float3 diffuseTerm = diffuse * tex * directTint;
     float3 combined = ambientTerm + diffuseTerm + specular;
 
     combined -= float3(fogBulbsDensity, fogBulbsDensity, fogBulbsDensity);
-    return saturate(combined);
+    return max(combined, float3(0.0f, 0.0f, 0.0f));
 }
 
 float3 StaticObjectLight(float3 vertex, float3 tex, float fogBulbsDensity, float occlusion)
 {
     float3 result = tex * saturate(vertex) * occlusion;
     result -= float3(fogBulbsDensity, fogBulbsDensity, fogBulbsDensity);
-    return saturate(result);
+    return max(result, float3(0.0f, 0.0f, 0.0f));
 }
 
 #endif // OBJECT_LIGHTING
