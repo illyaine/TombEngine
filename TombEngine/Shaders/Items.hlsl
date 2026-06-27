@@ -50,11 +50,9 @@ PixelShaderInput VS(VertexShaderInput input)
 {
 	PixelShaderInput output;
 
-	// Blend and apply world matrix
 	float4x4 blended = Skinned ? BlendBoneMatrices(input, Bones, (Skinned == 2)) : Bones[input.BoneIndex[0]];
 	float4x4 world = mul(blended, World);
 
-	// Calculate vertex effects
 	float wibble = Wibble(input.Effects, DecodeHash(input.AnimationFrameOffsetIndexHash));
 	float3 pos = Move(input.Position, input.Effects, wibble);
 	float3 col = Glow(input.Color.xyz, input.Effects, wibble);
@@ -92,9 +90,8 @@ PixelShaderOutput PS(PixelShaderInput input)
 
     input.UV = ConvertAnimUV(input.UV);
 	
-    // Apply parallax mapping
     float3x3 TBNf = float3x3(input.Tangent, input.Binormal, input.FaceNormal);
-    input.UV = ParallaxOcclusionMapping(TBNf, input.WorldPosition, input.UV);  
+    input.UV = ParallaxOcclusionMapping(TBNf, input.WorldPosition, input.UV);
 
     float4 ORSH = ConvertAnimOSRH(ORSHTexture.Sample(ORSHSampler, input.UV));
     float ambientOcclusion = ORSH.x;
@@ -110,10 +107,8 @@ PixelShaderOutput PS(PixelShaderInput input)
 	float4 tex = Texture.Sample(Sampler, input.UV);
 	DoAlphaTest(tex);
 	
-    // Material effects
     tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal , specular);
 
-    // Ambient occlusion
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), tex.w);
     occlusion *= ambientOcclusion;
 
@@ -139,10 +134,9 @@ PixelShaderOutput PS(PixelShaderInput input)
 	shadow = DoBlobShadows(input.WorldPosition, shadow);
 	color = lerp(color, shadow, shadowable);
 
-    // Emissive light is self-generated and must not be attenuated by AO or shadows.
-    color = saturate(color + emissive);
+    color = max(color + emissive, float3(0.0f, 0.0f, 0.0f));
 
-	output.Color = saturate(float4(color, tex.w));
+	output.Color = float4(color, saturate(tex.w));
 	output.Color = DoFogBulbsForPixel(output.Color, float4(input.FogBulbs.xyz, 1.0f));
 	output.Color = DoDistanceFogForPixel(output.Color, FogColor, input.DistanceFog);
 	output.Color.w *= input.Color.w;
