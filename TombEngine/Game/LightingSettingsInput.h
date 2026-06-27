@@ -18,6 +18,17 @@ namespace TEN::Gui
 			return true;
 		}
 
-		return g_Gui.GetMenuToDisplay() == Menu::LightingHDR;
+		if (g_Gui.GetMenuToDisplay() != Menu::LightingHDR)
+			return false;
+
+		int selected = g_Gui.GetSelectedOption();
+		if (IsPulsed(In::Forward, 0.08f, 0.35f))
+			selected--;
+		else if (IsPulsed(In::Back, 0.08f, 0.35f))
+			selected++;
+
+		selected = std::clamp(selected, 0, (int)LightingSettingsOption::Count - 1);
+		g_Gui.SetSelectedOption(selected);
+		return true;
 	}
 }
