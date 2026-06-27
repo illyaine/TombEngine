@@ -174,7 +174,7 @@ namespace TEN::Renderer
 		_context->ClearRenderTargetView(_glowRenderTarget[0].RenderTargetView.Get(), clearColor);
 		_context->OMSetRenderTargets(1, _glowRenderTarget[0].RenderTargetView.GetAddressOf(), nullptr);
 		BindRenderTargetAsTexture(TextureRegister::ColorMap, renderTarget, SamplerStateRegister::LinearClamp);
-		BindRenderTargetAsTexture(TextureRegister::EmissiveMap, &_emissiveAndRoughnessRenderTarget, SamplerStateRegister::LinearClamp);
+		BindRenderTargetAsTexture(static_cast<TextureRegister>(5), &_emissiveAndRoughnessRenderTarget, SamplerStateRegister::LinearClamp);
 		DrawTriangles(3, 0);
 
 		_shaders.Bind(Shader::Blur);
