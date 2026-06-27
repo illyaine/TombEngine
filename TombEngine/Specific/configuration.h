@@ -19,14 +19,22 @@ constexpr auto REGKEY_INPUT	   = "Input";
 constexpr auto REGKEY_SCREEN_WIDTH		   = "ScreenWidth";
 constexpr auto REGKEY_SCREEN_HEIGHT		   = "ScreenHeight";
 constexpr auto REGKEY_ENABLE_WINDOWED_MODE = "EnableWindowedMode";
-constexpr auto REGKEY_SHADOWS			   = "ShadowsMode";
+constexpr auto REGKEY_SHADOWS				   = "ShadowsMode";
 constexpr auto REGKEY_SHADOW_MAP_SIZE	   = "ShadowMapSize";
 constexpr auto REGKEY_SHADOW_BLOBS_MAX	   = "ShadowBlobsMax";
 constexpr auto REGKEY_ENABLE_CAUSTICS	   = "EnableCaustics";
 constexpr auto REGKEY_ENABLE_DECALS		   = "EnableDecals";
 constexpr auto REGKEY_ANTIALIASING_MODE	   = "AntialiasingMode";
 constexpr auto REGKEY_AMBIENT_OCCLUSION	   = "AmbientOcclusion";
-constexpr auto REGKEY_HIGH_FRAMERATE       = "EnableHighFramerate";
+constexpr auto REGKEY_HIGH_FRAMERATE		   = "EnableHighFramerate";
+constexpr auto REGKEY_ENABLE_HDR_RENDERING  = "EnableHDRRendering";
+constexpr auto REGKEY_HDR_EXPOSURE		   = "HDRExposure";
+constexpr auto REGKEY_HDR_STRENGTH		   = "HDRStrength";
+constexpr auto REGKEY_ENABLE_LIGHT_BLOOM	   = "EnableLightBloom";
+constexpr auto REGKEY_BLOOM_STRENGTH		   = "BloomStrength";
+constexpr auto REGKEY_BLOOM_THRESHOLD		   = "BloomThreshold";
+constexpr auto REGKEY_GLARE_STRENGTH		   = "GlareStrength";
+constexpr auto REGKEY_GLARE_LENGTH			   = "GlareLength";
 
 // Sound keys
 
@@ -60,9 +68,15 @@ enum class MenuOptionLoopingMode
 
 struct GameConfiguration
 {
-	static constexpr auto DEFAULT_SHADOW_MAP_SIZE	= 1024;
-	static constexpr auto DEFAULT_SHADOW_BLOBS_MAX	= 16;
+	static constexpr auto DEFAULT_SHADOW_MAP_SIZE = 1024;
+	static constexpr auto DEFAULT_SHADOW_BLOBS_MAX = 16;
 	static constexpr auto DEFAULT_MOUSE_SENSITIVITY = 6;
+	static constexpr auto DEFAULT_HDR_EXPOSURE = 100;
+	static constexpr auto DEFAULT_HDR_STRENGTH = 100;
+	static constexpr auto DEFAULT_BLOOM_STRENGTH = 100;
+	static constexpr auto DEFAULT_BLOOM_THRESHOLD = 100;
+	static constexpr auto DEFAULT_GLARE_STRENGTH = 35;
+	static constexpr auto DEFAULT_GLARE_LENGTH = 100;
 
 	// Graphics
 
@@ -75,8 +89,16 @@ struct GameConfiguration
 	bool	   EnableCaustics	  = false;
 	bool	   EnableDecals		  = true;
 	bool	   EnableAmbientOcclusion = false;
-	bool	   EnableHighFramerate    = true;
+	bool	   EnableHighFramerate = true;
 	AntialiasingMode AntialiasingMode = AntialiasingMode::None;
+	bool	   EnableHDRRendering = false;
+	int		   HDRExposure = DEFAULT_HDR_EXPOSURE;
+	int		   HDRStrength = DEFAULT_HDR_STRENGTH;
+	bool	   EnableLightBloom = false;
+	int		   BloomStrength = DEFAULT_BLOOM_STRENGTH;
+	int		   BloomThreshold = DEFAULT_BLOOM_THRESHOLD;
+	int		   GlareStrength = DEFAULT_GLARE_STRENGTH;
+	int		   GlareLength = DEFAULT_GLARE_LENGTH;
 
 	// Sound
 
