@@ -49,7 +49,7 @@ PixelShaderInput VS(VertexShaderInput input, uint InstanceID : SV_InstanceID)
 	float3 col = Glow(input.Color.xyz, input.Effects, wibble);
     float3 dynamicTint = Glow(float3(1.0f, 1.0f, 1.0f), input.Effects, wibble);
 
-	float4 worldPosition = (mul(float4(pos, 1.0f), StaticMeshes[InstanceID].World));
+	float4 worldPosition = mul(float4(pos, 1.0f), StaticMeshes[InstanceID].World);
 
     output.Position = mul(worldPosition, ViewProjection);
     output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffset(input.AnimationFrameOffsetIndexHash));
@@ -83,7 +83,6 @@ PixelShaderOutput PS(PixelShaderInput input)
 	
     input.UV = ConvertAnimUV(input.UV);
 
-    // Apply parallax mapping
     float3x3 TBNf = float3x3(input.Tangent, input.Binormal, input.FaceNormal);
     input.UV = ParallaxOcclusionMapping(TBNf, input.WorldPosition, input.UV);
 
@@ -104,17 +103,11 @@ PixelShaderOutput PS(PixelShaderInput input)
 	uint mode = StaticMeshes[input.InstanceID].LightInfo.y;
 	uint numLights = StaticMeshes[input.InstanceID].LightInfo.x;
 	
-    // Material effects
     tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal, specular);
 	
-    // Ambient occlusion
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), tex.w);
     occlusion *= ambientOcclusion;
 
-    // WADTool stores its baked ambient and editor-light result in vertex colors,
-    // including for meshes configured for dynamic lighting. Dynamic statics must
-    // use the instance tint instead, otherwise the default ambient value of 128
-    // halves both room ambient and every runtime light contribution.
 	float3 color = (mode == 0) ?
 		CombineObjectLights(
 			StaticMeshes[input.InstanceID].AmbientLight.xyz,
@@ -134,11 +127,9 @@ PixelShaderOutput PS(PixelShaderInput input)
 
 	color = DoShadow(input.WorldPosition, normal, color, -0.5f);
 	color = DoBlobShadows(input.WorldPosition, color);
+    color = max(color + emissive, float3(0.0f, 0.0f, 0.0f));
 
-    // Emissive light is self-generated and must not be attenuated by AO or shadows.
-    color = saturate(color + emissive);
-
-	output.Color = float4(color, tex.w);
+	output.Color = float4(color, saturate(tex.w));
 	output.Color = DoFogBulbsForPixel(output.Color, float4(input.FogBulbs.xyz, 1.0f));
 	output.Color = DoDistanceFogForPixel(output.Color, FogColor, input.DistanceFog);
 	output.Color.w *= input.Color.w;
