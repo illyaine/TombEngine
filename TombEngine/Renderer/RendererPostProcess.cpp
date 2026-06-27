@@ -1,5 +1,7 @@
 #include "framework.h"
 #include "Renderer/Renderer.h"
+#include "Game/LightingSettingsInput.h"
+#include "Game/LightingSettingsRender.h"
 #include "Game/spotcam.h"
 #include "Specific/configuration.h"
 
@@ -19,6 +21,21 @@ namespace TEN::Renderer
 
 	void Renderer::DrawPostprocess(RenderTarget2D* renderTarget, RenderView& view, SceneRenderMode renderMode)
 	{
+		static bool lightingRestartRequired = false;
+		bool lightingMenuActive = TEN::Gui::UpdateLightingSettingsInput(lightingRestartRequired);
+
+		if (lightingMenuActive)
+		{
+			// The regular options renderer has no rows for this dedicated page.
+			// Draw it after scene antialiasing and bloom so the UI itself stays crisp.
+			_stringsToDraw.clear();
+			TEN::Gui::RenderLightingSettings(*this, lightingRestartRequired);
+			_context->OMSetRenderTargets(1, _renderTarget.RenderTargetView.GetAddressOf(), _renderTarget.DepthStencilView.Get());
+			_context->RSSetViewports(1, &view.Viewport);
+			ResetScissor();
+			DrawAllStrings();
+		}
+
 		_doingFullscreenPass = true;
 		SetBlendMode(BlendMode::Opaque);
 		SetCullMode(CullMode::CounterClockwise);
