@@ -7,6 +7,18 @@
 
 namespace TEN::Gui
 {
+	inline void RestoreLightingSettings(GameConfiguration& settings)
+	{
+		settings.EnableHDRRendering = g_Configuration.EnableHDRRendering;
+		settings.HDRExposure = g_Configuration.HDRExposure;
+		settings.HDRStrength = g_Configuration.HDRStrength;
+		settings.EnableLightBloom = g_Configuration.EnableLightBloom;
+		settings.BloomStrength = g_Configuration.BloomStrength;
+		settings.BloomThreshold = g_Configuration.BloomThreshold;
+		settings.GlareStrength = g_Configuration.GlareStrength;
+		settings.GlareLength = g_Configuration.GlareLength;
+	}
+
 	inline bool UpdateLightingSettingsInput(bool& restartRequired)
 	{
 		if (g_Gui.GetMenuToDisplay() == Menu::Display &&
@@ -22,6 +34,7 @@ namespace TEN::Gui
 		if (g_Gui.GetMenuToDisplay() != Menu::LightingHDR)
 			return false;
 
+		auto& settings = g_Gui.GetCurrentSettings().Configuration;
 		int selected = g_Gui.GetSelectedOption();
 		if (IsPulsed(In::Forward, 0.08f, 0.35f))
 			selected--;
@@ -38,7 +51,19 @@ namespace TEN::Gui
 			direction = 1;
 
 		if (direction != 0)
-			AdjustLightingSetting(g_Gui.GetCurrentSettings().Configuration, (LightingSettingsOption)selected, direction);
+			AdjustLightingSetting(settings, (LightingSettingsOption)selected, direction);
+
+		bool cancel = IsClicked(In::Deselect) || IsClicked(In::Draw);
+		bool selectCancel = (IsClicked(In::Select) || IsClicked(In::Action)) &&
+			(LightingSettingsOption)selected == LightingSettingsOption::Cancel;
+
+		if (cancel || selectCancel)
+		{
+			RestoreLightingSettings(settings);
+			g_Gui.SetMenuToDisplay(Menu::Display);
+			g_Gui.SetSelectedOption(7);
+			return false;
+		}
 
 		return true;
 	}
