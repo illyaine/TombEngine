@@ -21,7 +21,8 @@ jobs:
       - name: Apply source changes
         shell: bash
         run: |
-          python3 - <<'PY'
+          set +e
+          python3 - <<'PY' > .github/object-lighting-patch-error.log 2>&1
           from pathlib import Path
           import textwrap
 
@@ -33,6 +34,16 @@ jobs:
           script = textwrap.dedent(workflow[start:end])
           exec(compile(script, '<object-lighting-patch>', 'exec'))
           PY
+          status=$?
+          if [ $status -ne 0 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/object-lighting-patch-error.log
+            git commit -m "Record object lighting patch diagnostics"
+            git push origin HEAD:${{ github.head_ref }}
+            exit $status
+          fi
+          rm -f .github/object-lighting-patch-error.log
 
       - name: Commit source changes
         shell: bash
