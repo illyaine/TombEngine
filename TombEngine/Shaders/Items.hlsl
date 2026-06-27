@@ -2,6 +2,8 @@
 #include "./CBCamera.hlsli"
 #include "./CBItem.hlsli"
 #include "./ShaderLight.hlsli"
+#include "./ObjectLighting.hlsli"
+#include "./ObjectTransforms.hlsli"
 #include "./VertexEffects.hlsli"
 #include "./VertexInput.hlsli"
 #include "./Blending.hlsli"
@@ -23,6 +25,7 @@ struct PixelShaderInput
 	float3 Tangent: TANGENT;
     float3 Binormal : BINORMAL;
     float3 FaceNormal : TEXCOORD3;
+    float3 AmbientTint : TEXCOORD4;
 	unsigned int Bone : BONE;
 };
 
@@ -59,6 +62,7 @@ PixelShaderInput VS(VertexShaderInput input)
 
 	output.Position = mul(float4(worldPosition, 1.0f), ViewProjection);
     output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffset(input.AnimationFrameOffsetIndexHash));
+    output.AmbientTint = col;
 	output.Color = float4(col, input.Color.w);
 	output.Color *= Color;
 	output.PositionCopy = output.Position;
@@ -66,10 +70,15 @@ PixelShaderInput VS(VertexShaderInput input)
 	output.Bone = input.BoneIndex[0];
 	output.WorldPosition = worldPosition;
 
-    output.Normal = normalize(mul(input.Normal.xyz, (float3x3) world).xyz);
-    output.Tangent = normalize(mul(input.Tangent.xyz, (float3x3) world).xyz);
-    output.Binormal = SafeNormalize(mul(cross(input.Normal.xyz, input.Tangent.xyz), (float3x3) world).xyz);
-    output.FaceNormal = normalize(mul(input.FaceNormal.xyz, (float3x3) world).xyz);
+    float3x3 worldTransform = (float3x3)world;
+    TransformObjectTangentBasis(
+        input.Normal.xyz,
+        input.Tangent.xyz,
+        worldTransform,
+        output.Normal,
+        output.Tangent,
+        output.Binormal);
+    output.FaceNormal = TransformObjectNormal(input.FaceNormal.xyz, worldTransform);
    
 	output.FogBulbs = DoFogBulbsForVertex(worldPosition);
 	output.DistanceFog = DoDistanceFogForVertex(worldPosition);
@@ -109,8 +118,9 @@ PixelShaderOutput PS(PixelShaderInput input)
     occlusion *= ambientOcclusion;
 
 	float3 color = (BoneLightModes[input.Bone / 4][input.Bone % 4] == 0) ?
-		CombineLights(
+		CombineObjectLights(
 			AmbientLight.xyz,
+            input.AmbientTint,
 			input.Color.xyz,
 			tex.xyz, 
 			input.WorldPosition,
@@ -119,17 +129,20 @@ PixelShaderOutput PS(PixelShaderInput input)
 			ItemLights, 
 			NumItemLights,
 			input.FogBulbs.w,
-			emissive, 
 			specular,
-			roughness) :
-		StaticLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, emissive);
+			roughness,
+            occlusion) :
+		StaticObjectLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, occlusion);
 
 	float shadowable = step(0.5f, float((NumItemLights & SHADOWABLE_MASK) == SHADOWABLE_MASK));
 	float3 shadow = DoShadow(input.WorldPosition, normal, color, -0.5f);
 	shadow = DoBlobShadows(input.WorldPosition, shadow);
 	color = lerp(color, shadow, shadowable);
 
-	output.Color = saturate(float4(color * occlusion, tex.w));
+    // Emissive light is self-generated and must not be attenuated by AO or shadows.
+    color = saturate(color + emissive);
+
+	output.Color = saturate(float4(color, tex.w));
 	output.Color = DoFogBulbsForPixel(output.Color, float4(input.FogBulbs.xyz, 1.0f));
 	output.Color = DoDistanceFogForPixel(output.Color, FogColor, input.DistanceFog);
 	output.Color.w *= input.Color.w;

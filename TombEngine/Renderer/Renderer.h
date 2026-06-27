@@ -246,6 +246,7 @@ namespace TEN::Renderer
 		int _dynamicLightList = 0;
 		std::vector<RendererLight> _dynamicLights[2];
 		RendererLight* _shadowLight;
+		bool _useImprovedObjectLighting = false;
 
 		// Lines
 
@@ -413,7 +414,7 @@ namespace TEN::Renderer
 		void CollectRooms(RenderView& renderView, bool onlyRooms);
 		void CollectItems(short roomNumber, RenderView& renderView);
 		void CollectStatics(short roomNumber, RenderView& renderView);
-		void CollectLights(const Vector3& pos, float radius, int roomNumber, int prevRoomNumber, bool prioritizeShadowLight, bool useCachedRoomLights, std::vector<RendererLightNode>* roomsLights, std::vector<RendererLight*>* outputLights);
+		void CollectLights(const Vector3& pos, float radius, int roomNumber, int prevRoomNumber, bool prioritizeShadowLight, bool useCachedRoomLights, std::vector<RendererLightNode>* roomsLights, std::vector<RendererLight*>* outputLights, bool useImprovedSelection = false);
 		void CollectLightsForItem(RendererItem* item);
 		void CollectLightsForEffect(short roomNumber, RendererEffect* effect);
 		void CollectLightsForRoom(short roomNumber, RenderView& renderView);
@@ -723,6 +724,8 @@ namespace TEN::Renderer
 		void Create();
 		void Initialize(const std::string& gameDir, int w, int h, bool windowed, HWND handle);
 		void ReloadShaders(bool recompileAAShaders = false);
+		void ToggleObjectLightingMode();
+		bool IsImprovedObjectLightingEnabled() const;
 		void Render(float interpFactor);
 		void RenderTitle(float interpFactor);
 		void Lock();

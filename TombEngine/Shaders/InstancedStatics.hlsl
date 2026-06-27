@@ -2,6 +2,8 @@
 #include "./CBCamera.hlsli"
 #include "./CBInstancedStatics.hlsli"
 #include "./ShaderLight.hlsli"
+#include "./ObjectLighting.hlsli"
+#include "./ObjectTransforms.hlsli"
 #include "./VertexEffects.hlsli"
 #include "./VertexInput.hlsli"
 #include "./Blending.hlsli"
@@ -56,10 +58,15 @@ PixelShaderInput VS(VertexShaderInput input, uint InstanceID : SV_InstanceID)
     output.Sheen = DecodeSheen(input.Effects);
 	output.InstanceID = InstanceID;
 
-    output.Normal = normalize(mul(input.Normal.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.Tangent = normalize(mul(input.Tangent.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.Binormal = SafeNormalize(mul(cross(input.Normal.xyz, input.Tangent.xyz), (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.FaceNormal = normalize(mul(input.FaceNormal.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
+    float3x3 worldTransform = (float3x3)StaticMeshes[InstanceID].World;
+    TransformObjectTangentBasis(
+        input.Normal.xyz,
+        input.Tangent.xyz,
+        worldTransform,
+        output.Normal,
+        output.Tangent,
+        output.Binormal);
+    output.FaceNormal = TransformObjectNormal(input.FaceNormal.xyz, worldTransform);
    
 	output.FogBulbs = DoFogBulbsForVertex(worldPosition);
 	output.DistanceFog = DoDistanceFogForVertex(worldPosition);
@@ -102,8 +109,9 @@ PixelShaderOutput PS(PixelShaderInput input)
     occlusion *= ambientOcclusion;
 
 	float3 color = (mode == 0) ?
-		CombineLights(
+		CombineObjectLights(
 			StaticMeshes[input.InstanceID].AmbientLight.xyz,
+            input.Color.xyz,
 			input.Color.xyz,
 			tex.xyz, 
 			input.WorldPosition, 
@@ -112,15 +120,18 @@ PixelShaderOutput PS(PixelShaderInput input)
 			StaticMeshes[input.InstanceID].InstancedStaticLights,
 			numLights,
 			input.FogBulbs.w, 
-			emissive, 
 			specular, 
-			roughness) :
-		StaticLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, emissive);
+			roughness,
+            occlusion) :
+		StaticObjectLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, occlusion);
 
 	color = DoShadow(input.WorldPosition, normal, color, -0.5f);
 	color = DoBlobShadows(input.WorldPosition, color);
 
-	output.Color = float4(color * occlusion, tex.w);
+    // Emissive light is self-generated and must not be attenuated by AO or shadows.
+    color = saturate(color + emissive);
+
+	output.Color = float4(color, tex.w);
 	output.Color = DoFogBulbsForPixel(output.Color, float4(input.FogBulbs.xyz, 1.0f));
 	output.Color = DoDistanceFogForPixel(output.Color, FogColor, input.DistanceFog);
 	output.Color.w *= input.Color.w;

@@ -8,6 +8,7 @@
 #include "./AnimatedTextures.hlsli"
 #include "./Blending.hlsli"
 #include "./Math.hlsli"
+#include "./ObjectTransforms.hlsli"
 #include "./Materials.hlsli"
 
 struct PixelShaderInput
@@ -98,9 +99,14 @@ PixelShaderInput VSItems(VertexShaderInput input)
 	output.Position = mul(mul(float4(pos, 1.0f), world), ViewProjection);
     output.PositionCopy = output.Position;
     output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffset(input.AnimationFrameOffsetIndexHash));
-    output.Normal = normalize(mul(input.Normal.xyz, (float3x3) world).xyz);
-    output.Tangent = normalize(mul(input.Tangent.xyz, (float3x3) world).xyz);
-    output.Binormal = SafeNormalize(mul(cross(input.Normal.xyz, input.Tangent.xyz), (float3x3) world).xyz);
+
+    TransformObjectTangentBasis(
+        input.Normal.xyz,
+        input.Tangent.xyz,
+        (float3x3)world,
+        output.Normal,
+        output.Tangent,
+        output.Binormal);
     output.DistanceFog = DoDistanceFogForVertex(pos);
 	
 	return output;
@@ -119,9 +125,14 @@ PixelShaderInput VSInstancedStatics(VertexShaderInput input, uint InstanceID : S
 	output.Position = mul(worldPosition, ViewProjection);
     output.PositionCopy = output.Position;
     output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffset(input.AnimationFrameOffsetIndexHash));
-    output.Normal = normalize(mul(input.Normal.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.Tangent = normalize(mul(input.Tangent.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.Binormal = SafeNormalize(mul(cross(input.Normal.xyz, input.Tangent.xyz), (float3x3) StaticMeshes[InstanceID].World).xyz);
+
+    TransformObjectTangentBasis(
+        input.Normal.xyz,
+        input.Tangent.xyz,
+        (float3x3)StaticMeshes[InstanceID].World,
+        output.Normal,
+        output.Tangent,
+        output.Binormal);
     output.DistanceFog = DoDistanceFogForVertex(pos);
 	
 	return output;

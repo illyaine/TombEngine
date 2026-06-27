@@ -609,6 +609,12 @@ namespace TEN::Input
 		}
 		dbPathfindingCycle = !KeyMap[OIS::KC_TAB];
 
+		// Toggle legacy/improved object lighting for visual comparison.
+		static bool dbObjectLighting = true;
+		if (KeyMap[OIS::KC_F8] && dbObjectLighting)
+			g_Renderer.ToggleObjectLightingMode();
+		dbObjectLighting = !KeyMap[OIS::KC_F8];
+
 		// Reload shaders.
 		static bool dbReloadShaders = true;
 		if (KeyMap[OIS::KC_F9] && dbReloadShaders)
