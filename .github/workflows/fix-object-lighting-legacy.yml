@@ -1,0 +1,64 @@
+name: Restore legacy static lighting selection
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  fix-source:
+    if: github.head_ref == 'feature/improved-object-lighting-selection'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Restore legacy path
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('TombEngine/Renderer/RendererFrame.cpp')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''\t\t\t// Collect lights. Preserve the previous selection in improved mode for hysteresis.
+\t\t\tauto lights = _useImprovedObjectLighting ? rendererStatic.LightsToDraw : std::vector<RendererLight*>{};
+\t\t\tauto cachedRoomLights = std::vector<RendererLightNode>{};
+'''
+          new = '''\t\t\t// Collect lights. Preserve the previous selection in improved mode for hysteresis.
+\t\t\tauto lights = _useImprovedObjectLighting ? rendererStatic.LightsToDraw : std::vector<RendererLight*>{};
+\t\t\tauto cachedRoomLights = std::vector<RendererLightNode>{};
+\t\t\tconst auto lightPosition = _useImprovedObjectLighting ? rendererStatic.Sphere.Center : rendererStatic.Pose.Position.ToVector3();
+\t\t\tconst float lightRadius = _useImprovedObjectLighting ? std::max(rendererStatic.Sphere.Radius, 1.0f) : ITEM_LIGHT_COLLECTION_RADIUS;
+'''
+          if text.count(old) != 1:
+              raise RuntimeError('Static light setup marker mismatch.')
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              'CollectLights(rendererStatic.Sphere.Center, std::max(rendererStatic.Sphere.Radius, 1.0f), rendererRoom.RoomNumber, NO_VALUE, false, false, &cachedRoomLights, &lights, _useImprovedObjectLighting);',
+              'CollectLights(lightPosition, lightRadius, rendererRoom.RoomNumber, NO_VALUE, false, false, &cachedRoomLights, &lights, _useImprovedObjectLighting);',
+              1)
+          text = text.replace(
+              'CollectLights(rendererStatic.Sphere.Center, std::max(rendererStatic.Sphere.Radius, 1.0f), rendererRoom.RoomNumber, NO_VALUE, false, true, &rendererStatic.CachedRoomLights, &lights, _useImprovedObjectLighting);',
+              'CollectLights(lightPosition, lightRadius, rendererRoom.RoomNumber, NO_VALUE, false, true, &rendererStatic.CachedRoomLights, &lights, _useImprovedObjectLighting);',
+              1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit corrected source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --check
+          git add TombEngine/Renderer/RendererFrame.cpp
+          git commit -m "Preserve legacy static light selection"
+          git push origin HEAD:${{ github.head_ref }}
