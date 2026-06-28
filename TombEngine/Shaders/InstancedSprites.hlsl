@@ -108,36 +108,67 @@ float Contrast(float Input, float ContrastPower)
 float4 ApplyHDRLightEffect(float4 color, float2 uv, int renderType, float4 effectParams)
 {
 	float2 centered = uv * 2.0f - 1.0f;
-	float radius = length(centered);
+	float2 absolute = abs(centered);
+	float radiusSquared = dot(centered, centered);
+	float radius = sqrt(radiusSquared);
 	float softness = saturate(effectParams.x);
 	float rayCount = max(round(effectParams.y), 2.0f);
 	float pulseAmount = saturate(effectParams.z);
 	float pulseSpeed = max(effectParams.w, 0.0f);
-	float pulse = 1.0f + sin(Frame * pulseSpeed * 0.05f) * pulseAmount;
+	float pulse = max(1.0f + sin(Frame * pulseSpeed * 0.05f) * pulseAmount, 0.0f);
+
+	// Fade the generated layer before the billboard boundary. This prevents a
+	// visible rectangular edge while retaining HDR values above 1.0 internally.
+	float edgeWidth = max(fwidth(radius) * 2.0f, 0.002f);
+	float outerFade = 1.0f - smoothstep(1.0f - edgeWidth, 1.0f + edgeWidth, radius);
 	float mask = 0.0f;
 
 	if (renderType == RENDER_TYPE_HDR_SOURCE_CORE)
 	{
-		float core = saturate(1.0f - radius);
-		mask = pow(core, lerp(1.0f, 6.0f, softness));
+		// A broad luminous body plus a compact white-hot centre reads as an actual
+		// emitting surface instead of a uniformly faded billboard. Independent
+		// billboard width and height naturally produce bulb, tube and panel shapes.
+		float body = exp2(-radiusSquared * lerp(2.5f, 8.0f, softness));
+		float hotCenter = exp2(-radiusSquared * lerp(14.0f, 36.0f, softness));
+		float sourceBoundary = 1.0f - smoothstep(0.72f, 1.0f, radius);
+		mask = (body * 0.72f + hotCenter * 0.48f) * sourceBoundary;
+
+		float peak = max(color.r, max(color.g, color.b));
+		float whiteHotAmount = saturate(hotCenter * lerp(0.15f, 0.45f, softness));
+		color.rgb = lerp(color.rgb, peak.xxx, whiteHotAmount);
 	}
 	else if (renderType == RENDER_TYPE_HDR_HALO)
 	{
-		float haloFalloff = lerp(1.5f, 7.5f, softness);
-		mask = exp(-radius * radius * haloFalloff) * saturate(1.0f - radius);
+		// Two falloff scales avoid the flat single-Gaussian appearance. The broad
+		// lobe provides atmosphere; the tighter lobe keeps the halo attached to its
+		// source without flooding the full frame.
+		float broadHalo = exp2(-radiusSquared * lerp(1.4f, 4.0f, softness));
+		float innerHalo = exp2(-radiusSquared * lerp(5.0f, 12.0f, softness));
+		mask = (broadHalo * 0.55f + innerHalo * 0.25f) * outerFade;
 	}
 	else if (renderType == RENDER_TYPE_HDR_GLARE)
 	{
 		float angle = atan2(centered.y, centered.x);
-		float angularRays = pow(abs(cos(angle * rayCount * 0.5f)), lerp(10.0f, 32.0f, softness));
-		float horizontal = exp(-abs(centered.y) * lerp(14.0f, 42.0f, softness));
-		float vertical = exp(-abs(centered.x) * lerp(14.0f, 42.0f, softness));
-		float radialFade = pow(saturate(1.0f - radius), 1.5f);
-		mask = saturate(max(angularRays * 0.75f, max(horizontal, vertical)) * radialFade);
+		float angularRays = pow(
+			abs(cos(angle * rayCount * 0.5f)),
+			lerp(14.0f, 42.0f, softness));
+
+		float horizontalCore = exp2(-absolute.y * lerp(22.0f, 72.0f, softness)) *
+			exp2(-absolute.x * lerp(1.5f, 3.5f, softness));
+		float horizontalFeather = exp2(-absolute.y * lerp(7.0f, 20.0f, softness)) *
+			exp2(-absolute.x * lerp(3.0f, 7.0f, softness)) * 0.28f;
+		float verticalCore = exp2(-absolute.x * lerp(22.0f, 72.0f, softness)) *
+			exp2(-absolute.y * lerp(2.0f, 5.0f, softness)) * 0.55f;
+		float radialRays = angularRays * exp2(-radius * lerp(3.0f, 7.0f, softness)) * 0.72f;
+		float centralSpark = exp2(-radiusSquared * lerp(24.0f, 56.0f, softness)) * 0.32f;
+
+		mask = max(radialRays, max(horizontalCore + horizontalFeather, verticalCore));
+		mask = (mask + centralSpark) * outerFade;
 	}
 
-	color.xyz *= mask * pulse;
-	color.w *= mask;
+	float energy = max(mask * pulse, 0.0f);
+	color.rgb *= energy;
+	color.a *= saturate(mask) * saturate(pulse);
 	return color;
 }
 
