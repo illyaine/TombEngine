@@ -151,7 +151,10 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
     for (int i = 0; i < 6; i++)
     {
         float4 lightClipSpace = mul(float4(worldPos, 1.0f), LightViewProjections[i]);
-        lightClipSpace.xyz /= max(lightClipSpace.w, EPSILON);
+        float safeProjectionW = (abs(lightClipSpace.w) > EPSILON) ?
+            lightClipSpace.w :
+            ((lightClipSpace.w >= 0.0f) ? EPSILON : -EPSILON);
+        lightClipSpace.xyz /= safeProjectionW;
 
         float insideLightBounds =
             step(-1.0f, lightClipSpace.x) * step(lightClipSpace.x, 1.0f) *
