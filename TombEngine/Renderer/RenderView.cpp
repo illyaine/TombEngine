@@ -1,9 +1,6 @@
 #include "framework.h"
 #include "Renderer/RenderView.h"
 
-#include "Game/effects/HDRLight.h"
-#include "Renderer/Renderer.h"
-
 namespace TEN::Renderer
 {
 	RenderView::RenderView(CAMERA_INFO* cam, float roll, float fov, float nearPlane, float farPlane, int w, int h) : Camera(cam, roll, fov, nearPlane, farPlane, w, h) 
@@ -58,12 +55,6 @@ namespace TEN::Renderer
 		LensFlaresToDraw.clear();
 		TransparentObjectsToDraw.clear();
 		Mirrors.clear();
-
-		// HDR lights are persistent level entities, unlike the legacy per-frame
-		// dynamic-light calls. Submit their physical component after the renderer has
-		// cleared the active dynamic-light buffer and before rooms collect lights.
-		TEN::Effects::HDRLight::RefreshLevelLights();
-		TEN::Effects::HDRLight::SubmitPhysicalLights(g_Renderer);
 	}
 
 	RenderViewCamera::RenderViewCamera(CAMERA_INFO* cam, float roll, float fov, float n, float f, int w, int h)
