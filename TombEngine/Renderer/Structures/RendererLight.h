@@ -8,26 +8,26 @@ namespace TEN::Renderer::Structures
 
 	struct RendererLight
 	{
-		Vector3 Position;
-		LightType Type;
-		Vector3 Color;
-		float Intensity;
-		Vector3 Direction;
-		float In;
-		float Out;
-		float InRange;
-		float OutRange;
+		Vector3 Position = Vector3::Zero;
+		LightType Type = LightType::HDR;
+		Vector3 Color = Vector3::Zero;
+		float Intensity = 0.0f;
+		Vector3 Direction = Vector3::UnitZ;
+		float In = 0.0f;
+		float Out = 0.0f;
+		float InRange = 0.0f;
+		float OutRange = 0.0f;
 		
-		BoundingSphere BoundingSphere;
-		int RoomNumber;
-		float LocalIntensity;
-		float Distance;
-		bool AffectNeighbourRooms;
-		bool CastShadows;
-		float Luma;
+		BoundingSphere BoundingSphere = {};
+		int RoomNumber = -1;
+		float LocalIntensity = 0.0f;
+		float Distance = 0.0f;
+		bool AffectNeighbourRooms = false;
+		bool CastShadows = false;
+		float Luma = 0.0f;
 
-		Vector3 PrevPosition;
-		Vector3 PrevDirection;
+		Vector3 PrevPosition = Vector3::Zero;
+		Vector3 PrevDirection = Vector3::UnitZ;
 
 		int Hash = 0;
 	};
