@@ -58,7 +58,7 @@ namespace TEN::Renderer::Graphics
 
 		RenderTarget2D(ID3D11Device* device, int width, int height, DXGI_FORMAT colorFormat, bool isTypeless, DXGI_FORMAT depthFormat)
 		{
-			colorFormat = ResolveInternalColorFormat(colorFormat);
+			colorFormat = ResolveInternalColorFormat(colorFormat, width, height, isTypeless, depthFormat);
 
 			auto desc = D3D11_TEXTURE2D_DESC{};
 			desc.Width = width;
@@ -214,7 +214,7 @@ namespace TEN::Renderer::Graphics
 				dsvDesc.Texture2D.MipSlice = 0;
 
 				res = device->CreateDepthStencilView(DepthStencilTexture.Get(), &dsvDesc, &DepthStencilView);
-				throwIfFailed(res, device, "CreateDepthStencilView (existing texture)");
+				throwIfFailed(res, device, "CreateDepthStencilView (existing texture depth)");
 			}
 
 			if (_vramSize > 0)
@@ -230,9 +230,28 @@ namespace TEN::Renderer::Graphics
 	private:
 		int _vramSize = 0;
 
-		DXGI_FORMAT ResolveInternalColorFormat(DXGI_FORMAT format)
+		DXGI_FORMAT ResolveInternalColorFormat(
+			DXGI_FORMAT format,
+			int width,
+			int height,
+			bool isTypeless,
+			DXGI_FORMAT depthFormat)
 		{
-			if (g_Configuration.EnableHDRRendering && format == DXGI_FORMAT_R8G8B8A8_UNORM)
+			if (!g_Configuration.EnableHDRRendering || format != DXGI_FORMAT_R8G8B8A8_UNORM)
+				return format;
+
+			const int screenWidth = g_Configuration.ScreenWidth;
+			const int screenHeight = g_Configuration.ScreenHeight;
+			const bool hasScreenSize = screenWidth > 0 && screenHeight > 0;
+			const bool isScreenSized = hasScreenSize && width == screenWidth && height == screenHeight;
+			const bool isGlowSized = hasScreenSize && width == screenWidth / 4 && height == screenHeight / 4;
+			const bool isReflectionSized = hasScreenSize && width == screenWidth / 2 && height == screenHeight / 2;
+
+			const bool isMainSceneColor = isScreenSized && depthFormat == DXGI_FORMAT_D24_UNORM_S8_UINT;
+			const bool isSmaaSceneColor = isScreenSized && isTypeless;
+			const bool isDownscaledSceneColor = depthFormat == DXGI_FORMAT_UNKNOWN && (isGlowSized || isReflectionSized);
+
+			if (isMainSceneColor || isSmaaSceneColor || isDownscaledSceneColor)
 				return DXGI_FORMAT_R16G16B16A16_FLOAT;
 
 			return format;
