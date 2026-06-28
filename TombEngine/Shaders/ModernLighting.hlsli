@@ -60,7 +60,7 @@ float GeometrySmith(float3 normal, float3 viewDirection, float3 lightDirection, 
 float3 FresnelSchlick(float cosine, float3 baseReflectance)
 {
     float fresnel = pow(1.0f - saturate(cosine), 5.0f);
-    return baseReflectance + (1.0f - baseReflectance) * fresnel;
+    return baseReflectance + (float3(1.0f, 1.0f, 1.0f) - baseReflectance) * fresnel;
 }
 
 float ResolveModernRoughness(float roughness, float sheenStrength)
@@ -70,6 +70,16 @@ float ResolveModernRoughness(float roughness, float sheenStrength)
     float sheenExponent = max(abs(sheenStrength) * SPEC_FACTOR, 1.0f);
     float sheenRoughness = clamp(sqrt(2.0f / (sheenExponent + 2.0f)), 0.045f, 1.0f);
     return lerp(resolvedRoughness, sheenRoughness, sheenEnabled);
+}
+
+float ApplySpecularAntialiasing(float3 normal, float roughness)
+{
+    float3 normalDx = ddx(normal);
+    float3 normalDy = ddy(normal);
+    float normalVariance = max(dot(normalDx, normalDx), dot(normalDy, normalDy));
+    float kernelRoughnessSquared = min(normalVariance * 2.0f, 0.18f);
+
+    return clamp(sqrt(roughness * roughness + kernelRoughnessSquared), 0.045f, 1.0f);
 }
 
 float ResolveModernSpecular(float specularIntensity, float sheenStrength)
@@ -98,13 +108,18 @@ float3 EvaluateModernSpecular(
         return float3(0.0f, 0.0f, 0.0f);
 
     float resolvedRoughness = ResolveModernRoughness(roughness, sheenStrength);
+    resolvedRoughness = ApplySpecularAntialiasing(normal, resolvedRoughness);
+
     float resolvedSpecular = ResolveModernSpecular(specularIntensity, sheenStrength);
     if (resolvedSpecular <= EPSILON)
         return float3(0.0f, 0.0f, 0.0f);
 
     float sheenEnabled = step(EPSILON, abs(sheenStrength));
     float dielectricReflectance = lerp(0.04f, 0.08f, sheenEnabled) * resolvedSpecular;
-    float3 baseReflectance = dielectricReflectance.xxx;
+    float3 baseReflectance = float3(
+        dielectricReflectance,
+        dielectricReflectance,
+        dielectricReflectance);
 
     float distribution = DistributionGGX(normal, halfVector, resolvedRoughness);
     float geometry = GeometrySmith(normal, viewDirection, lightDirection, resolvedRoughness);
@@ -112,7 +127,11 @@ float3 EvaluateModernSpecular(
 
     float denominator = max(4.0f * normalView * normalLight, EPSILON);
     float3 specularBRDF = (distribution * geometry * fresnel) / denominator;
-    return max(radiance * specularBRDF * normalLight, 0.0f);
+    specularBRDF = min(specularBRDF, float3(16.0f, 16.0f, 16.0f));
+
+    return max(
+        radiance * specularBRDF * normalLight,
+        float3(0.0f, 0.0f, 0.0f));
 }
 
 float3 DoModernPointLight(float3 position, float3 normal, ShaderLight light)
@@ -123,7 +142,9 @@ float3 DoModernPointLight(float3 position, float3 normal, ShaderLight light)
     float attenuation = SmoothRangeAttenuation(distanceToLight, light.In, light.Out);
     float normalLight = saturate(dot(normal, lightDirection));
 
-    return max(light.Color.xyz * light.Intensity * attenuation * normalLight, 0.0f);
+    return max(
+        light.Color.xyz * light.Intensity * attenuation * normalLight,
+        float3(0.0f, 0.0f, 0.0f));
 }
 
 float3 DoModernSpotLight(float3 position, float3 normal, ShaderLight light)
@@ -140,14 +161,19 @@ float3 DoModernSpotLight(float3 position, float3 normal, ShaderLight light)
         light.OutRange);
     float normalLight = saturate(dot(normal, lightDirection));
 
-    return max(light.Color.xyz * light.Intensity * distanceAttenuation * coneAttenuation * normalLight, 0.0f);
+    return max(
+        light.Color.xyz * light.Intensity * distanceAttenuation * coneAttenuation * normalLight,
+        float3(0.0f, 0.0f, 0.0f));
 }
 
 float3 DoModernDirectionalLight(float3 position, float3 normal, ShaderLight light)
 {
     float3 lightDirection = -SafeNormalizeLighting(light.Direction.xyz, normal);
     float normalLight = saturate(dot(normal, lightDirection));
-    return max(light.Color.xyz * light.Intensity * normalLight, 0.0f);
+
+    return max(
+        light.Color.xyz * light.Intensity * normalLight,
+        float3(0.0f, 0.0f, 0.0f));
 }
 
 float3 DoModernSpecularPoint(
