@@ -9,11 +9,9 @@ namespace TEN::Renderer::ConstantBuffers
 	struct alignas(16) InstancedSprite
 	{
 		Matrix World;
-		//--
 		Vector4 UV[2];
-		//--
 		Vector4 Color;
-		//--
+		Vector4 EffectParams;
 		float IsBillboard;
 		float IsSoftParticle;
 		int RenderType;
