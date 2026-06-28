@@ -13,6 +13,11 @@ namespace TEN::Effects::HDRLight
 	using namespace DirectX::SimpleMath;
 
 	constexpr uint8_t ROOM_LIGHT_TYPE = static_cast<uint8_t>(LightType::HDR);
+	constexpr uint8_t TRANSPORT_LIGHT_TYPE = static_cast<uint8_t>(LightType::Spot);
+	constexpr float TRANSPORT_MARKER = -1000.0f;
+	constexpr float TRANSPORT_MODE_SECTOR_DEGREES = 120.0f;
+	constexpr float TRANSPORT_INTENSITY_DEGREES_PER_UNIT = 10.0f;
+	constexpr float TRANSPORT_GLARE_DEGREES_PER_UNIT = 10.0f;
 	constexpr int MAX_EFFECT_LAYERS = 16;
 	constexpr int MAX_VISIBLE_EFFECT_LAYERS = 512;
 
@@ -107,7 +112,67 @@ namespace TEN::Effects::HDRLight
 		return effect;
 	}
 
-	inline Definition ConvertRoomLight(const RoomLightData& source, int roomNumber, int lightIndex)
+	inline bool IsTransportRecord(const RoomLightData& source)
+	{
+		return source.type == TRANSPORT_LIGHT_TYPE && source.in <= TRANSPORT_MARKER;
+	}
+
+	inline Definition ConvertTransportLight(const RoomLightData& source, int roomNumber, int lightIndex)
+	{
+		auto light = Definition{};
+		light.Position = Vector3((float)source.x, (float)source.y, (float)source.z);
+		light.Color = Vector3(source.r, source.g, source.b);
+		light.RoomNumber = roomNumber;
+		light.Hash = 0x48440000 ^ ((roomNumber & 0x7FF) << 12) ^ (lightIndex & 0xFFF);
+		light.LightType = PhysicalType::Point;
+		light.InnerRange = 0.0f;
+		light.OuterRange = std::max(std::abs(source.length), 1.0f);
+		light.CastShadows = source.castShadows;
+
+		const float clampedDirectionY = std::clamp(source.dy, -1.0f, 1.0f);
+		const float encodedGlareDegrees = std::abs(std::asin(clampedDirectionY) * (180.0f / PI));
+		const float glareIntensity = encodedGlareDegrees / TRANSPORT_GLARE_DEGREES_PER_UNIT;
+
+		float encodedYaw = std::atan2(source.dx, source.dz) * (180.0f / PI);
+		if (encodedYaw < 0.0f)
+			encodedYaw += 360.0f;
+
+		const int modeIndex = std::clamp(
+			(int)std::floor(encodedYaw / TRANSPORT_MODE_SECTOR_DEGREES),
+			0,
+			2);
+		light.LightMode = (Mode)modeIndex;
+
+		const float intensityAngle = encodedYaw - modeIndex * TRANSPORT_MODE_SECTOR_DEGREES;
+		light.PhysicalIntensity = std::clamp(
+			intensityAngle / TRANSPORT_INTENSITY_DEGREES_PER_UNIT,
+			0.0f,
+			10.0f);
+
+		const float sourceSizeValue = std::max(std::abs(source.cutoff), 32.0f);
+		const Vector2 sourceSize(sourceSizeValue, sourceSizeValue);
+		const float coreIntensity = std::max(TRANSPORT_MARKER - source.in, 0.0f);
+		const float haloIntensity = std::max(source.out, 0.0f);
+
+		if (light.LightMode != Mode::LightOnly)
+		{
+			light.Effects.reserve(3);
+			if (coreIntensity > EPSILON)
+				light.Effects.push_back(MakeSourceCore(sourceSize, coreIntensity));
+			if (haloIntensity > EPSILON)
+				light.Effects.push_back(MakeHalo(sourceSize * 4.0f, haloIntensity));
+			if (glareIntensity > EPSILON)
+			{
+				light.Effects.push_back(MakeGlare(
+					Vector2(sourceSizeValue * 8.0f, std::max(sourceSizeValue * 1.5f, 32.0f)),
+					glareIntensity));
+			}
+		}
+
+		return light;
+	}
+
+	inline Definition ConvertNativeRoomLight(const RoomLightData& source, int roomNumber, int lightIndex)
 	{
 		auto light = Definition{};
 		light.Position = Vector3((float)source.x, (float)source.y, (float)source.z);
@@ -125,10 +190,6 @@ namespace TEN::Effects::HDRLight
 		light.OuterRange = std::max(source.out, light.InnerRange + 1.0f);
 		light.CastShadows = source.castShadows;
 
-		// The base HDR-light record deliberately remains compatible with the current
-		// fixed room-light block. For this initial version, length and cutoff describe
-		// the visible source width and height. A versioned extension block will add
-		// arbitrary serialized layers without changing legacy light records.
 		const float sourceWidth = std::max(std::abs(source.length), 32.0f);
 		const float sourceHeight = std::max(std::abs(source.cutoff), sourceWidth);
 		const Vector2 sourceSize(sourceWidth, sourceHeight);
@@ -153,10 +214,14 @@ namespace TEN::Effects::HDRLight
 			for (int lightIndex = 0; lightIndex < (int)room.lights.size(); lightIndex++)
 			{
 				const auto& source = room.lights[lightIndex];
-				if (source.type != ROOM_LIGHT_TYPE)
+				if (IsTransportRecord(source))
+				{
+					LevelLights.push_back(ConvertTransportLight(source, roomNumber, lightIndex));
 					continue;
+				}
 
-				LevelLights.push_back(ConvertRoomLight(source, roomNumber, lightIndex));
+				if (source.type == ROOM_LIGHT_TYPE)
+					LevelLights.push_back(ConvertNativeRoomLight(source, roomNumber, lightIndex));
 			}
 		}
 	}
