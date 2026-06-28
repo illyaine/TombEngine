@@ -7,6 +7,7 @@
 #include "./AnimatedTextures.hlsli"
 #include "./Shadows.hlsli"
 #include "./ShaderLight.hlsli"
+#include "./ModernLighting.hlsli"
 #include "./Materials.hlsli"
 
 #define ROOM_LIGHT_COEFF 0.7f
@@ -121,13 +122,13 @@ PixelShaderOutput PS(PixelShaderInput input)
 	{
 		if (onlyPointLights || RoomLights[i].Type == LT_POINT)
 		{
-            directDiffuse += DoPointLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
-            directSpecular += DoSpecularPoint(input.WorldPosition, normal, RoomLights[i], 0.0f, specular, roughness);
+            directDiffuse += DoModernPointLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
+            directSpecular += DoModernSpecularPoint(input.WorldPosition, normal, RoomLights[i], input.Sheen, specular, roughness);
         }
 		else if (RoomLights[i].Type == LT_SPOT)
 		{
-            directDiffuse += DoSpotLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
-            directSpecular += DoSpecularSpot(input.WorldPosition, normal, RoomLights[i], 0.0f, specular, roughness);
+            directDiffuse += DoModernSpotLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
+            directSpecular += DoModernSpecularSpot(input.WorldPosition, normal, RoomLights[i], input.Sheen, specular, roughness);
 		}
 	}
 
@@ -183,7 +184,9 @@ PixelShaderOutput PS(PixelShaderInput input)
         directDiffuse += caustics * attenuation * 2.0f;
     }
 
-    float3 surfaceLighting = indirectLighting * occlusion + directDiffuse;
+    float resolvedSpecular = ResolveModernSpecular(specular, input.Sheen);
+    float diffuseEnergy = 1.0f - 0.04f * resolvedSpecular;
+    float3 surfaceLighting = indirectLighting * occlusion + directDiffuse * diffuseEnergy;
     float3 finalColor = output.Color.xyz * surfaceLighting + directSpecular;
 	finalColor -= float3(input.FogBulbs.w, input.FogBulbs.w, input.FogBulbs.w);
     finalColor += emissive;
