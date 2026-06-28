@@ -18,6 +18,9 @@ namespace TEN::Gui
 		case LightingSettingsOption::HDRStrength:
 			settings.HDRStrength = std::clamp(settings.HDRStrength + direction * 5, 0, 100);
 			break;
+		case LightingSettingsOption::LevelBrightness:
+			settings.LevelBrightness = std::clamp(settings.LevelBrightness + direction * 5, 50, 150);
+			break;
 		case LightingSettingsOption::LightBloom:
 			settings.EnableLightBloom = !settings.EnableLightBloom;
 			break;
