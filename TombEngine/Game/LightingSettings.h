@@ -11,6 +11,7 @@ namespace TEN::Gui
 		HDRRendering,
 		HDRExposure,
 		HDRStrength,
+		LevelBrightness,
 		LightBloom,
 		BloomStrength,
 		BloomThreshold,
