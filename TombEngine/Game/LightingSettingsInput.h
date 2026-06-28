@@ -3,7 +3,9 @@
 #include "Game/Gui.h"
 #include "Game/LightingSettings.h"
 #include "Game/LightingSettingsAdjust.h"
+#include "Sound/sound.h"
 #include "Specific/Input/Input.h"
+#include "Specific/level.h"
 
 namespace TEN::Gui
 {
@@ -19,9 +21,9 @@ namespace TEN::Gui
 		settings.GlareLength = g_Configuration.GlareLength;
 	}
 
-	inline void ApplyLightingSettings(const GameConfiguration& settings, bool& restartRequired)
+	inline void ApplyLightingSettings(const GameConfiguration& settings, bool hdrRenderTargetsEnabled, bool& restartRequired)
 	{
-		restartRequired = settings.EnableHDRRendering != g_Configuration.EnableHDRRendering;
+		restartRequired = settings.EnableHDRRendering != hdrRenderTargetsEnabled;
 		g_Configuration.EnableHDRRendering = settings.EnableHDRRendering;
 		g_Configuration.HDRExposure = settings.HDRExposure;
 		g_Configuration.HDRStrength = settings.HDRStrength;
@@ -33,7 +35,7 @@ namespace TEN::Gui
 		g_Configuration.SaveLightingConfiguration();
 	}
 
-	inline bool UpdateLightingSettingsInput(bool& restartRequired)
+	inline bool UpdateLightingSettingsInput(bool& restartRequired, bool hdrRenderTargetsEnabled)
 	{
 		if (g_Gui.GetMenuToDisplay() == Menu::Display &&
 			g_Gui.GetSelectedOption() == 7 &&
@@ -41,7 +43,8 @@ namespace TEN::Gui
 		{
 			g_Gui.SetMenuToDisplay(Menu::LightingHDR);
 			g_Gui.SetSelectedOption(0);
-			restartRequired = false;
+			restartRequired = g_Gui.GetCurrentSettings().Configuration.EnableHDRRendering != hdrRenderTargetsEnabled;
+			SoundEffect(SFX_TR4_MENU_SELECT, nullptr, SoundEnvironment::Always);
 			return true;
 		}
 
@@ -50,13 +53,26 @@ namespace TEN::Gui
 
 		auto& settings = g_Gui.GetCurrentSettings().Configuration;
 		int selected = g_Gui.GetSelectedOption();
+		bool moved = false;
 		if (IsPulsed(In::Forward, 0.08f, 0.35f))
+		{
 			selected--;
+			moved = true;
+		}
 		else if (IsPulsed(In::Back, 0.08f, 0.35f))
+		{
 			selected++;
+			moved = true;
+		}
 
-		selected = std::clamp(selected, 0, (int)LightingSettingsOption::Count - 1);
+		selected = g_Gui.GetLoopedSelectedOption(
+			selected,
+			(int)LightingSettingsOption::Count - 1,
+			g_Configuration.MenuOptionLoopingMode == MenuOptionLoopingMode::AllMenus);
 		g_Gui.SetSelectedOption(selected);
+
+		if (moved)
+			SoundEffect(SFX_TR4_MENU_CHOOSE, nullptr, SoundEnvironment::Always);
 
 		int direction = 0;
 		if (IsPulsed(In::Left, 0.08f, 0.35f))
@@ -64,21 +80,30 @@ namespace TEN::Gui
 		else if (IsPulsed(In::Right, 0.08f, 0.35f))
 			direction = 1;
 
-		if (direction != 0)
+		if (direction != 0 && selected < (int)LightingSettingsOption::Apply)
+		{
 			AdjustLightingSetting(settings, (LightingSettingsOption)selected, direction);
+			restartRequired = settings.EnableHDRRendering != hdrRenderTargetsEnabled;
+			SoundEffect(SFX_TR4_MENU_CHOOSE, nullptr, SoundEnvironment::Always);
+		}
 
 		bool select = IsClicked(In::Select) || IsClicked(In::Action);
 		bool cancel = IsClicked(In::Deselect) || IsClicked(In::Draw);
 		if (cancel || (select && (LightingSettingsOption)selected == LightingSettingsOption::Cancel))
 		{
 			RestoreLightingSettings(settings);
+			restartRequired = g_Configuration.EnableHDRRendering != hdrRenderTargetsEnabled;
 			g_Gui.SetMenuToDisplay(Menu::Display);
 			g_Gui.SetSelectedOption(7);
+			SoundEffect(SFX_TR4_MENU_SELECT, nullptr, SoundEnvironment::Always);
 			return false;
 		}
 
 		if (select && (LightingSettingsOption)selected == LightingSettingsOption::Apply)
-			ApplyLightingSettings(settings, restartRequired);
+		{
+			ApplyLightingSettings(settings, hdrRenderTargetsEnabled, restartRequired);
+			SoundEffect(SFX_TR4_MENU_SELECT, nullptr, SoundEnvironment::Always);
+		}
 
 		return true;
 	}
