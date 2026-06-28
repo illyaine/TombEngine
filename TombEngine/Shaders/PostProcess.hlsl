@@ -104,6 +104,15 @@ float3 ToneMapACES(float3 color)
     return lerp(mapped, mappedLuma.xxx, highlightWeight);
 }
 
+float3 ApplyDisplayBrightness(float3 color)
+{
+    // This is a player-side display calibration, not a change to authored
+    // level lighting. Preserve black and white while reshaping midtones.
+    float brightness = clamp(DisplayBrightness, 0.5f, 1.5f);
+    float gamma = rcp(brightness);
+    return pow(saturate(color), gamma.xxx);
+}
+
 float4 PSFinalPass(PixelShaderInput input) : SV_TARGET
 {
     float4 output = ColorTexture.Sample(ColorSampler, input.UV);
@@ -130,7 +139,7 @@ float4 PSFinalPass(PixelShaderInput input) : SV_TARGET
             sceneColor = saturate(sceneColor);
         }
 
-        output.xyz = sceneColor;
+        output.xyz = ApplyDisplayBrightness(sceneColor);
         output.w = 1.0f;
     }
 
