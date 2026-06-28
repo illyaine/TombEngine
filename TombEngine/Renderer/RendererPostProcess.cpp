@@ -29,13 +29,18 @@ namespace TEN::Renderer
 		buffer.EnableBloom = configuration.EnableLightBloom ? 1 : 0;
 	}
 
+	static bool IsHDRRenderTarget(const RenderTarget2D& renderTarget)
+	{
+		D3D11_TEXTURE2D_DESC description = {};
+		renderTarget.Texture->GetDesc(&description);
+		return description.Format == DXGI_FORMAT_R16G16B16A16_FLOAT ||
+			description.Format == DXGI_FORMAT_R16G16B16A16_TYPELESS;
+	}
+
 	void Renderer::DrawPostprocess(RenderTarget2D* renderTarget, RenderView& view, SceneRenderMode renderMode)
 	{
 		static bool lightingRestartRequired = false;
-		D3D11_TEXTURE2D_DESC sceneTargetDescription = {};
-		_renderTarget.Texture->GetDesc(&sceneTargetDescription);
-		const bool hdrRenderTargetsEnabled = sceneTargetDescription.Format == DXGI_FORMAT_R16G16B16A16_FLOAT ||
-			sceneTargetDescription.Format == DXGI_FORMAT_R16G16B16A16_TYPELESS;
+		const bool hdrRenderTargetsEnabled = IsHDRRenderTarget(_renderTarget);
 		const bool lightingMenuActive = TEN::Gui::UpdateLightingSettingsInput(lightingRestartRequired, hdrRenderTargetsEnabled);
 
 		_doingFullscreenPass = true;
@@ -45,30 +50,57 @@ namespace TEN::Renderer
 		_context->RSSetViewports(1, &view.Viewport);
 		ResetScissor();
 
-		_stPostProcessBuffer.ScreenFadeFactor = renderMode == SceneRenderMode::Full ? ScreenFadeCurrent : 1.0f;
-		_stPostProcessBuffer.CinematicBarsHeight = renderMode == SceneRenderMode::Full ? CinematicBarsHeight : 0.0f;
+		const float finalScreenFadeFactor = renderMode == SceneRenderMode::Full ? ScreenFadeCurrent : 1.0f;
+		const float finalCinematicBarsHeight = renderMode == SceneRenderMode::Full ? CinematicBarsHeight : 0.0f;
+		const Vector3 finalTint = _postProcessTint;
+
+		_stPostProcessBuffer.ScreenFadeFactor = finalScreenFadeFactor;
+		_stPostProcessBuffer.CinematicBarsHeight = finalCinematicBarsHeight;
 		_stPostProcessBuffer.ViewportSize = Vector2i(_screenWidth, _screenHeight);
 		_stPostProcessBuffer.EffectStrength = _postProcessStrength;
-		_stPostProcessBuffer.Tint = _postProcessTint;
+		_stPostProcessBuffer.Tint = finalTint;
 		SetUserPostProcessSettings(_stPostProcessBuffer);
-		UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
 
 		_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		_context->IASetInputLayout(_fullscreenTriangleInputLayout.Get());
 		unsigned int stride = sizeof(PostProcessVertex);
 		unsigned int offset = 0;
 		_context->IASetVertexBuffers(0, 1, _fullscreenTriangleVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
-		_shaders.Bind(Shader::PostProcess);
 
 		float clearColor[4] = { 0, 0, 0, 0 };
 		_context->ClearRenderTargetView(_postProcessRenderTarget[0].RenderTargetView.Get(), clearColor);
 		_context->OMSetRenderTargets(1, _postProcessRenderTarget[0].RenderTargetView.GetAddressOf(), nullptr);
 		BindRenderTargetAsTexture(TextureRegister::ColorMap, &_renderTarget, SamplerStateRegister::PointWrap);
+
+		if (hdrRenderTargetsEnabled)
+		{
+			// Convert the FP16 scene to SDR before entering the SDR postprocess chain.
+			// Fade, tint and cinematic bars remain deferred to the final output pass.
+			_stPostProcessBuffer.ScreenFadeFactor = 1.0f;
+			_stPostProcessBuffer.CinematicBarsHeight = 0.0f;
+			_stPostProcessBuffer.Tint = Vector3::One;
+			UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
+			_shaders.Bind(Shader::PostProcessFinalPass);
+		}
+		else
+		{
+			UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
+			_shaders.Bind(Shader::PostProcess);
+		}
+
 		DrawTriangles(3, 0);
+
+		// Restore final output controls. An FP16 scene has already been tone mapped
+		// above, so the last pass must not apply HDR conversion a second time.
+		_stPostProcessBuffer.ScreenFadeFactor = finalScreenFadeFactor;
+		_stPostProcessBuffer.CinematicBarsHeight = finalCinematicBarsHeight;
+		_stPostProcessBuffer.Tint = finalTint;
+		if (hdrRenderTargetsEnabled)
+			_stPostProcessBuffer.EnableHDR = 0;
+		UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
 
 		int currentRenderTarget = 0;
 		int destRenderTarget = 1;
-		_shaders.Bind(Shader::PostProcess);
 
 		if (!view.LensFlaresToDraw.empty())
 		{
@@ -244,7 +276,13 @@ namespace TEN::Renderer
 
 		_context->RSSetViewports(1, &view.Viewport);
 		ResetScissor();
-		CopyRenderTarget(renderTarget, &_postProcessRenderTarget[0], view);
+
+		// Keep the scene copy in FP16 until tone mapping. The SMAA scene target is
+		// full-sized and is overwritten again by SMAA later in the frame.
+		RenderTarget2D* sceneCopyTarget = IsHDRRenderTarget(*renderTarget) ?
+			&_SMAASceneRenderTarget : &_postProcessRenderTarget[0];
+		CopyRenderTarget(renderTarget, sceneCopyTarget, view);
+
 		_shaders.Bind(Shader::GlowCombine);
 		_stPostProcessBuffer.GlowSoftAdd = configuration.EnableHDRRendering ? 0 : 1;
 		_stPostProcessBuffer.GlowIntensity = 1.0f;
@@ -252,7 +290,7 @@ namespace TEN::Renderer
 		UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
 		_context->ClearRenderTargetView(renderTarget->RenderTargetView.Get(), clearColor);
 		_context->OMSetRenderTargets(1, renderTarget->RenderTargetView.GetAddressOf(), nullptr);
-		BindRenderTargetAsTexture(static_cast<TextureRegister>(0), &_postProcessRenderTarget[0], SamplerStateRegister::LinearClamp);
+		BindRenderTargetAsTexture(static_cast<TextureRegister>(0), sceneCopyTarget, SamplerStateRegister::LinearClamp);
 		BindRenderTargetAsTexture(static_cast<TextureRegister>(3), &_glowRenderTarget[0], SamplerStateRegister::LinearClamp);
 		DrawTriangles(3, 0);
 	}
