@@ -14,7 +14,8 @@ namespace TEN::Effects::HDRLight
 
 	constexpr uint8_t ROOM_LIGHT_TYPE = static_cast<uint8_t>(LightType::HDR);
 	constexpr uint8_t TRANSPORT_LIGHT_TYPE = static_cast<uint8_t>(LightType::Spot);
-	constexpr float TRANSPORT_MARKER = -1000.0f;
+	constexpr float TRANSPORT_MARKER = -0.001f;
+	constexpr float TRANSPORT_CORE_SCALE = 0.001f;
 	constexpr float TRANSPORT_MODE_SECTOR_DEGREES = 120.0f;
 	constexpr float TRANSPORT_INTENSITY_DEGREES_PER_UNIT = 10.0f;
 	constexpr float TRANSPORT_GLARE_DEGREES_PER_UNIT = 10.0f;
@@ -151,7 +152,9 @@ namespace TEN::Effects::HDRLight
 
 		const float sourceSizeValue = std::max(std::abs(source.cutoff), 32.0f);
 		const Vector2 sourceSize(sourceSizeValue, sourceSizeValue);
-		const float coreIntensity = std::max(TRANSPORT_MARKER - source.in, 0.0f);
+		const float coreIntensity = std::max(
+			(TRANSPORT_MARKER - source.in) / TRANSPORT_CORE_SCALE,
+			0.0f);
 		const float haloIntensity = std::max(source.out, 0.0f);
 
 		if (light.LightMode != Mode::LightOnly)
