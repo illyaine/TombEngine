@@ -32,7 +32,11 @@ namespace TEN::Renderer
 	void Renderer::DrawPostprocess(RenderTarget2D* renderTarget, RenderView& view, SceneRenderMode renderMode)
 	{
 		static bool lightingRestartRequired = false;
-		const bool lightingMenuActive = TEN::Gui::UpdateLightingSettingsInput(lightingRestartRequired);
+		D3D11_TEXTURE2D_DESC sceneTargetDescription = {};
+		_renderTarget.Texture->GetDesc(&sceneTargetDescription);
+		const bool hdrRenderTargetsEnabled = sceneTargetDescription.Format == DXGI_FORMAT_R16G16B16A16_FLOAT ||
+			sceneTargetDescription.Format == DXGI_FORMAT_R16G16B16A16_TYPELESS;
+		const bool lightingMenuActive = TEN::Gui::UpdateLightingSettingsInput(lightingRestartRequired, hdrRenderTargetsEnabled);
 
 		_doingFullscreenPass = true;
 		SetBlendMode(BlendMode::Opaque);
