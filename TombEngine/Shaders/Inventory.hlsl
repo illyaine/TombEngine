@@ -3,6 +3,8 @@
 #include "./Blending.hlsli"
 #include "./VertexInput.hlsli"
 #include "./ShaderLight.hlsli"
+#include "./ModernLighting.hlsli"
+#include "./ObjectTransforms.hlsli"
 #include "./AnimatedTextures.hlsli"
 #include "./VertexEffects.hlsli"
 #include "./Materials.hlsli"
@@ -40,14 +42,20 @@ PixelShaderInput VS(VertexShaderInput input)
     float4x4 world = mul(blended, World);
 
 	output.Position = mul(mul(float4(input.Position, 1.0f), world), ViewProjection);
-    output.Normal = (mul(input.Normal.xyz, (float3x3) world).xyz);
-    output.Tangent = normalize(mul(input.Tangent.xyz, (float3x3) world).xyz);
-    output.Binormal = SafeNormalize(mul(cross(input.Normal.xyz, input.Tangent.xyz), (float3x3) world).xyz);
     output.Color = input.Color;
     output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffset(input.AnimationFrameOffsetIndexHash));
-    output.WorldPosition = (mul(float4(input.Position, 1.0f), world).xyz);
+    output.WorldPosition = mul(float4(input.Position, 1.0f), world).xyz;
     output.Sheen = DecodeSheen(input.Effects);
-    output.FaceNormal = normalize(mul(input.FaceNormal.xyz, (float3x3) world).xyz);
+
+    float3x3 worldTransform = (float3x3)world;
+    TransformObjectTangentBasis(
+        input.Normal.xyz,
+        input.Tangent.xyz,
+        worldTransform,
+        output.Normal,
+        output.Tangent,
+        output.Binormal);
+    output.FaceNormal = TransformObjectNormal(input.FaceNormal.xyz, worldTransform);
     
 	return output;
 }
@@ -61,14 +69,12 @@ PixelShaderOutput PS(PixelShaderInput input) : SV_TARGET
     
     float4 tex = Texture.Sample(Sampler, input.UV);
     float3 baseColor = tex.xyz * Color.xyz;
-    float3 pos = normalize(input.WorldPosition);
 
     output.Color = float4(baseColor, tex.w * Color.w);
 
     DoAlphaTest(output.Color);
     
     float4 ORSH = ORSHTexture.Sample(ORSHSampler, input.UV);
-    float ambientOcclusion = ORSH.x;
     float roughness = ORSH.y;
     float specular = ORSH.z;
 	
@@ -76,22 +82,20 @@ PixelShaderOutput PS(PixelShaderInput input) : SV_TARGET
 	
     float3x3 TBN = float3x3(input.Tangent, input.Binormal, input.Normal);
     float3 normal = UnpackNormalMap(NormalTexture.Sample(NormalTextureSampler, input.UV));
-    normal = normalize(mul(normal, TBN));
+    normal = EnsureNormal(mul(normal, TBN), input.WorldPosition);
     
-    // Material effects
-    output.Color.xyz = CalculateReflections(input.WorldPosition, output.Color.xyz, normal, specular);
+    output.Color.xyz = CalculateReflections(input.WorldPosition, output.Color.xyz, normal, specular, roughness);
 	
-    ShaderLight l;
-    l.Color = float3(AmbientLight.xyz);
-    l.Intensity = 0.3f;
-    l.Type = LT_SUN;
-    l.Direction = normalize(float3(-1.0f, -0.707f, -0.5f));
+    ShaderLight light;
+    light.Color = float3(AmbientLight.xyz);
+    light.Intensity = 0.3f;
+    light.Type = LT_SUN;
+    light.Direction = normalize(float3(-1.0f, -0.707f, -0.5f));
 
-    float3 lighting = DoDirectionalLight(pos, normal, l);
-    lighting += DoSpecularSun(normal, l, input.Sheen, specular, roughness);;
+    float3 lighting = DoModernDirectionalLight(input.WorldPosition, normal, light);
+    lighting += DoModernSpecularSun(input.WorldPosition, normal, light, input.Sheen, specular, roughness);
     lighting += emissive;
     
-     // Emissive material
     output.Color.xyz += lighting * output.Color.a;
     output.Color.xyz = saturate(output.Color.xyz);
     
