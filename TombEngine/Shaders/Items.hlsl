@@ -107,7 +107,7 @@ PixelShaderOutput PS(PixelShaderInput input)
 	float4 tex = Texture.Sample(Sampler, input.UV);
 	DoAlphaTest(tex);
 	
-    tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal , specular);
+    tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal, specular, roughness);
 
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), tex.w);
     occlusion *= ambientOcclusion;
