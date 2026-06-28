@@ -5,6 +5,14 @@ using namespace TEN::Renderer::Graphics;
 
 namespace TEN::Renderer
 {
+	static bool IsHDRColorTarget(const RenderTarget2D& renderTarget)
+	{
+		D3D11_TEXTURE2D_DESC description = {};
+		renderTarget.Texture->GetDesc(&description);
+		return description.Format == DXGI_FORMAT_R16G16B16A16_FLOAT ||
+			description.Format == DXGI_FORMAT_R16G16B16A16_TYPELESS;
+	}
+
 	void Renderer::ApplyAntialiasing(RenderTarget2D* renderTarget, RenderView& view)
 	{
 		switch (g_Configuration.AntialiasingMode)
@@ -129,10 +137,14 @@ namespace TEN::Renderer
 
 		_context->IASetVertexBuffers(0, 1, _fullscreenTriangleVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
 
-		// Copy render target to temp render target.
+		// Keep the temporary scene in FP16 when the source is HDR. The SMAA scene
+		// target is full-sized and unused by the FXAA path otherwise.
+		RenderTarget2D* temporaryTarget = IsHDRColorTarget(*renderTarget) ?
+			&_SMAASceneRenderTarget : &_postProcessRenderTarget[0];
+
 		float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-		_context->ClearRenderTargetView(_postProcessRenderTarget[0].RenderTargetView.Get(), clearColor);
-		_context->OMSetRenderTargets(1, _postProcessRenderTarget[0].RenderTargetView.GetAddressOf(), nullptr);
+		_context->ClearRenderTargetView(temporaryTarget->RenderTargetView.Get(), clearColor);
+		_context->OMSetRenderTargets(1, temporaryTarget->RenderTargetView.GetAddressOf(), nullptr);
 
 		BindRenderTargetAsTexture(TextureRegister::ColorMap, renderTarget, SamplerStateRegister::PointWrap);
 		DrawTriangles(3, 0);
@@ -146,7 +158,7 @@ namespace TEN::Renderer
 		_stPostProcessBuffer.ViewportSize = Vector2i(_screenWidth, _screenHeight);
 		UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
 		
-		BindTexture(TextureRegister::ColorMap, &_postProcessRenderTarget[0], SamplerStateRegister::AnisotropicClamp);
+		BindTexture(TextureRegister::ColorMap, temporaryTarget, SamplerStateRegister::AnisotropicClamp);
 
 		DrawTriangles(3, 0);
 	}
