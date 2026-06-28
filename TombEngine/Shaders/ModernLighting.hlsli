@@ -82,6 +82,12 @@ float ApplySpecularAntialiasing(float3 normal, float roughness)
     return clamp(sqrt(roughness * roughness + kernelRoughnessSquared), 0.045f, 1.0f);
 }
 
+float ResolveModernSurfaceRoughness(float3 normal, float roughness, float sheenStrength)
+{
+    float resolvedRoughness = ResolveModernRoughness(roughness, sheenStrength);
+    return ApplySpecularAntialiasing(normal, resolvedRoughness);
+}
+
 float ResolveModernSpecular(float specularIntensity, float sheenStrength)
 {
     float sheenEnabled = step(EPSILON, abs(sheenStrength));
@@ -95,7 +101,7 @@ float3 EvaluateModernSpecular(
     float3 radiance,
     float sheenStrength,
     float specularIntensity,
-    float roughness)
+    float resolvedRoughness)
 {
     normal = SafeNormalizeLighting(normal, float3(0.0f, 1.0f, 0.0f));
     lightDirection = SafeNormalizeLighting(lightDirection, normal);
@@ -107,8 +113,7 @@ float3 EvaluateModernSpecular(
     if (normalLight <= EPSILON || normalView <= EPSILON)
         return float3(0.0f, 0.0f, 0.0f);
 
-    float resolvedRoughness = ResolveModernRoughness(roughness, sheenStrength);
-    resolvedRoughness = ApplySpecularAntialiasing(normal, resolvedRoughness);
+    resolvedRoughness = clamp(resolvedRoughness, 0.045f, 1.0f);
 
     float resolvedSpecular = ResolveModernSpecular(specularIntensity, sheenStrength);
     if (resolvedSpecular <= EPSILON)
@@ -182,7 +187,7 @@ float3 DoModernSpecularPoint(
     ShaderLight light,
     float sheenStrength,
     float specularIntensity,
-    float roughness)
+    float resolvedRoughness)
 {
     float3 toLight = light.Position.xyz - position;
     float distanceToLight = length(toLight);
@@ -196,7 +201,7 @@ float3 DoModernSpecularPoint(
         radiance,
         sheenStrength,
         specularIntensity,
-        roughness);
+        resolvedRoughness);
 }
 
 float3 DoModernSpecularSpot(
@@ -205,7 +210,7 @@ float3 DoModernSpecularSpot(
     ShaderLight light,
     float sheenStrength,
     float specularIntensity,
-    float roughness)
+    float resolvedRoughness)
 {
     float3 fromLight = position - light.Position.xyz;
     float distanceToLight = length(fromLight);
@@ -224,7 +229,7 @@ float3 DoModernSpecularSpot(
         radiance,
         sheenStrength,
         specularIntensity,
-        roughness);
+        resolvedRoughness);
 }
 
 float3 DoModernSpecularSun(
@@ -233,7 +238,7 @@ float3 DoModernSpecularSun(
     ShaderLight light,
     float sheenStrength,
     float specularIntensity,
-    float roughness)
+    float resolvedRoughness)
 {
     float3 lightDirection = -SafeNormalizeLighting(light.Direction.xyz, normal);
     float3 radiance = light.Color.xyz * light.Intensity;
@@ -245,7 +250,7 @@ float3 DoModernSpecularSun(
         radiance,
         sheenStrength,
         specularIntensity,
-        roughness);
+        resolvedRoughness);
 }
 
 #endif // MODERN_LIGHTING
