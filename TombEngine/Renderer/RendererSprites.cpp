@@ -1,6 +1,7 @@
 #include "framework.h"
 #include "Renderer/Structures/RendererSprite.h"
 
+#include "Game/effects/HDRLight.h"
 #include "Renderer/Structures/RendererSpriteBucket.h"
 #include "Renderer/Renderer.h"
 #include "Specific/Parallel.h"
@@ -9,6 +10,12 @@ using namespace TEN::Renderer::Structures;
 
 namespace TEN::Renderer
 {
+	static SpriteRenderType GetHDRLightSpriteRenderType(TEN::Effects::HDRLight::EffectType type)
+	{
+		// Values 0-2 are the existing default, laser-barrier and laser-beam modes.
+		return static_cast<SpriteRenderType>(3 + static_cast<int>(type));
+	}
+
 	void Renderer::AddSpriteBillboard(RendererSprite* sprite, const Vector3& pos, const Vector4& color, float orient2D, float scale,
 									  Vector2 size, BlendMode blendMode, bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
 	{
@@ -40,8 +47,8 @@ namespace TEN::Renderer
 	}
 
 	void Renderer::AddSpriteBillboardConstrained(RendererSprite* sprite, const Vector3& pos, const Vector4& color, float orient2D,
-												 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
-												 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
+											 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
+											 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
 	{
 		if (scale <= 0.0f)
 			scale = 1.0f;
@@ -176,6 +183,84 @@ namespace TEN::Renderer
 
 	void Renderer::SortAndPrepareSprites(RenderView& view)
 	{
+		int visibleEffectCount = 0;
+		TEN::Effects::HDRLight::ForEachLight([&](const TEN::Effects::HDRLight::Definition& light)
+		{
+			if (visibleEffectCount >= TEN::Effects::HDRLight::MAX_VISIBLE_EFFECT_LAYERS ||
+				light.LightMode == TEN::Effects::HDRLight::Mode::LightOnly)
+			{
+				return;
+			}
+
+			const bool isRoomVisible = light.RoomNumber == NO_VALUE ||
+				std::any_of(view.RoomsToDraw.begin(), view.RoomsToDraw.end(), [&](const RendererRoom* room)
+				{
+					return room != nullptr && room->RoomNumber == light.RoomNumber;
+				});
+
+			if (!isRoomVisible)
+				return;
+
+			const float distance = Vector3::Distance(light.Position, view.Camera.WorldPosition);
+			const int effectCount = std::min((int)light.Effects.size(), TEN::Effects::HDRLight::MAX_EFFECT_LAYERS);
+			for (int effectIndex = 0; effectIndex < effectCount; effectIndex++)
+			{
+				if (visibleEffectCount >= TEN::Effects::HDRLight::MAX_VISIBLE_EFFECT_LAYERS)
+					break;
+
+				const auto& effect = light.Effects[effectIndex];
+				if (!effect.Enabled || effect.Intensity <= EPSILON || effect.Size.x <= EPSILON || effect.Size.y <= EPSILON)
+					continue;
+
+				float distanceFade = 1.0f;
+				if (effect.MaxDistance > EPSILON)
+				{
+					if (distance >= effect.MaxDistance)
+						continue;
+
+					const float fadeStart = effect.MaxDistance * 0.75f;
+					const float fadeRange = std::max(effect.MaxDistance - fadeStart, 1.0f);
+					distanceFade = 1.0f - std::clamp((distance - fadeStart) / fadeRange, 0.0f, 1.0f);
+				}
+
+				const float boundsRadius = std::max(effect.Size.x, effect.Size.y) * 0.75f;
+				if (!view.Camera.Frustum.SphereInFrustum(light.Position, boundsRadius))
+					continue;
+
+				const float intensity = effect.Intensity * distanceFade;
+				const auto color = Vector4(
+					light.Color.x * effect.ColorMultiplier.x * intensity,
+					light.Color.y * effect.ColorMultiplier.y * intensity,
+					light.Color.z * effect.ColorMultiplier.z * intensity,
+					1.0f);
+
+				auto sprite = RendererSpriteToDraw{};
+				sprite.Type = SpriteType::Billboard;
+				sprite.Sprite = &_whiteSprite;
+				sprite.Scale = 1.0f;
+				sprite.pos = light.Position;
+				sprite.Rotation = effect.Rotation;
+				sprite.Width = effect.Size.x;
+				sprite.Height = effect.Size.y;
+				sprite.BlendMode = BlendMode::Additive;
+				sprite.SoftParticle = effect.Occlusion;
+				sprite.c1 = color;
+				sprite.c2 = color;
+				sprite.c3 = color;
+				sprite.c4 = color;
+				sprite.color = color;
+				sprite.EffectParams = Vector4(
+					std::clamp(effect.Softness, 0.0f, 1.0f),
+					(float)std::clamp(effect.RayCount, 2, 16),
+					std::clamp(effect.PulseAmount, 0.0f, 1.0f),
+					std::max(effect.PulseSpeed, 0.0f));
+				sprite.renderType = GetHDRLightSpriteRenderType(effect.Type);
+
+				view.SpritesToDraw.push_back(sprite);
+				visibleEffectCount++;
+			}
+		});
+
 		if (view.SpritesToDraw.empty())
 		{
 			return;
@@ -300,6 +385,7 @@ namespace TEN::Renderer
 
 					_stInstancedSpriteBuffer.Sprites[i].World = GetWorldMatrixForSprite(spriteToDraw, view);
 					_stInstancedSpriteBuffer.Sprites[i].Color = spriteToDraw.color;
+					_stInstancedSpriteBuffer.Sprites[i].EffectParams = spriteToDraw.EffectParams;
 					_stInstancedSpriteBuffer.Sprites[i].IsBillboard = 1.0f;
 					_stInstancedSpriteBuffer.Sprites[i].PerVertexColor = 0;
 					_stInstancedSpriteBuffer.Sprites[i].IsSoftParticle = spriteToDraw.SoftParticle ? 1.0f : 0.0f;
@@ -350,6 +436,7 @@ namespace TEN::Renderer
 			
 			_stInstancedSpriteBuffer.Sprites[0].IsBillboard = 0;
 			_stInstancedSpriteBuffer.Sprites[0].World = Matrix::Identity;
+			_stInstancedSpriteBuffer.Sprites[0].EffectParams = Vector4::Zero;
 			_stInstancedSpriteBuffer.Sprites[0].IsSoftParticle = spriteBucket.IsSoftParticle ? 1.0f : 0.0f;
 			_stInstancedSpriteBuffer.Sprites[0].RenderType = (int)spriteBucket.RenderType;
 
@@ -441,6 +528,7 @@ namespace TEN::Renderer
 		_stInstancedSpriteBuffer.Sprites[0].World = object->Sprite->Type != SpriteType::ThreeD ?
 			GetWorldMatrixForSprite(*object->Sprite, view) :
 			Matrix::Identity;
+		_stInstancedSpriteBuffer.Sprites[0].EffectParams = object->Sprite->EffectParams;
 		_stInstancedSpriteBuffer.Sprites[0].PerVertexColor = 1;
 		_stInstancedSpriteBuffer.Sprites[0].IsSoftParticle = object->Sprite->SoftParticle ? 1 : 0;
 		_stInstancedSpriteBuffer.Sprites[0].RenderType = (int)object->Sprite->renderType;
@@ -522,6 +610,7 @@ namespace TEN::Renderer
 		_sortedPolygonsVertexBuffer.Update(_context.Get(), _sortedPolygonsVertices.data(), 0, (int)_sortedPolygonsVertices.size());
 
 		_stInstancedSpriteBuffer.Sprites[0].World = Matrix::Identity;
+		_stInstancedSpriteBuffer.Sprites[0].EffectParams = objectInfo->Sprite->EffectParams;
 		_stInstancedSpriteBuffer.Sprites[0].PerVertexColor = 1;
 		_stInstancedSpriteBuffer.Sprites[0].IsSoftParticle = objectInfo->Sprite->SoftParticle ? 1 : 0;
 		_stInstancedSpriteBuffer.Sprites[0].RenderType = (int)objectInfo->Sprite->renderType;
