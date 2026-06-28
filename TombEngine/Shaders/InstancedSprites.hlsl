@@ -181,7 +181,22 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 		sprite.RenderType <= RENDER_TYPE_HDR_GLARE;
 
 	if (isHDRLightEffect)
+	{
+		// A camera-facing billboard has an almost constant clip-space W across the
+		// quad. Reject it once its centre is behind the near plane, otherwise a very
+		// large halo or glare can be clipped, inverted and appear as rapid flashes
+		// while the camera turns away from the light.
+		const float viewDepth = input.PositionCopy.w;
+		if (viewDepth <= NearPlane)
+			discard;
+
+		const float nearFadeDistance = max(NearPlane * 2.0f, 64.0f);
+		const float frontFade = smoothstep(NearPlane, NearPlane + nearFadeDistance, viewDepth);
+
 		output = ApplyHDRLightEffect(output, input.EffectUV, sprite.RenderType, HDREffectParams[input.InstanceID]);
+		output.rgb *= frontFade;
+		output.a *= frontFade;
+	}
 	
     if (sprite.IsSoftParticle == 1)
 	{
