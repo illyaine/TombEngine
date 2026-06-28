@@ -7,34 +7,32 @@
 
 namespace TEN::Renderer
 {
+	static const GameConfiguration& GetPostProcessConfiguration()
+	{
+		if (TEN::Gui::g_Gui.GetMenuToDisplay() == TEN::Gui::Menu::LightingHDR)
+			return TEN::Gui::g_Gui.GetCurrentSettings().Configuration;
+
+		return g_Configuration;
+	}
+
 	static void SetUserPostProcessSettings(CPostProcessBuffer& buffer)
 	{
-		buffer.HDRExposure = std::clamp(g_Configuration.HDRExposure / 100.0f, 0.25f, 4.0f);
-		buffer.HDRStrength = std::clamp(g_Configuration.HDRStrength / 100.0f, 0.0f, 1.0f);
-		buffer.BloomThreshold = std::clamp(g_Configuration.BloomThreshold / 100.0f, 0.25f, 3.0f);
-		buffer.BloomStrength = std::clamp(g_Configuration.BloomStrength / 100.0f, 0.0f, 3.0f);
-		buffer.GlareStrength = std::clamp(g_Configuration.GlareStrength / 100.0f, 0.0f, 3.0f);
-		buffer.GlareLength = std::clamp(g_Configuration.GlareLength / 100.0f, 0.25f, 3.0f) * 8.0f;
-		buffer.EnableHDR = g_Configuration.EnableHDRRendering ? 1 : 0;
-		buffer.EnableBloom = g_Configuration.EnableLightBloom ? 1 : 0;
+		const auto& configuration = GetPostProcessConfiguration();
+
+		buffer.HDRExposure = std::clamp(configuration.HDRExposure / 100.0f, 0.25f, 4.0f);
+		buffer.HDRStrength = std::clamp(configuration.HDRStrength / 100.0f, 0.0f, 1.0f);
+		buffer.BloomThreshold = std::clamp(configuration.BloomThreshold / 100.0f, 0.25f, 3.0f);
+		buffer.BloomStrength = std::clamp(configuration.BloomStrength / 100.0f, 0.0f, 3.0f);
+		buffer.GlareStrength = std::clamp(configuration.GlareStrength / 100.0f, 0.0f, 3.0f);
+		buffer.GlareLength = std::clamp(configuration.GlareLength / 100.0f, 0.25f, 3.0f) * 8.0f;
+		buffer.EnableHDR = configuration.EnableHDRRendering ? 1 : 0;
+		buffer.EnableBloom = configuration.EnableLightBloom ? 1 : 0;
 	}
 
 	void Renderer::DrawPostprocess(RenderTarget2D* renderTarget, RenderView& view, SceneRenderMode renderMode)
 	{
 		static bool lightingRestartRequired = false;
-		bool lightingMenuActive = TEN::Gui::UpdateLightingSettingsInput(lightingRestartRequired);
-
-		if (lightingMenuActive)
-		{
-			// The regular options renderer has no rows for this dedicated page.
-			// Draw it after scene antialiasing and bloom so the UI itself stays crisp.
-			_stringsToDraw.clear();
-			TEN::Gui::RenderLightingSettings(*this, lightingRestartRequired);
-			_context->OMSetRenderTargets(1, _renderTarget.RenderTargetView.GetAddressOf(), _renderTarget.DepthStencilView.Get());
-			_context->RSSetViewports(1, &view.Viewport);
-			ResetScissor();
-			DrawAllStrings();
-		}
+		const bool lightingMenuActive = TEN::Gui::UpdateLightingSettingsInput(lightingRestartRequired);
 
 		_doingFullscreenPass = true;
 		SetBlendMode(BlendMode::Opaque);
@@ -92,10 +90,21 @@ namespace TEN::Renderer
 			_context->OMSetRenderTargets(1, _postProcessRenderTarget[destRenderTarget].RenderTargetView.GetAddressOf(), nullptr);
 			switch (_postProcessMode)
 			{
-			case PostProcessMode::Monochrome: _shaders.Bind(Shader::PostProcessMonochrome); break;
-			case PostProcessMode::Negative: _shaders.Bind(Shader::PostProcessNegative); break;
-			case PostProcessMode::Exclusion: _shaders.Bind(Shader::PostProcessExclusion); break;
-			default: return;
+			case PostProcessMode::Monochrome:
+				_shaders.Bind(Shader::PostProcessMonochrome);
+				break;
+
+			case PostProcessMode::Negative:
+				_shaders.Bind(Shader::PostProcessNegative);
+				break;
+
+			case PostProcessMode::Exclusion:
+				_shaders.Bind(Shader::PostProcessExclusion);
+				break;
+
+			default:
+				_shaders.Bind(Shader::PostProcess);
+				break;
 			}
 			BindRenderTargetAsTexture(TextureRegister::ColorMap, &_postProcessRenderTarget[currentRenderTarget], SamplerStateRegister::PointWrap);
 			DrawTriangles(3, 0);
@@ -109,7 +118,20 @@ namespace TEN::Renderer
 		_context->OMSetRenderTargets(1, renderTarget->RenderTargetView.GetAddressOf(), renderTarget->DepthStencilView.Get());
 		BindTexture(TextureRegister::ColorMap, &_postProcessRenderTarget[currentRenderTarget], SamplerStateRegister::PointWrap);
 		DrawTriangles(3, 0);
+
 		_doingFullscreenPass = false;
+
+		if (lightingMenuActive)
+		{
+			// Draw settings after tone mapping so UI brightness and text remain stable.
+			_stringsToDraw.clear();
+			TEN::Gui::RenderLightingSettings(*this, lightingRestartRequired);
+			_context->OMSetRenderTargets(1, renderTarget->RenderTargetView.GetAddressOf(), renderTarget->DepthStencilView.Get());
+			_context->RSSetViewports(1, &view.Viewport);
+			ResetScissor();
+			DrawAllStrings();
+			_stringsToDraw.clear();
+		}
 	}
 
 	PostProcessMode Renderer::GetPostProcessMode() { return _postProcessMode; }
@@ -165,7 +187,8 @@ namespace TEN::Renderer
 
 	void Renderer::ApplyGlow(RenderTarget2D* renderTarget, RenderView& view)
 	{
-		if (!g_Configuration.EnableLightBloom)
+		const auto& configuration = GetPostProcessConfiguration();
+		if (!configuration.EnableLightBloom)
 			return;
 
 		SetBlendMode(BlendMode::Opaque, true);
@@ -215,7 +238,7 @@ namespace TEN::Renderer
 		ResetScissor();
 		CopyRenderTarget(renderTarget, &_postProcessRenderTarget[0], view);
 		_shaders.Bind(Shader::GlowCombine);
-		_stPostProcessBuffer.GlowSoftAdd = g_Configuration.EnableHDRRendering ? 0 : 1;
+		_stPostProcessBuffer.GlowSoftAdd = configuration.EnableHDRRendering ? 0 : 1;
 		_stPostProcessBuffer.GlowIntensity = 1.0f;
 		SetUserPostProcessSettings(_stPostProcessBuffer);
 		UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
