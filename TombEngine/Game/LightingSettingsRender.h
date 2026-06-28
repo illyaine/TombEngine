@@ -33,12 +33,12 @@ namespace TEN::Gui
 		constexpr int center = 400;
 		constexpr int centerFlags = (int)PrintStringFlags::Outline | (int)PrintStringFlags::Center;
 		constexpr int spacing = 28;
-		int y = 75;
+		int y = 60;
 
 		auto& settings = g_Gui.GetCurrentSettings().Configuration;
 		renderer.AddString(center, y, g_GameFlow->GetString(STRING_LIGHTING_HDR),
 			g_GameFlow->GetSettings()->UI.OptionTextColor, centerFlags);
-		y = 135;
+		y = 115;
 
 		AddLightingSettingRow(renderer, y, 0, STRING_HDR_RENDERING,
 			g_GameFlow->GetString(settings.EnableHDRRendering ? STRING_ENABLED : STRING_DISABLED));
@@ -54,25 +54,27 @@ namespace TEN::Gui
 		y += spacing;
 		AddLightingSettingRow(renderer, y, 5, STRING_BLOOM_THRESHOLD, LightingPercent(settings.BloomThreshold));
 		y += spacing;
-		AddLightingSettingRow(renderer, y, 6, STRING_GLARE_STRENGTH, LightingPercent(settings.GlareStrength));
+		AddLightingSettingRow(renderer, y, 6, STRING_BLOOM_RADIUS, LightingPercent(settings.BloomRadius));
 		y += spacing;
-		AddLightingSettingRow(renderer, y, 7, STRING_GLARE_LENGTH, LightingPercent(settings.GlareLength));
-		y += 42;
+		AddLightingSettingRow(renderer, y, 7, STRING_GLARE_STRENGTH, LightingPercent(settings.GlareStrength));
+		y += spacing;
+		AddLightingSettingRow(renderer, y, 8, STRING_GLARE_LENGTH, LightingPercent(settings.GlareLength));
+		y += 36;
 
 		int applyFlags = centerFlags |
-			(g_Gui.GetSelectedOption() == 8 ? (int)PrintStringFlags::Blink : 0);
+			(g_Gui.GetSelectedOption() == 9 ? (int)PrintStringFlags::Blink : 0);
 		renderer.AddString(center, y, g_GameFlow->GetString(STRING_APPLY),
 			g_GameFlow->GetSettings()->UI.HeaderTextColor, applyFlags);
 		y += spacing;
 
 		int cancelFlags = centerFlags |
-			(g_Gui.GetSelectedOption() == 9 ? (int)PrintStringFlags::Blink : 0);
+			(g_Gui.GetSelectedOption() == 10 ? (int)PrintStringFlags::Blink : 0);
 		renderer.AddString(center, y, g_GameFlow->GetString(STRING_CANCEL),
 			g_GameFlow->GetSettings()->UI.HeaderTextColor, cancelFlags);
 
 		if (restartRequired)
 		{
-			y += 35;
+			y += 32;
 			renderer.AddString(center, y, g_GameFlow->GetString(STRING_HDR_RESTART_REQUIRED),
 				g_GameFlow->GetSettings()->UI.PlainTextColor, centerFlags);
 		}
