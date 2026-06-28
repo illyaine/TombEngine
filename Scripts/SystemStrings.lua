@@ -81,6 +81,7 @@ local strings =
 	glare_strength = { "Glare Strength" },
 	hdr_exposure = { "HDR Exposure" },
 	hdr_rendering = { "Internal HDR Rendering" },
+	hdr_restart_required = { "Restart TEN to rebuild the internal HDR render targets." },
 	hdr_strength = { "HDR Tone Mapping" },
 	high = { "High" },
 	high_framerate = { "High Framerate" },
