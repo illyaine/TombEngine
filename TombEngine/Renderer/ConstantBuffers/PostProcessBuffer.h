@@ -45,5 +45,8 @@ namespace TEN::Renderer::ConstantBuffers
 		float GlareLength;
 		int EnableHDR;
 		int EnableBloom;
+		//--
+		float DisplayBrightness;
+		Vector3 Padding4;
 	};
 }
