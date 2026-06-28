@@ -4,6 +4,7 @@
 #include "Renderer/Graphics/TextureBase.h"
 #include "Renderer/Graphics/VRAMTracker.h"
 #include "Renderer/RendererUtils.h"
+#include "Specific/configuration.h"
 
 namespace TEN::Renderer::Graphics
 {
@@ -57,6 +58,8 @@ namespace TEN::Renderer::Graphics
 
 		RenderTarget2D(ID3D11Device* device, int width, int height, DXGI_FORMAT colorFormat, bool isTypeless, DXGI_FORMAT depthFormat)
 		{
+			colorFormat = ResolveInternalColorFormat(colorFormat);
+
 			auto desc = D3D11_TEXTURE2D_DESC{};
 			desc.Width = width;
 			desc.Height = height;
@@ -124,8 +127,8 @@ namespace TEN::Renderer::Graphics
 			VRAMTracker::Get().Add(VRAMCategory::RenderTarget, _vramSize);
 		}
 
-		// Shares the parent texture. FP16 resources retain their floating-point
-		// view because DXGI has no SRGB view for a floating-point resource.
+		// Shares the parent texture. In internal HDR mode the alternate SMAA view
+		// remains FP16 because DXGI has no SRGB view for a floating-point resource.
 		RenderTarget2D(ID3D11Device* device, RenderTarget2D* parent, DXGI_FORMAT colorFormat)
 		{
 			auto desc = D3D11_TEXTURE2D_DESC{};
@@ -226,6 +229,14 @@ namespace TEN::Renderer::Graphics
 
 	private:
 		int _vramSize = 0;
+
+		DXGI_FORMAT ResolveInternalColorFormat(DXGI_FORMAT format)
+		{
+			if (g_Configuration.EnableHDRRendering && format == DXGI_FORMAT_R8G8B8A8_UNORM)
+				return DXGI_FORMAT_R16G16B16A16_FLOAT;
+
+			return format;
+		}
 
 		DXGI_FORMAT MakeTypeless(DXGI_FORMAT format)
 		{
