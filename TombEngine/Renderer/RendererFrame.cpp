@@ -680,11 +680,18 @@ namespace TEN::Renderer
 					if (lightToObject.LengthSquared() > EPSILON)
 						lightToObject.Normalize();
 
-					// Expand the cone test by the apparent angular radius of the object bounds.
-					float angularAllowance = std::clamp(radius / std::max(distance, radius), 0.0f, 1.0f);
-					float cosine = lightToObject.Dot(light.Direction);
-					float coneRange = std::max(light.InRange - light.OutRange, EPSILON);
-					angularAttenuation = std::clamp((cosine + angularAllowance - light.OutRange) / coneRange, 0.0f, 1.0f);
+					// RendererLight stores cone angles in degrees. Expand both cone edges by
+					// the apparent angular radius of the object's bounding sphere, then use
+					// the same cosine-space interpolation as the pixel shader.
+					const float apparentRadius = std::clamp(radius / std::max(distance, radius), 0.0f, 1.0f);
+					const float apparentAngle = asin(apparentRadius);
+					const float innerAngle = std::max(0.0f, light.InRange * (PI / 180.0f) - apparentAngle);
+					const float outerAngle = std::min(PI, light.OutRange * (PI / 180.0f) + apparentAngle);
+					const float innerCosine = cos(innerAngle);
+					const float outerCosine = cos(outerAngle);
+					const float cosine = lightToObject.Dot(light.Direction);
+					const float coneRange = std::max(innerCosine - outerCosine, EPSILON);
+					angularAttenuation = std::clamp((cosine - outerCosine) / coneRange, 0.0f, 1.0f);
 				}
 			}
 
