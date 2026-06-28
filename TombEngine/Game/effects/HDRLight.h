@@ -16,6 +16,7 @@ namespace TEN::Effects::HDRLight
 	constexpr uint8_t TRANSPORT_LIGHT_TYPE = static_cast<uint8_t>(LightType::Spot);
 	constexpr float TRANSPORT_MARKER = -0.001f;
 	constexpr float TRANSPORT_CORE_SCALE = 0.001f;
+	constexpr float TRANSPORT_SOURCE_HEIGHT_SCALE = 0.00000001f;
 	constexpr float TRANSPORT_MODE_SECTOR_DEGREES = 120.0f;
 	constexpr float TRANSPORT_INTENSITY_DEGREES_PER_UNIT = 10.0f;
 	constexpr float TRANSPORT_GLARE_DEGREES_PER_UNIT = 10.0f;
@@ -150,8 +151,12 @@ namespace TEN::Effects::HDRLight
 			0.0f,
 			10.0f);
 
-		const float sourceSizeValue = std::max(std::abs(source.cutoff), 32.0f);
-		const Vector2 sourceSize(sourceSizeValue, sourceSizeValue);
+		const float sourceWidth = std::max(std::abs(source.cutoff), 32.0f);
+		const float sourceHeightSectors = std::max(
+			source.intensity / TRANSPORT_SOURCE_HEIGHT_SCALE - 1.0f,
+			0.01f);
+		const float sourceHeight = std::max(sourceHeightSectors * BLOCK(1), 32.0f);
+		const Vector2 sourceSize(sourceWidth, sourceHeight);
 		const float coreIntensity = std::max(
 			(TRANSPORT_MARKER - source.in) / TRANSPORT_CORE_SCALE,
 			0.0f);
@@ -167,7 +172,7 @@ namespace TEN::Effects::HDRLight
 			if (glareIntensity > EPSILON)
 			{
 				light.Effects.push_back(MakeGlare(
-					Vector2(sourceSizeValue * 8.0f, std::max(sourceSizeValue * 1.5f, 32.0f)),
+					Vector2(sourceWidth * 8.0f, std::max(sourceHeight * 1.5f, 32.0f)),
 					glareIntensity));
 			}
 		}
