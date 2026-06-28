@@ -21,6 +21,4 @@ namespace TEN::Gui
 		Cancel,
 		Count
 	};
-
-	void UpdateLightingSettingsMenu();
 }
