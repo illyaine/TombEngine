@@ -25,27 +25,32 @@ float3 CombineObjectLights(
     int lightTypeMask = (numLights & ~LT_MASK);
     numLights = numLights & LT_MASK;
 
+    // Screen-space normal derivatives are identical for every light affecting
+    // this pixel. Resolve them once before entering the runtime light loop.
+    float resolvedRoughness = ResolveModernSurfaceRoughness(normal, roughness, sheen);
+
+    [loop]
     for (int i = 0; i < numLights; i++)
     {
         if (lightTypeMask & LT_MASK_SUN)
         {
             float isSun = step(0.5f, float(lights[i].Type == LT_SUN));
             diffuse += isSun * DoModernDirectionalLight(pos, normal, lights[i]);
-            specular += isSun * DoModernSpecularSun(pos, normal, lights[i], sheen, specularIntensity, roughness);
+            specular += isSun * DoModernSpecularSun(pos, normal, lights[i], sheen, specularIntensity, resolvedRoughness);
         }
 
         if (lightTypeMask & LT_MASK_POINT)
         {
             float isPoint = step(0.5f, float(lights[i].Type == LT_POINT));
             diffuse += isPoint * DoModernPointLight(pos, normal, lights[i]);
-            specular += isPoint * DoModernSpecularPoint(pos, normal, lights[i], sheen, specularIntensity, roughness);
+            specular += isPoint * DoModernSpecularPoint(pos, normal, lights[i], sheen, specularIntensity, resolvedRoughness);
         }
 
         if (lightTypeMask & LT_MASK_SPOT)
         {
             float isSpot = step(0.5f, float(lights[i].Type == LT_SPOT));
             diffuse += isSpot * DoModernSpotLight(pos, normal, lights[i]);
-            specular += isSpot * DoModernSpecularSpot(pos, normal, lights[i], sheen, specularIntensity, roughness);
+            specular += isSpot * DoModernSpecularSpot(pos, normal, lights[i], sheen, specularIntensity, resolvedRoughness);
         }
 
         if (lightTypeMask & LT_MASK_SHADOW)
