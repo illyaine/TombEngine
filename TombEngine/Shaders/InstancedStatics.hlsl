@@ -103,7 +103,7 @@ PixelShaderOutput PS(PixelShaderInput input)
 	uint mode = StaticMeshes[input.InstanceID].LightInfo.y;
 	uint numLights = StaticMeshes[input.InstanceID].LightInfo.x;
 	
-    tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal, specular);
+    tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal, specular, roughness);
 	
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), tex.w);
     occlusion *= ambientOcclusion;
