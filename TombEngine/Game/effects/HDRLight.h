@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <vector>
 
@@ -11,7 +12,7 @@ namespace TEN::Effects::HDRLight
 {
 	using namespace DirectX::SimpleMath;
 
-	constexpr uint8_t ROOM_LIGHT_TYPE = 5;
+	constexpr uint8_t ROOM_LIGHT_TYPE = static_cast<uint8_t>(LightType::HDR);
 	constexpr int MAX_EFFECT_LAYERS = 16;
 	constexpr int MAX_VISIBLE_EFFECT_LAYERS = 512;
 
