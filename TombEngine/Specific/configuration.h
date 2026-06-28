@@ -26,6 +26,7 @@ constexpr auto REGKEY_HIGH_FRAMERATE = "EnableHighFramerate";
 constexpr auto REGKEY_ENABLE_HDR_RENDERING = "EnableHDRRendering";
 constexpr auto REGKEY_HDR_EXPOSURE = "HDRExposure";
 constexpr auto REGKEY_HDR_STRENGTH = "HDRStrength";
+constexpr auto REGKEY_LEVEL_BRIGHTNESS = "LevelBrightness";
 constexpr auto REGKEY_ENABLE_LIGHT_BLOOM = "EnableLightBloom";
 constexpr auto REGKEY_BLOOM_STRENGTH = "BloomStrength";
 constexpr auto REGKEY_BLOOM_THRESHOLD = "BloomThreshold";
@@ -71,6 +72,7 @@ struct GameConfiguration
 	static constexpr auto DEFAULT_MOUSE_SENSITIVITY = 6;
 	static constexpr auto DEFAULT_HDR_EXPOSURE = 100;
 	static constexpr auto DEFAULT_HDR_STRENGTH = 100;
+	static constexpr auto DEFAULT_LEVEL_BRIGHTNESS = 100;
 	static constexpr auto DEFAULT_BLOOM_STRENGTH = 100;
 	static constexpr auto DEFAULT_BLOOM_THRESHOLD = 100;
 	static constexpr auto DEFAULT_BLOOM_RADIUS = 100;
@@ -91,6 +93,7 @@ struct GameConfiguration
 	bool EnableHDRRendering = false;
 	int HDRExposure = DEFAULT_HDR_EXPOSURE;
 	int HDRStrength = DEFAULT_HDR_STRENGTH;
+	int LevelBrightness = DEFAULT_LEVEL_BRIGHTNESS;
 	bool EnableLightBloom = false;
 	int BloomStrength = DEFAULT_BLOOM_STRENGTH;
 	int BloomThreshold = DEFAULT_BLOOM_THRESHOLD;
@@ -143,6 +146,8 @@ struct GameConfiguration
 		HDRExposure = std::clamp((int)value, 25, 400);
 		GetDWORDRegKey(graphicsKey, REGKEY_HDR_STRENGTH, &value, DEFAULT_HDR_STRENGTH);
 		HDRStrength = std::clamp((int)value, 0, 100);
+		GetDWORDRegKey(graphicsKey, REGKEY_LEVEL_BRIGHTNESS, &value, DEFAULT_LEVEL_BRIGHTNESS);
+		LevelBrightness = std::clamp((int)value, 50, 150);
 		GetBoolRegKey(graphicsKey, REGKEY_ENABLE_LIGHT_BLOOM, &EnableLightBloom, false);
 		GetDWORDRegKey(graphicsKey, REGKEY_BLOOM_STRENGTH, &value, DEFAULT_BLOOM_STRENGTH);
 		BloomStrength = std::clamp((int)value, 0, 300);
@@ -176,6 +181,7 @@ struct GameConfiguration
 			SetBoolRegKey(graphicsKey, REGKEY_ENABLE_HDR_RENDERING, EnableHDRRendering) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_HDR_EXPOSURE, HDRExposure) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_HDR_STRENGTH, HDRStrength) == ERROR_SUCCESS &&
+			SetDWORDRegKey(graphicsKey, REGKEY_LEVEL_BRIGHTNESS, LevelBrightness) == ERROR_SUCCESS &&
 			SetBoolRegKey(graphicsKey, REGKEY_ENABLE_LIGHT_BLOOM, EnableLightBloom) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_BLOOM_STRENGTH, BloomStrength) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_BLOOM_THRESHOLD, BloomThreshold) == ERROR_SUCCESS &&
