@@ -113,7 +113,6 @@ PixelShaderOutput PS(PixelShaderInput input)
 	float3 directDiffuse = float3(0.0f, 0.0f, 0.0f);
 	float3 directSpecular = float3(0.0f, 0.0f, 0.0f);
 	
-	indirectLighting = DoShadow(input.WorldPosition, normal, indirectLighting, -2.5f);
 	indirectLighting = DoBlobShadows(input.WorldPosition, indirectLighting);
 
 	bool onlyPointLights = (NumRoomLights & ~LT_MASK) == LT_MASK_POINT;
@@ -189,6 +188,7 @@ PixelShaderOutput PS(PixelShaderInput input)
     float diffuseEnergy = 1.0f - 0.04f * resolvedSpecular;
     float3 surfaceLighting = indirectLighting * occlusion + directDiffuse * diffuseEnergy;
     float3 finalColor = output.Color.xyz * surfaceLighting + directSpecular;
+    finalColor = DoShadow(input.WorldPosition, normal, finalColor, -2.5f);
 	finalColor -= float3(input.FogBulbs.w, input.FogBulbs.w, input.FogBulbs.w);
     finalColor += emissive;
 	output.Color.xyz = max(finalColor, float3(0.0f, 0.0f, 0.0f));
