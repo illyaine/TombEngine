@@ -17,6 +17,7 @@ namespace TEN::Gui
 		settings.EnableLightBloom = g_Configuration.EnableLightBloom;
 		settings.BloomStrength = g_Configuration.BloomStrength;
 		settings.BloomThreshold = g_Configuration.BloomThreshold;
+		settings.BloomRadius = g_Configuration.BloomRadius;
 		settings.GlareStrength = g_Configuration.GlareStrength;
 		settings.GlareLength = g_Configuration.GlareLength;
 	}
@@ -30,6 +31,7 @@ namespace TEN::Gui
 		g_Configuration.EnableLightBloom = settings.EnableLightBloom;
 		g_Configuration.BloomStrength = settings.BloomStrength;
 		g_Configuration.BloomThreshold = settings.BloomThreshold;
+		g_Configuration.BloomRadius = settings.BloomRadius;
 		g_Configuration.GlareStrength = settings.GlareStrength;
 		g_Configuration.GlareLength = settings.GlareLength;
 		g_Configuration.SaveLightingConfiguration();
