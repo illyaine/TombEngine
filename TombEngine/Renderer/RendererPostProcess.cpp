@@ -192,8 +192,11 @@ namespace TEN::Renderer
 	void Renderer::ApplyGlow(RenderTarget2D* renderTarget, RenderView& view)
 	{
 		const auto& configuration = GetPostProcessConfiguration();
-		if (!configuration.EnableLightBloom)
+		if (!configuration.EnableLightBloom ||
+			(configuration.BloomStrength <= 0 && configuration.GlareStrength <= 0))
+		{
 			return;
+		}
 
 		SetBlendMode(BlendMode::Opaque, true);
 		SetCullMode(CullMode::CounterClockwise, true);
@@ -222,9 +225,10 @@ namespace TEN::Renderer
 		DrawTriangles(3, 0);
 
 		_shaders.Bind(Shader::Blur);
+		const float bloomRadiusScale = std::clamp(configuration.BloomRadius / 100.0f, 0.25f, 3.0f);
 		_stPostProcessBuffer.TexelSize = Vector2(1.0f / viewport.Width, 1.0f / viewport.Height);
-		_stPostProcessBuffer.BlurSigma = GLOW_BLUR_SIGMA;
-		_stPostProcessBuffer.BlurRadius = GLOW_BLUR_RADIUS;
+		_stPostProcessBuffer.BlurSigma = GLOW_BLUR_SIGMA * bloomRadiusScale;
+		_stPostProcessBuffer.BlurRadius = std::clamp((int)(GLOW_BLUR_RADIUS * bloomRadiusScale + 0.5f), 1, 100);
 		_context->ClearRenderTargetView(_glowRenderTarget[1].RenderTargetView.Get(), clearColor);
 		_context->OMSetRenderTargets(1, _glowRenderTarget[1].RenderTargetView.GetAddressOf(), nullptr);
 		_stPostProcessBuffer.BlurDirection = Vector2(1, 0);
