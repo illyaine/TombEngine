@@ -103,7 +103,7 @@ PixelShaderOutput PS(PixelShaderInput input)
 	DoAlphaTest(output.Color);
 
 	float3 blendedNormal = normalize(lerp(input.FaceNormal, normal, 0.1f));
-    output.Color.xyz = CalculateReflections(input.WorldPosition, output.Color.xyz, blendedNormal, specular);
+    output.Color.xyz = CalculateReflections(input.WorldPosition, output.Color.xyz, blendedNormal, specular, roughness);
 
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), output.Color.w);
     occlusion *= ambientOcclusion;
