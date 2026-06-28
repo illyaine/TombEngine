@@ -14,6 +14,7 @@ namespace TEN::Gui
 		settings.EnableHDRRendering = g_Configuration.EnableHDRRendering;
 		settings.HDRExposure = g_Configuration.HDRExposure;
 		settings.HDRStrength = g_Configuration.HDRStrength;
+		settings.LevelBrightness = g_Configuration.LevelBrightness;
 		settings.EnableLightBloom = g_Configuration.EnableLightBloom;
 		settings.BloomStrength = g_Configuration.BloomStrength;
 		settings.BloomThreshold = g_Configuration.BloomThreshold;
@@ -28,6 +29,7 @@ namespace TEN::Gui
 		g_Configuration.EnableHDRRendering = settings.EnableHDRRendering;
 		g_Configuration.HDRExposure = settings.HDRExposure;
 		g_Configuration.HDRStrength = settings.HDRStrength;
+		g_Configuration.LevelBrightness = settings.LevelBrightness;
 		g_Configuration.EnableLightBloom = settings.EnableLightBloom;
 		g_Configuration.BloomStrength = settings.BloomStrength;
 		g_Configuration.BloomThreshold = settings.BloomThreshold;
