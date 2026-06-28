@@ -14,6 +14,7 @@ namespace TEN::Gui
 		LightBloom,
 		BloomStrength,
 		BloomThreshold,
+		BloomRadius,
 		GlareStrength,
 		GlareLength,
 		Apply,
