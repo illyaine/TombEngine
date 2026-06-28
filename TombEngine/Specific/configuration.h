@@ -29,6 +29,7 @@ constexpr auto REGKEY_HDR_STRENGTH = "HDRStrength";
 constexpr auto REGKEY_ENABLE_LIGHT_BLOOM = "EnableLightBloom";
 constexpr auto REGKEY_BLOOM_STRENGTH = "BloomStrength";
 constexpr auto REGKEY_BLOOM_THRESHOLD = "BloomThreshold";
+constexpr auto REGKEY_BLOOM_RADIUS = "BloomRadius";
 constexpr auto REGKEY_GLARE_STRENGTH = "GlareStrength";
 constexpr auto REGKEY_GLARE_LENGTH = "GlareLength";
 
@@ -72,6 +73,7 @@ struct GameConfiguration
 	static constexpr auto DEFAULT_HDR_STRENGTH = 100;
 	static constexpr auto DEFAULT_BLOOM_STRENGTH = 100;
 	static constexpr auto DEFAULT_BLOOM_THRESHOLD = 100;
+	static constexpr auto DEFAULT_BLOOM_RADIUS = 100;
 	static constexpr auto DEFAULT_GLARE_STRENGTH = 35;
 	static constexpr auto DEFAULT_GLARE_LENGTH = 100;
 
@@ -92,6 +94,7 @@ struct GameConfiguration
 	bool EnableLightBloom = false;
 	int BloomStrength = DEFAULT_BLOOM_STRENGTH;
 	int BloomThreshold = DEFAULT_BLOOM_THRESHOLD;
+	int BloomRadius = DEFAULT_BLOOM_RADIUS;
 	int GlareStrength = DEFAULT_GLARE_STRENGTH;
 	int GlareLength = DEFAULT_GLARE_LENGTH;
 
@@ -145,6 +148,8 @@ struct GameConfiguration
 		BloomStrength = std::clamp((int)value, 0, 300);
 		GetDWORDRegKey(graphicsKey, REGKEY_BLOOM_THRESHOLD, &value, DEFAULT_BLOOM_THRESHOLD);
 		BloomThreshold = std::clamp((int)value, 25, 300);
+		GetDWORDRegKey(graphicsKey, REGKEY_BLOOM_RADIUS, &value, DEFAULT_BLOOM_RADIUS);
+		BloomRadius = std::clamp((int)value, 25, 300);
 		GetDWORDRegKey(graphicsKey, REGKEY_GLARE_STRENGTH, &value, DEFAULT_GLARE_STRENGTH);
 		GlareStrength = std::clamp((int)value, 0, 300);
 		GetDWORDRegKey(graphicsKey, REGKEY_GLARE_LENGTH, &value, DEFAULT_GLARE_LENGTH);
@@ -174,6 +179,7 @@ struct GameConfiguration
 			SetBoolRegKey(graphicsKey, REGKEY_ENABLE_LIGHT_BLOOM, EnableLightBloom) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_BLOOM_STRENGTH, BloomStrength) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_BLOOM_THRESHOLD, BloomThreshold) == ERROR_SUCCESS &&
+			SetDWORDRegKey(graphicsKey, REGKEY_BLOOM_RADIUS, BloomRadius) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_GLARE_STRENGTH, GlareStrength) == ERROR_SUCCESS &&
 			SetDWORDRegKey(graphicsKey, REGKEY_GLARE_LENGTH, GlareLength) == ERROR_SUCCESS;
 
