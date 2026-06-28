@@ -54,6 +54,7 @@ local strings =
 	auto_monkey_swing_jump = { "Auto Monkey Jump" },
 	auto_targeting = { "Auto Targeting" },
 	back = { "Back" },
+	bloom_radius = { "Bloom Radius" },
 	bloom_strength = { "Bloom Strength" },
 	bloom_threshold = { "Bloom Threshold" },
 	cancel = { "Cancel" },
