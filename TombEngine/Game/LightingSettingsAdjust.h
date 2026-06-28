@@ -27,6 +27,9 @@ namespace TEN::Gui
 		case LightingSettingsOption::BloomThreshold:
 			settings.BloomThreshold = std::clamp(settings.BloomThreshold + direction * 10, 25, 300);
 			break;
+		case LightingSettingsOption::BloomRadius:
+			settings.BloomRadius = std::clamp(settings.BloomRadius + direction * 10, 25, 300);
+			break;
 		case LightingSettingsOption::GlareStrength:
 			settings.GlareStrength = std::clamp(settings.GlareStrength + direction * 10, 0, 300);
 			break;
