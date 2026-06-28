@@ -86,14 +86,14 @@ namespace TEN::Gui
 
 	struct MenuOption
 	{
-		MenuType Type = MenuType::None;
+		MenuType	Type = MenuType::None;
 		std::string Text = {};
 	};
 
 	struct ObjectList
 	{
-		int InventoryItem = 0;
-		EulerAngles Orientation = EulerAngles::Identity;
+		int			InventoryItem = 0;
+		EulerAngles Orientation	  = EulerAngles::Identity;
 		unsigned short Bright;
 	};
 
@@ -112,20 +112,22 @@ namespace TEN::Gui
 
 		GameConfiguration Configuration = {};
 
-		int SelectedScreenResolution = 0;
-		bool IgnoreInput = false;
-		int NewKeyWaitTimer = 0;
+		int	 SelectedScreenResolution = 0;
+		bool IgnoreInput			  = false; // Ignore input until all actions are inactive.
+		int	 NewKeyWaitTimer		  = 0;
 	};
 
 	class GuiController
 	{
 	private:
+		// Input inquirers
 		bool GuiIsPulsed(ActionID actionID) const;
 		bool GuiIsSelected(bool onClicked = true) const;
 		bool GuiIsDeselected() const;
 		bool CanSelect() const;
 		bool CanDeselect() const;
 
+		// GUI variables
 		Menu MenuToDisplay = Menu::Title;
 		int SelectedOption;
 		int OptionCount;
@@ -134,6 +136,7 @@ namespace TEN::Gui
 		int TimeInMenu = NO_VALUE;
 		SettingsData CurrentSettings;
 
+		// Inventory variables
 		short CombineObject1;
 		short CombineObject2;
 		bool ItemUsed;
@@ -180,6 +183,7 @@ namespace TEN::Gui
 		void CancelInventorySelection();
 		void UseItem(ItemInfo& item, int objectNumber);
 		void UseBinoculars(ItemInfo& item);
+		// Getters
 
 		const InventoryRing& GetRing(RingTypes ringType);
 		int GetSelectedOption();
@@ -191,6 +195,8 @@ namespace TEN::Gui
 		SettingsData& GetCurrentSettings();
 		int GetLoadSaveSelection();
 		int GetLoopedSelectedOption(int selectedOption, int optionCount, bool canLoop);
+
+		// Setters
 
 		void SetSelectedOption(int menu);
 		void SetMenuToDisplay(Menu menu);
