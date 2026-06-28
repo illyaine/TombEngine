@@ -13,6 +13,7 @@
 #define STRING_LIGHT_BLOOM				"light_bloom"
 #define STRING_BLOOM_STRENGTH			"bloom_strength"
 #define STRING_BLOOM_THRESHOLD			"bloom_threshold"
+#define STRING_BLOOM_RADIUS				"bloom_radius"
 #define STRING_GLARE_STRENGTH			"glare_strength"
 #define STRING_GLARE_LENGTH				"glare_length"
 #define STRING_HDR_RESTART_REQUIRED		"hdr_restart_required"
