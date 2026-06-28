@@ -51,7 +51,29 @@ float2 ToCentralSquare(float2 uvEnv, float aspect)
     }
 }
 
-float3 CalculateSkyBoxReflections(float3 worldPosition, float3 normal, float specular, float3 pixelColor)
+float CalculateReflectionStrength(
+    float3 worldPosition,
+    float3 normal,
+    float specular,
+    float roughness)
+{
+    float3 viewDirection = normalize(CamPositionWS - worldPosition);
+    float normalView = saturate(dot(normalize(normal), viewDirection));
+    float grazingFresnel = pow(1.0f - normalView, 5.0f);
+    float fresnelWeight = lerp(0.6f, 1.0f, grazingFresnel);
+
+    float smoothness = 1.0f - saturate(roughness);
+    float roughnessWeight = lerp(0.2f, 1.0f, smoothness * smoothness);
+
+    return saturate(specular) * fresnelWeight * roughnessWeight;
+}
+
+float3 CalculateSkyBoxReflections(
+    float3 worldPosition,
+    float3 normal,
+    float specular,
+    float roughness,
+    float3 pixelColor)
 {
     float3 V = normalize(CamPositionWS - worldPosition);
     float3 R = reflect(-V, normal);
@@ -71,39 +93,50 @@ float3 CalculateSkyBoxReflections(float3 worldPosition, float3 normal, float spe
     uv.y = 1.0f - uv.y;
     
     float3 reflectedColor = SkyboxReflectionsTexture.Sample(SkyboxReflectionsSampler, float3(uv, slice)).rgb;
-    return lerp(pixelColor, reflectedColor, saturate(specular));
+    float reflectionStrength = CalculateReflectionStrength(worldPosition, normal, specular, roughness);
+    return lerp(pixelColor, reflectedColor, reflectionStrength);
 }
 
-float3 CalculateLegacyReflections(float3 worldPosition, float3 normal, float specular, float3 pixelColor)
+float3 CalculateLegacyReflections(
+    float3 worldPosition,
+    float3 normal,
+    float specular,
+    float roughness,
+    float3 pixelColor)
 {
     float3 N = normalize(mul(float4(normal, 0.0f), View).xyz);
     float3 V = normalize(mul(float4(CamPositionWS - worldPosition, 0.0f), View).xyz);
     float3 R = reflect(-V, N);
 
-    // Project reflection vector into pseudo-screen UVs
+    // Project reflection vector into pseudo-screen UVs.
     float2 uv = R.xy * 0.5f + 0.5f;
     uv.y = 1.0f - uv.y;
 
-    // Preserve aspect ratio
+    // Preserve aspect ratio.
     uv = ToCentralSquare(uv, AspectRatio);
 
-    // Sample legacy reflection buffer
+    // Sample legacy reflection buffer.
     float3 reflectedColor = LegacyReflectionsTexture.Sample(LegacyReflectionsSampler, uv).rgb;
-    return lerp(pixelColor, reflectedColor, specular);
+    float reflectionStrength = CalculateReflectionStrength(worldPosition, normal, specular, roughness);
+    return lerp(pixelColor, reflectedColor, reflectionStrength);
 }
 
-
-float3 CalculateReflections(float3 position, float3 color, float3 normal, float specular)
+float3 CalculateReflections(
+    float3 position,
+    float3 color,
+    float3 normal,
+    float specular,
+    float roughness)
 {
     int materialType = MaterialTypeAndFlags & MATERIAL_FLAG_MASK;
 	
     if (materialType == MATERIAL_SKYBOX_REFLECTIVE)
     {
-        return CalculateSkyBoxReflections(position, normal, specular, color);
+        return CalculateSkyBoxReflections(position, normal, specular, roughness, color);
     }
     else if (materialType == MATERIAL_REFLECTIVE)
     {
-        return CalculateLegacyReflections(position, normal, specular, color);
+        return CalculateLegacyReflections(position, normal, specular, roughness, color);
     }
     else
     {
@@ -148,7 +181,7 @@ float2 ParallaxOcclusionMapping(float3x3 TBN, float3 pos, float2 baseUV)
     // Adaptive sample count based on angle.
     float layerDepth = 1.0f / numSamples;
 
-    // Parallax amount & delta UV.
+    // Parallax amount and delta UV.
     float2 deltaUV = (viewDirTangent.xy / viewDirTangent.z) * POM_HEIGHT_SCALE / numSamples;
 
     // Iterative depth search.
@@ -206,14 +239,12 @@ inline float3 EnsureNormal(float3 n, float3 worldPos)
 
     float l2 = dot(n, n);
 
-    // If too small, choose a fallback facing the camera
+    // If too small, choose a fallback facing the camera.
     if (l2 < EPSILON)
     {
-        // Camera direction in world space
         float3 viewDir = normalize(CamPositionWS - worldPos);
 
-        // Guarantee a valid vector even if Cam == worldPos
-        if (any(isnan(viewDir)) || dot(viewDir,viewDir) < EPSILON)
+        if (any(isnan(viewDir)) || dot(viewDir, viewDir) < EPSILON)
             viewDir = float3(0, 0, 1);
 
         return viewDir;
