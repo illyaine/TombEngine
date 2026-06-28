@@ -78,9 +78,16 @@ namespace TEN::Gui
 	inline void AdjustHDRPreset(GameConfiguration& settings, int direction)
 	{
 		auto preset = DetectHDRPreset(settings);
-		int presetIndex = (preset == HDRPreset::Custom) ?
-			(int)HDRPreset::Medium : (int)preset;
-		presetIndex = std::clamp(presetIndex + direction, (int)HDRPreset::Light, (int)HDRPreset::Strong);
+		if (preset == HDRPreset::Custom)
+		{
+			ApplyHDRPreset(settings, HDRPreset::Medium);
+			return;
+		}
+
+		int presetIndex = std::clamp(
+			(int)preset + direction,
+			(int)HDRPreset::Light,
+			(int)HDRPreset::Strong);
 		ApplyHDRPreset(settings, (HDRPreset)presetIndex);
 	}
 
