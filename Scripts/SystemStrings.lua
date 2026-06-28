@@ -87,6 +87,7 @@ local strings =
 	high = { "High" },
 	high_framerate = { "High Framerate / HDR Settings" },
 	interaction_highlighter = { "Interaction Highlighter" },
+	level_brightness = { "Level Brightness" },
 	level_secrets_found = { "Secrets Found in Level" },
 	light_bloom = { "Light Bloom" },
 	lighting_hdr = { "Lighting and HDR" },
