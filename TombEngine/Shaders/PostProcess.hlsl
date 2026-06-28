@@ -94,7 +94,14 @@ float3 ToneMapACES(float3 color)
     const float d = 0.59f;
     const float e = 0.14f;
 
-    return saturate((color * (a * color + b)) / (color * (c * color + d) + e));
+    float3 mapped = saturate((color * (a * color + b)) / (color * (c * color + d) + e));
+
+    // Slightly reduce extreme highlight chroma to avoid neon channel clipping
+    // while preserving the original hue throughout the mid-range.
+    float peak = max(mapped.r, max(mapped.g, mapped.b));
+    float highlightWeight = smoothstep(0.75f, 1.0f, peak) * 0.08f;
+    float mappedLuma = Luma(mapped);
+    return lerp(mapped, mappedLuma.xxx, highlightWeight);
 }
 
 float4 PSFinalPass(PixelShaderInput input) : SV_TARGET
@@ -276,6 +283,7 @@ float3 SampleDownscaledScene(float2 uv, float2 dx, float2 dy)
     const float wc = 0.5f;
     const float w1 = 0.125f;
     const float wd = 0.03125f;
+    const float weightSum = wc + 4.0f * w1 + 4.0f * wd;
 
     float3 color = ColorTexture.SampleLevel(ColorSampler, uv, 0).rgb * wc;
     color += ColorTexture.SampleLevel(ColorSampler, uv + dx, 0).rgb * w1;
@@ -287,7 +295,26 @@ float3 SampleDownscaledScene(float2 uv, float2 dx, float2 dy)
     color += ColorTexture.SampleLevel(ColorSampler, uv - dx + dy, 0).rgb * wd;
     color += ColorTexture.SampleLevel(ColorSampler, uv - dx - dy, 0).rgb * wd;
 
-    return color;
+    return color / weightSum;
+}
+
+float GetBloomBrightness(float3 color)
+{
+    float luminance = max(Luma(color), 0.0f);
+    float peak = max(color.r, max(color.g, color.b));
+
+    // Luminance keeps white and warm lights perceptually balanced, while the
+    // peak term preserves bloom from strongly saturated blue or red sources.
+    return max(luminance, peak * 0.5f);
+}
+
+float GetBloomContribution(float brightness, float threshold)
+{
+    threshold = max(threshold, 0.0001f);
+    float knee = max(threshold * 0.5f, 0.0001f);
+    float soft = clamp(brightness - threshold + knee, 0.0f, 2.0f * knee);
+    soft = soft * soft / (4.0f * knee + EPSILON);
+    return saturate(max(brightness - threshold, soft) / max(brightness, EPSILON));
 }
 
 float4 PSDownscale(PixelShaderInput input) : SV_Target
@@ -299,16 +326,18 @@ float4 PSDownscale(PixelShaderInput input) : SV_Target
     float3 scene = max(SampleDownscaledScene(input.UV, dx, dy), 0.0f);
     float3 emissive = max(EmissiveAndSpecularTexture.SampleLevel(EmissiveAndSpecularSampler, input.UV, 0).rgb, 0.0f);
 
-    float brightness = max(scene.r, max(scene.g, scene.b));
-    float threshold = max(BloomThreshold, 0.0001f);
-    float knee = max(threshold * 0.5f, 0.0001f);
-    float soft = clamp(brightness - threshold + knee, 0.0f, 2.0f * knee);
-    soft = soft * soft / (4.0f * knee + EPSILON);
-    float contribution = max(brightness - threshold, soft) / max(brightness, EPSILON);
+    // Exposure changes which scene values are perceived as bright without
+    // applying exposure twice to the bloom color itself.
+    float thresholdExposure = (EnableHDR != 0) ? max(HDRExposure, 0.01f) : 1.0f;
+    float sceneBrightness = GetBloomBrightness(scene * thresholdExposure);
+    float sceneContribution = GetBloomContribution(sceneBrightness, BloomThreshold);
 
-    float3 brightScene = scene * saturate(contribution);
-    float3 bloomSource = brightScene + emissive;
+    // Emissive materials are allowed to bloom sooner, but still respect a soft
+    // threshold so low-intensity emissive maps do not haze the whole image.
+    float emissiveBrightness = GetBloomBrightness(emissive);
+    float emissiveContribution = GetBloomContribution(emissiveBrightness, BloomThreshold * 0.5f);
 
+    float3 bloomSource = scene * sceneContribution + emissive * emissiveContribution;
     return float4(max(bloomSource, 0.0f), 1.0f);
 }
 
