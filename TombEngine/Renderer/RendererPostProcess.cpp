@@ -25,6 +25,7 @@ namespace TEN::Renderer
 		buffer.BloomStrength = std::clamp(configuration.BloomStrength / 100.0f, 0.0f, 3.0f);
 		buffer.GlareStrength = std::clamp(configuration.GlareStrength / 100.0f, 0.0f, 3.0f);
 		buffer.GlareLength = std::clamp(configuration.GlareLength / 100.0f, 0.25f, 3.0f) * 8.0f;
+		buffer.DisplayBrightness = std::clamp(configuration.LevelBrightness / 100.0f, 0.5f, 1.5f);
 		buffer.EnableHDR = configuration.EnableHDRRendering ? 1 : 0;
 		buffer.EnableBloom = configuration.EnableLightBloom ? 1 : 0;
 	}
@@ -40,8 +41,18 @@ namespace TEN::Renderer
 	void Renderer::DrawPostprocess(RenderTarget2D* renderTarget, RenderView& view, SceneRenderMode renderMode)
 	{
 		static bool lightingRestartRequired = false;
+		static int previousHDRTargetState = -1;
 		const bool hdrRenderTargetsEnabled = IsHDRRenderTarget(_renderTarget);
 		const bool lightingMenuActive = TEN::Gui::UpdateLightingSettingsInput(lightingRestartRequired, hdrRenderTargetsEnabled);
+
+		if (previousHDRTargetState != (int)hdrRenderTargetsEnabled)
+		{
+			TENLog(
+				std::string("Internal HDR scene target: ") +
+				(hdrRenderTargetsEnabled ? "active (R16G16B16A16_FLOAT)" : "inactive (SDR)"),
+				LogLevel::Info);
+			previousHDRTargetState = (int)hdrRenderTargetsEnabled;
+		}
 
 		_doingFullscreenPass = true;
 		SetBlendMode(BlendMode::Opaque);
@@ -61,6 +72,11 @@ namespace TEN::Renderer
 		_stPostProcessBuffer.Tint = finalTint;
 		SetUserPostProcessSettings(_stPostProcessBuffer);
 
+		// The actual render-target format is authoritative. A changed checkbox only
+		// becomes active after the renderer has rebuilt its scene targets.
+		_stPostProcessBuffer.EnableHDR = hdrRenderTargetsEnabled ? 1 : 0;
+		const float finalDisplayBrightness = _stPostProcessBuffer.DisplayBrightness;
+
 		_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		_context->IASetInputLayout(_fullscreenTriangleInputLayout.Get());
 		unsigned int stride = sizeof(PostProcessVertex);
@@ -75,10 +91,12 @@ namespace TEN::Renderer
 		if (hdrRenderTargetsEnabled)
 		{
 			// Convert the FP16 scene to SDR before entering the SDR postprocess chain.
-			// Fade, tint and cinematic bars remain deferred to the final output pass.
+			// Player brightness belongs to the final display pass and must not be
+			// applied during this intermediate tone-map conversion.
 			_stPostProcessBuffer.ScreenFadeFactor = 1.0f;
 			_stPostProcessBuffer.CinematicBarsHeight = 0.0f;
 			_stPostProcessBuffer.Tint = Vector3::One;
+			_stPostProcessBuffer.DisplayBrightness = 1.0f;
 			UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
 			_shaders.Bind(Shader::PostProcessFinalPass);
 		}
@@ -95,6 +113,7 @@ namespace TEN::Renderer
 		_stPostProcessBuffer.ScreenFadeFactor = finalScreenFadeFactor;
 		_stPostProcessBuffer.CinematicBarsHeight = finalCinematicBarsHeight;
 		_stPostProcessBuffer.Tint = finalTint;
+		_stPostProcessBuffer.DisplayBrightness = finalDisplayBrightness;
 		if (hdrRenderTargetsEnabled)
 			_stPostProcessBuffer.EnableHDR = 0;
 		UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
@@ -230,6 +249,8 @@ namespace TEN::Renderer
 			return;
 		}
 
+		const bool hdrRenderTargetEnabled = IsHDRRenderTarget(*renderTarget);
+
 		SetBlendMode(BlendMode::Opaque, true);
 		SetCullMode(CullMode::CounterClockwise, true);
 		SetDepthState(DepthState::Write, true);
@@ -240,6 +261,7 @@ namespace TEN::Renderer
 		_shaders.Bind(Shader::PostProcess);
 		_stPostProcessBuffer.ViewportSize = Vector2i(_screenWidth, _screenHeight);
 		SetUserPostProcessSettings(_stPostProcessBuffer);
+		_stPostProcessBuffer.EnableHDR = hdrRenderTargetEnabled ? 1 : 0;
 		_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		_context->IASetInputLayout(_fullscreenTriangleInputLayout.Get());
 		unsigned int stride = sizeof(PostProcessVertex);
@@ -279,14 +301,15 @@ namespace TEN::Renderer
 
 		// Keep the scene copy in FP16 until tone mapping. The SMAA scene target is
 		// full-sized and is overwritten again by SMAA later in the frame.
-		RenderTarget2D* sceneCopyTarget = IsHDRRenderTarget(*renderTarget) ?
+		RenderTarget2D* sceneCopyTarget = hdrRenderTargetEnabled ?
 			&_SMAASceneRenderTarget : &_postProcessRenderTarget[0];
 		CopyRenderTarget(renderTarget, sceneCopyTarget, view);
 
 		_shaders.Bind(Shader::GlowCombine);
-		_stPostProcessBuffer.GlowSoftAdd = configuration.EnableHDRRendering ? 0 : 1;
+		_stPostProcessBuffer.GlowSoftAdd = hdrRenderTargetEnabled ? 0 : 1;
 		_stPostProcessBuffer.GlowIntensity = 1.0f;
 		SetUserPostProcessSettings(_stPostProcessBuffer);
+		_stPostProcessBuffer.EnableHDR = hdrRenderTargetEnabled ? 1 : 0;
 		UpdateConstantBuffer(_stPostProcessBuffer, _cbPostProcessBuffer);
 		_context->ClearRenderTargetView(renderTarget->RenderTargetView.Get(), clearColor);
 		_context->OMSetRenderTargets(1, renderTarget->RenderTargetView.GetAddressOf(), nullptr);
