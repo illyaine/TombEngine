@@ -92,8 +92,9 @@ PixelShaderOutput PS(PixelShaderInput input) : SV_TARGET
     light.Type = LT_SUN;
     light.Direction = normalize(float3(-1.0f, -0.707f, -0.5f));
 
+    float resolvedRoughness = ResolveModernSurfaceRoughness(normal, roughness, input.Sheen);
     float3 lighting = DoModernDirectionalLight(input.WorldPosition, normal, light);
-    lighting += DoModernSpecularSun(input.WorldPosition, normal, light, input.Sheen, specular, roughness);
+    lighting += DoModernSpecularSun(input.WorldPosition, normal, light, input.Sheen, specular, resolvedRoughness);
     lighting += emissive;
     
     output.Color.xyz += lighting * output.Color.a;
