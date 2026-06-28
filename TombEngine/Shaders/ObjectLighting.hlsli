@@ -1,6 +1,8 @@
 #ifndef OBJECT_LIGHTING
 #define OBJECT_LIGHTING
 
+#include "./ModernLighting.hlsli"
+
 float3 CombineObjectLights(
     float3 ambient,
     float3 ambientTint,
@@ -28,22 +30,22 @@ float3 CombineObjectLights(
         if (lightTypeMask & LT_MASK_SUN)
         {
             float isSun = step(0.5f, float(lights[i].Type == LT_SUN));
-            diffuse += isSun * DoDirectionalLight(pos, normal, lights[i]);
-            specular += isSun * DoSpecularSun(normal, lights[i], sheen, specularIntensity, roughness);
+            diffuse += isSun * DoModernDirectionalLight(pos, normal, lights[i]);
+            specular += isSun * DoModernSpecularSun(pos, normal, lights[i], sheen, specularIntensity, roughness);
         }
 
         if (lightTypeMask & LT_MASK_POINT)
         {
             float isPoint = step(0.5f, float(lights[i].Type == LT_POINT));
-            diffuse += isPoint * DoPointLight(pos, normal, lights[i]);
-            specular += isPoint * DoSpecularPoint(pos, normal, lights[i], sheen, specularIntensity, roughness);
+            diffuse += isPoint * DoModernPointLight(pos, normal, lights[i]);
+            specular += isPoint * DoModernSpecularPoint(pos, normal, lights[i], sheen, specularIntensity, roughness);
         }
 
         if (lightTypeMask & LT_MASK_SPOT)
         {
             float isSpot = step(0.5f, float(lights[i].Type == LT_SPOT));
-            diffuse += isSpot * DoSpotLight(pos, normal, lights[i]);
-            specular += isSpot * DoSpecularSpot(pos, normal, lights[i], sheen, specularIntensity, roughness);
+            diffuse += isSpot * DoModernSpotLight(pos, normal, lights[i]);
+            specular += isSpot * DoModernSpecularSpot(pos, normal, lights[i], sheen, specularIntensity, roughness);
         }
 
         if (lightTypeMask & LT_MASK_SHADOW)
@@ -56,8 +58,11 @@ float3 CombineObjectLights(
     ambientTint = saturate(ambientTint);
     directTint = saturate(directTint);
 
+    float resolvedSpecular = ResolveModernSpecular(specularIntensity, sheen);
+    float diffuseEnergy = 1.0f - 0.04f * resolvedSpecular;
+
     float3 ambientTerm = saturate(ambient - saturate(shadow)) * tex * ambientTint * occlusion;
-    float3 diffuseTerm = diffuse * tex * directTint;
+    float3 diffuseTerm = diffuse * tex * directTint * diffuseEnergy;
     float3 combined = ambientTerm + diffuseTerm + specular;
 
     combined -= float3(fogBulbsDensity, fogBulbsDensity, fogBulbsDensity);
