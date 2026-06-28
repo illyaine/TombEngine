@@ -21,12 +21,12 @@ namespace TEN::Gui
 		switch (preset)
 		{
 		case HDRPreset::Light:
-			return { 105, 45, 60, 120, 80, 15, 80 };
+			return { 105, 50, 50, 145, 80, 10, 75 };
 		case HDRPreset::Strong:
-			return { 145, 100, 170, 65, 140, 75, 140 };
+			return { 130, 100, 135, 105, 125, 65, 135 };
 		case HDRPreset::Medium:
 		default:
-			return { 120, 75, 110, 90, 110, 35, 100 };
+			return { 115, 75, 90, 125, 100, 30, 100 };
 		}
 	}
 
