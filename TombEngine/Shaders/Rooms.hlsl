@@ -117,18 +117,20 @@ PixelShaderOutput PS(PixelShaderInput input)
 
 	bool onlyPointLights = (NumRoomLights & ~LT_MASK) == LT_MASK_POINT;
 	int numLights = NumRoomLights & LT_MASK;
+    float resolvedRoughness = ResolveModernSurfaceRoughness(normal, roughness, input.Sheen);
 
+    [loop]
 	for (int i = 0; i < numLights; i++)
 	{
 		if (onlyPointLights || RoomLights[i].Type == LT_POINT)
 		{
             directDiffuse += DoModernPointLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
-            directSpecular += DoModernSpecularPoint(input.WorldPosition, normal, RoomLights[i], input.Sheen, specular, roughness);
+            directSpecular += DoModernSpecularPoint(input.WorldPosition, normal, RoomLights[i], input.Sheen, specular, resolvedRoughness);
         }
 		else if (RoomLights[i].Type == LT_SPOT)
 		{
             directDiffuse += DoModernSpotLight(input.WorldPosition, normal, RoomLights[i]) * ROOM_LIGHT_COEFF;
-            directSpecular += DoModernSpecularSpot(input.WorldPosition, normal, RoomLights[i], input.Sheen, specular, roughness);
+            directSpecular += DoModernSpecularSpot(input.WorldPosition, normal, RoomLights[i], input.Sheen, specular, resolvedRoughness);
 		}
 	}
 
