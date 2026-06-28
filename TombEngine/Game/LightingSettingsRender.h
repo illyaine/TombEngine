@@ -73,7 +73,7 @@ namespace TEN::Gui
 		if (restartRequired)
 		{
 			y += 35;
-			renderer.AddString(center, y, "Restart TEN to rebuild the internal HDR render targets.",
+			renderer.AddString(center, y, g_GameFlow->GetString(STRING_HDR_RESTART_REQUIRED),
 				g_GameFlow->GetSettings()->UI.PlainTextColor, centerFlags);
 		}
 	}
