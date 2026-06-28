@@ -32,7 +32,6 @@ struct InstancedSprite
 	float4x4 World;
 	float4 UV[2];
 	float4 Color;
-	float4 EffectParams;
 	float IsBillboard;
     float IsSoftParticle;
     int RenderType;
@@ -42,6 +41,13 @@ struct InstancedSprite
 cbuffer InstancedSpriteBuffer : register(b13)
 {
 	InstancedSprite Sprites[INSTANCED_SPRITES_BUCKET_SIZE];
+};
+
+// HDR effect parameters are isolated from the legacy sprite instances so the
+// 512-entry sprite buffer remains exactly within the D3D11 64 KiB limit.
+cbuffer HDRSpriteEffectBuffer : register(b9)
+{
+	float4 HDREffectParams[INSTANCED_SPRITES_BUCKET_SIZE];
 };
 
 Texture2D Texture : register(t0);
@@ -144,7 +150,7 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 		sprite.RenderType <= RENDER_TYPE_HDR_GLARE;
 
 	if (isHDRLightEffect)
-		output = ApplyHDRLightEffect(output, input.EffectUV, sprite.RenderType, sprite.EffectParams);
+		output = ApplyHDRLightEffect(output, input.EffectUV, sprite.RenderType, HDREffectParams[input.InstanceID]);
 	
     if (sprite.IsSoftParticle == 1)
 	{
