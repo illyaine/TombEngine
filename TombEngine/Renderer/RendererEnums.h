@@ -219,72 +219,126 @@ enum class ConstantBufferRegister
 	Camera = 0,
 	Item = 1,
 	Material = 2,
-	Room = 3,
-	Animated = 4,
-	Blending = 5,
-	PostProcess = 6,
-	ShadowMap = 7,
-	Static = 8,
-	FogBulb = 9,
-	AlphaTest = 10,
-	SMAA = 13
+	InstancedStatics = 3,
+	ShadowLight = 4,
+	Room = 5,
+	AnimatedTextures = 6,
+	PostProcess = 7,
+	Sky = 8,
+	Hud = 10,
+	HudBar = 11,
+	Blending = 12,
+	InstancedSprites = 13
+};
+
+enum class AlphaTestMode
+{
+	None = 0,
+	GreatherThan = 1,
+	LessThan = 2
+};
+
+enum class PrintStringFlags
+{
+	Center			= (1 << 0),
+	Blink			= (1 << 1),
+	Right			= (1 << 2),
+	Outline			= (1 << 3),
+	VerticalCenter	= (1 << 4),
+	VerticalBottom	= (1 << 5)
 };
 
 enum class RendererPass
 {
-	CollectTransparentFaces,
-	GBuffer,
-	Opaque,
-	Additive,
-	Transparent,
 	ShadowMap,
-	Water
+	Opaque,
+	Transparent,
+	CollectTransparentFaces,
+	Additive,
+	GBuffer,
+	GunFlashes,
+	RoomAmbient
 };
 
 enum class SceneRenderMode
 {
 	Full,
 	NoHud,
-	NoPostProcess
-};
-
-enum class TextureSource
-{
-	Room,
-	Moveables,
-	Statics,
-	Sprites,
-	Animated
-};
-
-enum class PostProcessMode
-{
-	None,
-	Monochrome,
-	Negative,
-	Exclusion
-};
-
-enum class AlphaTestMode
-{
-	None,
-	GreatherThan,
-	LessThan
-};
-
-enum class RendererObjectType
-{
-	Room,
-	Item,
-	Static,
-	Sprite,
-	MoveableAsStatic,
-	Hair
+	NoPostprocess
 };
 
 enum class SpriteRenderType
 {
 	Default,
 	LaserBarrier,
-	LaserBeam
+	LaserBeam,
+	HDRSourceCore,
+	HDRHalo,
+	HDRGlare
+};
+
+enum class RendererObjectType
+{
+	Unknown,
+	Room,
+	RoomPolygon,
+	Moveable, 
+	Static,
+	Sprite,
+	MoveableAsStatic, // For rats, bats, spiders, beetles
+	HairPrimary,
+	HairSecondary
+};
+
+enum class TextureSource
+{
+	Rooms,
+	Moveables,
+	Statics,
+	Animated
+};
+
+enum class SMAAMode
+{
+	MODE_SMAA_1X,
+	MODE_SMAA_T2X,
+	MODE_SMAA_S2X,
+	MODE_SMAA_4X,
+
+	MODE_SMAA_COUNT = MODE_SMAA_4X
+};
+
+enum class SMAAPreset
+{
+	SMAA_PRESET_LOW,
+	SMAA_PRESET_MEDIUM,
+	SMAA_PRESET_HIGH,
+	SMAA_PRESET_ULTRA,
+	SMAA_PRESET_CUSTOM,
+
+	SMAA_PRESET_COUNT = SMAA_PRESET_CUSTOM
+};
+
+enum class SMAAInput
+{
+	SMAA_INPUT_LUMA,
+	SMAA_INPUT_COLOR,
+	SMAA_INPUT_DEPTH,
+
+	SMAA_INPUT_COUNT = SMAA_INPUT_DEPTH
+};
+
+enum class PostProcessMode
+{
+	None = 0,
+	Monochrome = 1,
+	Negative = 2,
+	Exclusion = 3
+};
+
+enum class MaterialShaderType
+{
+	Default = 0,
+	Reflective = 1,
+	SkyboxReflective = 2
 };
