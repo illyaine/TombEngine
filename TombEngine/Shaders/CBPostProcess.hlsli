@@ -43,4 +43,7 @@ cbuffer CBPostProcess : register(b7)
     float GlareLength;
     int EnableHDR;
     int EnableBloom;
+    //--
+    float DisplayBrightness;
+    float3 Padding4;
 };
