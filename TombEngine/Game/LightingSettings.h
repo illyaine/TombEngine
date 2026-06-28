@@ -6,9 +6,18 @@
 
 namespace TEN::Gui
 {
+	enum class HDRPreset
+	{
+		Light,
+		Medium,
+		Strong,
+		Custom
+	};
+
 	enum class LightingSettingsOption
 	{
 		HDRRendering,
+		HDRPreset,
 		HDRExposure,
 		HDRStrength,
 		LevelBrightness,
