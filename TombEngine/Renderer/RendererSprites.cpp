@@ -10,6 +10,29 @@ using namespace TEN::Renderer::Structures;
 
 namespace TEN::Renderer
 {
+	namespace
+	{
+		// b9 is intentionally unused by the existing renderer constant-buffer layout.
+		constexpr UINT HDR_SPRITE_EFFECT_CONSTANT_BUFFER_SLOT = 9;
+
+		struct alignas(16) HDRSpriteEffectBuffer
+		{
+			Vector4 EffectParams[INSTANCED_SPRITES_BUCKET_SIZE];
+		};
+
+		static_assert(sizeof(HDRSpriteEffectBuffer) == 8192,
+			"HDR sprite effect parameters must remain safely below the D3D11 64 KiB constant-buffer limit.");
+
+		HDRSpriteEffectBuffer HDRSpriteEffectData = {};
+		std::optional<ConstantBuffers::ConstantBuffer<HDRSpriteEffectBuffer>> HDRSpriteEffectConstantBuffer;
+		ID3D11Device* HDRSpriteEffectDevice = nullptr;
+
+		bool IsHDRLightSpriteRenderType(SpriteRenderType renderType)
+		{
+			return renderType >= SpriteRenderType::HDRSourceCore && renderType <= SpriteRenderType::HDRGlare;
+		}
+	}
+
 	static SpriteRenderType GetHDRLightSpriteRenderType(TEN::Effects::HDRLight::EffectType type)
 	{
 		// Values 0-2 are the existing default, laser-barrier and laser-beam modes.
@@ -376,6 +399,8 @@ namespace TEN::Renderer
 				wasGpuSet = true;
 			}
 
+			const bool isHDRLightBucket = IsHDRLightSpriteRenderType(spriteBucket.RenderType);
+
 			// Define sprite preparation logic.
 			auto prepareSprites = [&](int start, int end)
 			{
@@ -385,11 +410,13 @@ namespace TEN::Renderer
 
 					_stInstancedSpriteBuffer.Sprites[i].World = GetWorldMatrixForSprite(spriteToDraw, view);
 					_stInstancedSpriteBuffer.Sprites[i].Color = spriteToDraw.color;
-					_stInstancedSpriteBuffer.Sprites[i].EffectParams = spriteToDraw.EffectParams;
 					_stInstancedSpriteBuffer.Sprites[i].IsBillboard = 1.0f;
 					_stInstancedSpriteBuffer.Sprites[i].PerVertexColor = 0;
 					_stInstancedSpriteBuffer.Sprites[i].IsSoftParticle = spriteToDraw.SoftParticle ? 1.0f : 0.0f;
 					_stInstancedSpriteBuffer.Sprites[i].RenderType = (int)spriteToDraw.renderType;
+
+					if (isHDRLightBucket)
+						HDRSpriteEffectData.EffectParams[i] = spriteToDraw.EffectParams;
 
 					PackSpriteTextureCoordinates(i, spriteToDraw.Sprite);
 				}
@@ -397,7 +424,23 @@ namespace TEN::Renderer
 			g_Parallel.AddTasks((int)spriteBucket.SpritesToDraw.size(), prepareSprites).wait();
 
 			BindTexture(TextureRegister::ColorMap, spriteBucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
-			UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
+			UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);
+
+			if (isHDRLightBucket)
+			{
+				if (!HDRSpriteEffectConstantBuffer.has_value() || HDRSpriteEffectDevice != _device.Get())
+				{
+					HDRSpriteEffectConstantBuffer.reset();
+					HDRSpriteEffectConstantBuffer.emplace(_device.Get());
+					HDRSpriteEffectDevice = _device.Get();
+				}
+
+				UpdateConstantBuffer(HDRSpriteEffectData, *HDRSpriteEffectConstantBuffer);
+				_context->PSSetConstantBuffers(
+					HDR_SPRITE_EFFECT_CONSTANT_BUFFER_SLOT,
+					1,
+					HDRSpriteEffectConstantBuffer->get());
+			}
 
 			// Draw sprites with instancing.
 			DrawInstancedTriangles(4, (int)spriteBucket.SpritesToDraw.size(), 0);
@@ -436,7 +479,6 @@ namespace TEN::Renderer
 			
 			_stInstancedSpriteBuffer.Sprites[0].IsBillboard = 0;
 			_stInstancedSpriteBuffer.Sprites[0].World = Matrix::Identity;
-			_stInstancedSpriteBuffer.Sprites[0].EffectParams = Vector4::Zero;
 			_stInstancedSpriteBuffer.Sprites[0].IsSoftParticle = spriteBucket.IsSoftParticle ? 1.0f : 0.0f;
 			_stInstancedSpriteBuffer.Sprites[0].RenderType = (int)spriteBucket.RenderType;
 
@@ -528,14 +570,13 @@ namespace TEN::Renderer
 		_stInstancedSpriteBuffer.Sprites[0].World = object->Sprite->Type != SpriteType::ThreeD ?
 			GetWorldMatrixForSprite(*object->Sprite, view) :
 			Matrix::Identity;
-		_stInstancedSpriteBuffer.Sprites[0].EffectParams = object->Sprite->EffectParams;
 		_stInstancedSpriteBuffer.Sprites[0].PerVertexColor = 1;
 		_stInstancedSpriteBuffer.Sprites[0].IsSoftParticle = object->Sprite->SoftParticle ? 1 : 0;
 		_stInstancedSpriteBuffer.Sprites[0].RenderType = (int)object->Sprite->renderType;
 
 		PackSpriteTextureCoordinates(0, object->Sprite->Sprite);
 
-		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
+		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);
 
 		BindTexture(TextureRegister::ColorMap, object->Sprite->Sprite->Texture, SamplerStateRegister::LinearClamp);
 		
@@ -610,14 +651,13 @@ namespace TEN::Renderer
 		_sortedPolygonsVertexBuffer.Update(_context.Get(), _sortedPolygonsVertices.data(), 0, (int)_sortedPolygonsVertices.size());
 
 		_stInstancedSpriteBuffer.Sprites[0].World = Matrix::Identity;
-		_stInstancedSpriteBuffer.Sprites[0].EffectParams = objectInfo->Sprite->EffectParams;
 		_stInstancedSpriteBuffer.Sprites[0].PerVertexColor = 1;
 		_stInstancedSpriteBuffer.Sprites[0].IsSoftParticle = objectInfo->Sprite->SoftParticle ? 1 : 0;
 		_stInstancedSpriteBuffer.Sprites[0].RenderType = (int)objectInfo->Sprite->renderType;
 
 		PackSpriteTextureCoordinates(0, objectInfo->Sprite->Sprite);
 
-		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
+		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);
 
 		SetDepthState(DepthState::Read);
 		SetCullMode(CullMode::None);
