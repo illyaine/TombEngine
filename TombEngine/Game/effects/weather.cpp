@@ -23,7 +23,7 @@ using namespace TEN::Math;
 
 namespace TEN::Effects::Environment
 {
-	constexpr auto RAIN_IMPACT_OFFSET = 4.0f;
+	constexpr auto RAIN_IMPACT_OFFSET = 32.0f;
 	constexpr auto RAIN_SPLASH_MIN_NORMAL_Y = 0.25f;
 	constexpr auto RAIN_WIND_RESPONSE = 0.2f;
 	constexpr auto RAIN_WIND_VELOCITY_MULT = 3.0f;
