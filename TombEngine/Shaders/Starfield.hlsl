@@ -88,32 +88,37 @@ void GetWeatherCluster(
 	scale = particle.Size;
 	rotation = 0.0f;
 
-	if (clusterIndex == 0)
-		return;
+	uint uniqueSeed = (uint)particle.UniqueID * 1664525u + clusterIndex * 1013904223u;
+	float3 positionOffset = float3(0.0f, 0.0f, 0.0f);
 
-	int uniqueSeed = particle.UniqueID + clusterIndex;
-	float offsetBase = EnvironmentClusterSpread * ((clusterIndex + 1.0f) / particle.ClusterSize);
-	float xSign = (uniqueSeed & 1) ? 1.0f : -1.0f;
-	float zSign = (uniqueSeed & 4) ? 1.0f : -1.0f;
-	int axisEmphasis = uniqueSeed & 3;
-	float xScale = axisEmphasis == 0 ? 1.1f : 0.4f;
-	float yScale = axisEmphasis == 1 ? 1.2f : 0.5f;
-	float zScale = axisEmphasis == 2 ? 1.0f : 0.6f;
-	float3 positionOffset = float3(
-		xSign * offsetBase * xScale,
-		-(offsetBase * yScale),
-		zSign * offsetBase * zScale);
+	if (clusterIndex > 0)
+	{
+		float offsetBase = EnvironmentClusterSpread * ((clusterIndex + 1.0f) / max(1.0f, (float)particle.ClusterSize));
+		float xSign = (uniqueSeed & 1u) ? 1.0f : -1.0f;
+		float zSign = (uniqueSeed & 4u) ? 1.0f : -1.0f;
+		uint axisEmphasis = uniqueSeed & 3u;
+		float xScale = axisEmphasis == 0u ? 1.1f : 0.4f;
+		float yScale = axisEmphasis == 1u ? 1.2f : 0.5f;
+		float zScale = axisEmphasis == 2u ? 1.0f : 0.6f;
+		positionOffset = float3(
+			xSign * offsetBase * xScale,
+			-(offsetBase * yScale),
+			zSign * offsetBase * zScale);
 
-	position += positionOffset;
-	scale *= 1.0f + abs(sin(LegacyAngleToRadians(uniqueSeed)));
+		position += positionOffset;
+	}
+
+	scale *= lerp(0.75f, 1.35f, Hash(uniqueSeed));
 
 	if (EnvironmentMode == GPU_ENVIRONMENT_SNOW)
 	{
-		int spinAngle = (int(abs(position.y)) % 3072) * 21;
-		float spin = LegacyAngleToRadians(spinAngle);
-		position.x += positionOffset.x * sin(spin);
-		position.z += positionOffset.z * cos(spin);
-		rotation = (clusterIndex / (float)particle.ClusterSize) * 6.28318530718f;
+		float phase = Hash(uniqueSeed ^ 0x68bc21ebu) * 6.28318530718f + Frame * 0.018f;
+		float flutter = sin(phase) * scale * 0.32f;
+		float secondaryFlutter = cos(phase * 0.73f + 1.7f) * scale * 0.24f;
+		position.x += positionOffset.x * sin(phase * 0.55f) + flutter;
+		position.z += positionOffset.z * cos(phase * 0.61f) + secondaryFlutter;
+		position.y += sin(phase * 0.37f) * scale * 0.08f;
+		rotation = phase + (clusterIndex / max(1.0f, (float)particle.ClusterSize)) * 6.28318530718f;
 	}
 }
 
@@ -159,10 +164,12 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		float3 up;
 		float width = scale;
 		float height = scale;
+		uint visualSeed = (uint)particle.UniqueID * 747796405u + clusterIndex * 2891336453u;
 
 		if (EnvironmentMode == GPU_ENVIRONMENT_RAIN)
 		{
 			float velocityLengthSquared = dot(particle.Velocity, particle.Velocity);
+			float velocityLength = sqrt(max(velocityLengthSquared, 0.0001f));
 			float3 rainAxis = velocityLengthSquared > 0.0001f ? normalize(-particle.Velocity) : float3(0.0f, 1.0f, 0.0f);
 			float3 toCamera = normalize(CamPositionWS.xyz - position);
 			float3 rightCandidate = cross(rainAxis, toCamera);
@@ -176,7 +183,8 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 			const float farDistance = 5734.4f;
 			float distanceToCamera = length(position - CamPositionWS.xyz);
 			float widthFactor = saturate((distanceToCamera - nearDistance) / max(1.0f, farDistance - nearDistance));
-			width = lerp(1.5f, 15.0f, widthFactor);
+			width = lerp(1.25f, 10.0f, widthFactor) * lerp(0.8f, 1.15f, Hash(visualSeed));
+			height = max(scale * 0.72f, velocityLength * 0.55f) * lerp(0.82f, 1.18f, Hash(visualSeed ^ 0xa511e9b3u));
 		}
 		else
 		{
@@ -191,12 +199,15 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 				float3 rotatedUp = up * cosine - right * sine;
 				right = rotatedRight;
 				up = rotatedUp;
+				width *= lerp(0.82f, 1.12f, Hash(visualSeed));
+				height = width;
 			}
 		}
 
 		worldPosition = position + right * input.Position.x * width + up * input.Position.y * height;
-		float3 color = EnvironmentMode == GPU_ENVIRONMENT_RAIN ? float3(0.8f, 1.0f, 1.0f) : float3(1.0f, 1.0f, 1.0f);
-		output.Color = float4(color, particle.Opacity);
+		float3 color = EnvironmentMode == GPU_ENVIRONMENT_RAIN ? float3(0.82f, 0.91f, 1.0f) : float3(0.96f, 0.985f, 1.0f);
+		float opacityVariation = EnvironmentMode == GPU_ENVIRONMENT_RAIN ? lerp(0.72f, 1.0f, Hash(visualSeed ^ 0x63d83595u)) : 1.0f;
+		output.Color = float4(color, particle.Opacity * opacityVariation);
 	}
 
 	output.Position = mul(float4(worldPosition, 1.0f), ViewProjection);
@@ -213,20 +224,32 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 
 	float4 output = Texture.Sample(Sampler, input.UV) * input.Color;
 
-	if (EnvironmentMode == GPU_ENVIRONMENT_UNDERWATER_DUST)
+	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
+		if (input.PositionCopy.w <= 0.0f)
+			discard;
+
 		float particleDepth = input.PositionCopy.z / input.PositionCopy.w;
 		input.PositionCopy.xy /= input.PositionCopy.w;
-		float2 texCoord = 0.5f * (float2(input.PositionCopy.x, -input.PositionCopy.y) + 1.0f);
+		float2 texCoord = saturate(0.5f * (float2(input.PositionCopy.x, -input.PositionCopy.y) + 1.0f));
 		float sceneDepth = DepthTexture.Sample(DepthSampler, texCoord).x;
 		sceneDepth = LinearizeDepth(sceneDepth, NearPlane, FarPlane);
 		particleDepth = LinearizeDepth(particleDepth, NearPlane, FarPlane);
 
+		// Prevent rain and snow from being visible through roofs, walls and overhangs while
+		// the lower-frequency CPU sweep resolves the physical impact point.
 		if (particleDepth - sceneDepth > 0.01f)
 			discard;
 
-		float fade = (sceneDepth - particleDepth) * 1024.0f;
-		output.w = min(output.w, fade);
+		float surfaceSeparation = max(0.0f, sceneDepth - particleDepth);
+		if (EnvironmentMode == GPU_ENVIRONMENT_UNDERWATER_DUST)
+		{
+			output.w = min(output.w, surfaceSeparation * 1024.0f);
+		}
+		else
+		{
+			output.w *= saturate(surfaceSeparation * 384.0f);
+		}
 	}
 
 	output.xyz *= 1.0f - Luma(input.FogBulbs.xyz);
