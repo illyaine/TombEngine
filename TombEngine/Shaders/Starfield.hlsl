@@ -142,7 +142,7 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 	}
 	else
 	{
-		uint clusterStride = max(1, EnvironmentClusterStride);
+		uint clusterStride = (uint)max(1, EnvironmentClusterStride);
 		uint particleIndex = instanceID / clusterStride;
 		uint clusterIndex = instanceID % clusterStride;
 		WeatherInstance particle = WeatherParticles[particleIndex];
@@ -162,13 +162,18 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 
 		if (EnvironmentMode == GPU_ENVIRONMENT_RAIN)
 		{
-			float3 rainAxis = normalize(-particle.Velocity);
+			float velocityLengthSquared = dot(particle.Velocity, particle.Velocity);
+			float3 rainAxis = velocityLengthSquared > 0.0001f ? normalize(-particle.Velocity) : float3(0.0f, 1.0f, 0.0f);
 			float3 toCamera = normalize(CamPositionWS.xyz - position);
-			right = normalize(cross(rainAxis, toCamera));
+			float3 rightCandidate = cross(rainAxis, toCamera);
+			if (dot(rightCandidate, rightCandidate) <= 0.0001f)
+				rightCandidate = GetCameraRight();
+
+			right = normalize(rightCandidate);
 			up = rainAxis;
 
 			const float nearDistance = 512.0f;
-			const float farDistance = 3584.0f;
+			const float farDistance = 5734.4f;
 			float distanceToCamera = length(position - CamPositionWS.xyz);
 			float widthFactor = saturate((distanceToCamera - nearDistance) / max(1.0f, farDistance - nearDistance));
 			width = lerp(1.5f, 15.0f, widthFactor);
