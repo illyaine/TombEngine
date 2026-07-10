@@ -29,7 +29,9 @@ namespace TEN::Effects::Environment
 	constexpr auto WEATHER_PARTICLE_NEAR_DEATH_MELT_FACTOR = 1.0f - (1.0f / (WEATHER_PARTICLE_NEAR_DEATH_LIFE * 2));
 
 	constexpr auto DUST_SPAWN_DENSITY		 = 300;
-	constexpr auto DUST_PARTICLE_COUNT_MAX = 8192;
+	// This is above the natural maximum produced by the current spawn density and lifetime.
+	// It is a safety ceiling, not a quality throttle.
+	constexpr auto DUST_PARTICLE_COUNT_MAX = 16384;
 	constexpr auto DUST_LIFE				 = 40;
 	constexpr auto DUST_SPAWN_RADIUS		 = BLOCK(10);
 
