@@ -3,6 +3,7 @@
 
 #include "Game/camera.h"
 #include "Game/collision/collide_room.h"
+#include "Game/collision/Los.h"
 #include "Game/collision/Point.h"
 #include "Game/effects/effects.h"
 #include "Game/effects/Ripple.h"
@@ -15,12 +16,19 @@
 #include "Scripting/Include/ScriptInterfaceLevel.h"
 #include "Specific/level.h"
 
+using namespace TEN::Collision::Los;
 using namespace TEN::Collision::Point;
 using namespace TEN::Effects::Ripple;
 using namespace TEN::Math;
 
 namespace TEN::Effects::Environment
 {
+	constexpr auto RAIN_IMPACT_OFFSET = 4.0f;
+	constexpr auto RAIN_SPLASH_MIN_NORMAL_Y = 0.25f;
+	constexpr auto RAIN_WIND_RESPONSE = 0.2f;
+	constexpr auto RAIN_WIND_VELOCITY_MULT = 3.0f;
+	constexpr auto RAIN_HORIZONTAL_VELOCITY_MAX = 32.0f;
+
 	EnvironmentController Weather;
 
 	float WeatherParticle::Transparency() const
@@ -142,7 +150,7 @@ namespace TEN::Effects::Environment
 		for (int i = 0; i < 2; i++)
 		{
 			auto color = Color(
-				level.GetSkyLayerColor(i).GetR() / 255.0f, 
+				level.GetSkyLayerColor(i).GetR() / 255.0f,
 				level.GetSkyLayerColor(i).GetG() / 255.0f,
 				level.GetSkyLayerColor(i).GetB() / 255.0f,
 				1.0f);
@@ -332,7 +340,7 @@ namespace TEN::Effects::Environment
 
 				meteor.Position += meteor.Direction * level.GetStarfieldMeteorVelocity();
 			}
-		}		
+		}
 	}
 
 	void EnvironmentController::UpdateWeather(const ScriptInterfaceLevel& level)
@@ -388,21 +396,68 @@ namespace TEN::Effects::Environment
 			if (part.Type == WeatherType::None)
 				continue;
 
+			if (part.CollisionOriginRoomNumber == NO_VALUE)
+			{
+				part.CollisionOrigin = prevPos;
+				part.CollisionOriginRoomNumber = part.RoomNumber;
+			}
+
 			PointCollisionData pointColl;
 			bool collisionCalculated = false;
 			bool landed = false;
+			bool outsideRoom = !IsPointInRoom(part.Position, part.RoomNumber);
+			bool collisionCheckDue = part.CollisionCheckDelay <= 0 || outsideRoom;
 
-			if (part.CollisionCheckDelay <= 0)
+			if (collisionCheckDue)
 			{
+				// Sweep rain across the complete skipped collision interval. This catches thin roofs,
+				// sloped room geometry, doors and bridges without tracing every drop every frame.
+				if (part.Type == WeatherType::Rain)
+				{
+					auto sweepOffset = part.Position - part.CollisionOrigin;
+					float sweepDistance = sweepOffset.Length();
+
+					if (sweepDistance > EPSILON)
+					{
+						auto sweepDirection = sweepOffset / sweepDistance;
+						auto roomLos = GetRoomLosCollision(
+							part.CollisionOrigin,
+							part.CollisionOriginRoomNumber,
+							sweepDirection,
+							sweepDistance);
+
+						if (roomLos.IsIntersected)
+						{
+							auto impactPos = roomLos.Position - sweepDirection * RAIN_IMPACT_OFFSET;
+							part.Position = impactPos;
+							part.RoomNumber = roomLos.RoomNumber;
+							part.Stopped = true;
+							part.Enabled = false;
+
+							// Existing rain sparks are floor-oriented, so avoid spawning them on near-vertical walls.
+							if (!roomLos.Triangle.has_value() ||
+								std::abs(roomLos.Triangle->Normal.y) >= RAIN_SPLASH_MIN_NORMAL_Y)
+							{
+								AddWaterSparks((int)impactPos.x, (int)impactPos.y, (int)impactPos.z, 4);
+							}
+
+							continue;
+						}
+					}
+				}
+
 				pointColl = GetPointCollision(part.Position, part.RoomNumber);
 
 				// Determine collision checking frequency based on nearest floor/ceiling surface position.
-				// If floor and ceiling are too far, don't do precise collision checks, instead doing it 
+				// If floor and ceiling are too far, don't do precise collision checks, instead doing it
 				// every 5th frame. If particle approaches floor or ceiling, make checks more frequent.
 				// This avoids calls to GetPointCollision() for every particle.
-				
-				auto coeff = std::min(std::max(0.0f, (pointColl.GetFloorHeight() - part.Position.y)), std::max(0.0f, (part.Position.y - pointColl.GetCeilingHeight())));
-				part.CollisionCheckDelay = std::min(floor(coeff / std::max(std::numeric_limits<float>::denorm_min(), part.Velocity.y)), WEATHER_PARTICLE_COLL_CHECK_DELAY_MAX);
+				auto coeff = std::min(
+					std::max(0.0f, (pointColl.GetFloorHeight() - part.Position.y)),
+					std::max(0.0f, (part.Position.y - pointColl.GetCeilingHeight())));
+				part.CollisionCheckDelay = std::min(
+					floor(coeff / std::max(std::numeric_limits<float>::denorm_min(), part.Velocity.y)),
+					WEATHER_PARTICLE_COLL_CHECK_DELAY_MAX);
 				collisionCalculated = true;
 			}
 			else
@@ -411,14 +466,8 @@ namespace TEN::Effects::Environment
 			}
 
 			// Check if particle is beyond room bounds.
-			if (!IsPointInRoom(part.Position, part.RoomNumber))
+			if (outsideRoom)
 			{
-				if (!collisionCalculated)
-				{
-					pointColl = GetPointCollision(part.Position, part.RoomNumber);
-					collisionCalculated = true;
-				}
-
 				if (pointColl.GetRoomNumber() == part.RoomNumber)
 				{
 					// Not landed on door, so out of room bounds - land.
@@ -432,9 +481,9 @@ namespace TEN::Effects::Environment
 
 			float range = (part.Type == WeatherType::Rain) ? WEATHER_SPAWN_DIST_RAIN : COLLISION_CHECK_DISTANCE;
 
-			if (part.Type == WeatherType::Rain &&				
+			if (part.Type == WeatherType::Rain &&
 				(abs(Camera.pos.x - part.Position.x) > range ||
-				abs(Camera.pos.z - part.Position.z) > range))
+				 abs(Camera.pos.z - part.Position.z) > range))
 			{
 				part.Life = std::clamp(part.Life, 0.0f, WEATHER_PARTICLE_NEAR_DEATH_LIFE);
 			}
@@ -445,12 +494,13 @@ namespace TEN::Effects::Environment
 				// If particle is inside water or swamp, count it as "inSubstance".
 				// If particle got below floor or above ceiling, count it as "landed".
 				bool inSubstance = g_Level.Rooms[pointColl.GetRoomNumber()].flags & (ENV_FLAG_WATER | ENV_FLAG_SWAMP);
-				landed = landed || (pointColl.GetFloorHeight() <= part.Position.y) || (pointColl.GetCeilingHeight() >= part.Position.y);
+				bool hitFloor = pointColl.GetFloorHeight() <= part.Position.y;
+				bool hitCeiling = pointColl.GetCeilingHeight() >= part.Position.y;
+				landed = landed || hitFloor || hitCeiling;
 
 				if (inSubstance || landed)
 				{
 					part.Stopped = true;
-					part.Position = prevPos;
 					part.Life = std::clamp(part.Life, 0.0f, WEATHER_PARTICLE_NEAR_DEATH_LIFE);
 
 					// Produce ripples if particle got into substance (water or swamp).
@@ -458,18 +508,48 @@ namespace TEN::Effects::Environment
 					{
 						auto ripplePos = part.Position;
 						ripplePos.y = pointColl.GetWaterSurfaceHeight();
-						SpawnRipple(ripplePos, part.RoomNumber, Random::GenerateFloat(16.0f, 24.0f), (int)RippleFlags::SlowFade | (int)RippleFlags::LowOpacity);
+						SpawnRipple(
+							ripplePos,
+							pointColl.GetRoomNumber(),
+							Random::GenerateFloat(16.0f, 24.0f),
+							(int)RippleFlags::SlowFade | (int)RippleFlags::LowOpacity);
 					}
 
-					// Immediately disable rain particle because it doesn't need fading out.
 					if (part.Type == WeatherType::Rain)
 					{
+						auto impactPos = part.Position;
+						if (inSubstance)
+						{
+							impactPos.y = pointColl.GetWaterSurfaceHeight();
+						}
+						else if (hitFloor)
+						{
+							impactPos.y = pointColl.GetFloorHeight() - RAIN_IMPACT_OFFSET;
+						}
+						else if (hitCeiling)
+						{
+							impactPos.y = pointColl.GetCeilingHeight() + RAIN_IMPACT_OFFSET;
+						}
+
+						part.Position = impactPos;
+						part.RoomNumber = pointColl.GetRoomNumber();
 						part.Enabled = false;
-						AddWaterSparks(prevPos.x, inSubstance ? pointColl.GetWaterSurfaceHeight() : pointColl.GetFloorHeight() - 32, prevPos.z, 6);
+						AddWaterSparks(
+							(int)impactPos.x,
+							(int)impactPos.y,
+							(int)impactPos.z,
+							inSubstance ? 6 : 4);
+					}
+					else
+					{
+						part.Position = prevPos;
 					}
 
 					continue;
 				}
+
+				part.CollisionOrigin = part.Position;
+				part.CollisionOriginRoomNumber = part.RoomNumber;
 			}
 
 			// Update velocities for every particle type.
@@ -501,39 +581,29 @@ namespace TEN::Effects::Environment
 				break;
 
 			case WeatherType::Rain:
-
+			{
 				auto random = Random::GenerateInt();
-				if ((random & 3) != 3)
-				{
-					part.Velocity.x += (float)((random & 3) - 1);
-					if (part.Velocity.x < -4)
-					{
-						part.Velocity.x = -4;
-					}
-					else if (part.Velocity.x > 4)
-					{
-						part.Velocity.x = 4;
-					}
-				}
+				int randomX = random & 3;
+				int randomZ = (random >> 2) & 3;
+				float jitterX = (randomX != 3) ? (float)(randomX - 1) : 0.0f;
+				float jitterZ = (randomZ != 3) ? (float)(randomZ - 1) : 0.0f;
+				float targetWindX = WindX * RAIN_WIND_VELOCITY_MULT;
+				float targetWindZ = WindZ * RAIN_WIND_VELOCITY_MULT;
 
-				random = (random >> 2) & 3;
-				if (random != 3)
-				{
-					part.Velocity.z += random - 1;
-					if (part.Velocity.z < -4)
-					{
-						part.Velocity.z = -4;
-					}
-					else if (part.Velocity.z > 4)
-					{
-						part.Velocity.z = 4;
-					}
-				}
+				part.Velocity.x = std::clamp(
+					part.Velocity.x + (targetWindX - part.Velocity.x) * RAIN_WIND_RESPONSE + jitterX,
+					-RAIN_HORIZONTAL_VELOCITY_MAX,
+					RAIN_HORIZONTAL_VELOCITY_MAX);
+				part.Velocity.z = std::clamp(
+					part.Velocity.z + (targetWindZ - part.Velocity.z) * RAIN_WIND_RESPONSE + jitterZ,
+					-RAIN_HORIZONTAL_VELOCITY_MAX,
+					RAIN_HORIZONTAL_VELOCITY_MAX);
 
 				if (part.Velocity.y < part.Size * 2 * std::clamp(level.GetWeatherStrength(), 0.6f, 1.0f))
 					part.Velocity.y += part.Size / 5.0f;
 
 				break;
+			}
 			}
 		}
 	}
@@ -622,16 +692,16 @@ namespace TEN::Effects::Environment
 				{
 					dist = WEATHER_SPAWN_DIST_OTHER;
 				}
-				
+
 				float radius = Random::GenerateInt(0, dist);
 				short angle = Random::GenerateAngle();
 
 				auto xPos = Camera.pos.x + ((int)(phd_cos(angle) * radius));
 				auto zPos = Camera.pos.z + ((int)(phd_sin(angle) * radius));
 				auto yPos = Camera.pos.y - (BLOCK(3) + Random::GenerateInt() & (BLOCK(4) - 1));
-				
+
 				auto outsideRoom = IsRoomOutside(xPos, yPos, zPos);
-				
+
 				if (outsideRoom == NO_VALUE)
 					continue;
 
@@ -671,6 +741,8 @@ namespace TEN::Effects::Environment
 				part.Position.x = xPos;
 				part.Position.y = yPos;
 				part.Position.z = zPos;
+				part.CollisionOrigin = part.Position;
+				part.CollisionOriginRoomNumber = part.RoomNumber;
 				part.Stopped = false;
 				part.Enabled = true;
 				part.CollisionCheckDelay = 0;
