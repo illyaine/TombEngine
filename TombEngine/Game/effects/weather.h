@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include "Objects/Effects/LensFlare.h"
 #include "Objects/game_object_ids.h"
 #include "Scripting/Include/ScriptInterfaceLevel.h"
@@ -26,9 +28,10 @@ namespace TEN::Effects::Environment
 	constexpr auto WEATHER_PARTICLE_NEAR_DEATH_LIFE		   = 20.0f;
 	constexpr auto WEATHER_PARTICLE_NEAR_DEATH_MELT_FACTOR = 1.0f - (1.0f / (WEATHER_PARTICLE_NEAR_DEATH_LIFE * 2));
 
-	constexpr auto DUST_SPAWN_DENSITY = 300;
-	constexpr auto DUST_LIFE		  = 40;
-	constexpr auto DUST_SPAWN_RADIUS  = BLOCK(10);
+	constexpr auto DUST_SPAWN_DENSITY		 = 300;
+	constexpr auto DUST_PARTICLE_COUNT_MAX = 8192;
+	constexpr auto DUST_LIFE				 = 40;
+	constexpr auto DUST_SPAWN_RADIUS		 = BLOCK(10);
 
 	constexpr auto METEOR_PARTICLE_COUNT_MAX	 = 10;
 	constexpr auto METEOR_PARTICLE_LIFE_MAX		 = 150;
@@ -164,7 +167,40 @@ namespace TEN::Effects::Environment
 		void Update();
 		void Clear();
 
-		const std::vector<WeatherParticle>& GetParticles() const { return Particles; }
+		// The legacy sprite preparation path is intentionally empty. GPU weather rendering
+		// consumes the logical particles directly through GetGpuParticles().
+		const std::vector<WeatherParticle>& GetParticles() const
+		{
+			static const std::vector<WeatherParticle> EmptyParticles = {};
+			return EmptyParticles;
+		}
+
+		const std::vector<WeatherParticle>& GetGpuParticles()
+		{
+			auto dustCount = std::count_if(
+				Particles.begin(), Particles.end(),
+				[](const auto& particle) { return particle.Type == WeatherType::None; });
+
+			if (dustCount > DUST_PARTICLE_COUNT_MAX)
+			{
+				auto removeCount = dustCount - DUST_PARTICLE_COUNT_MAX;
+				for (auto particle = Particles.begin(); particle != Particles.end() && removeCount > 0;)
+				{
+					if (particle->Type == WeatherType::None)
+					{
+						particle = Particles.erase(particle);
+						removeCount--;
+					}
+					else
+					{
+						++particle;
+					}
+				}
+			}
+
+			return Particles;
+		}
+
 		const std::vector<StarParticle>&	GetStars() const { return Stars; }
 		unsigned int GetStarfieldRevision() const { return StarfieldRevision; }
 		const std::vector<MeteorParticle>&	GetMeteors() const { return Meteors; }
