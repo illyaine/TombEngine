@@ -115,8 +115,8 @@ void GetWeatherCluster(
 		float phase = Hash(uniqueSeed ^ 0x68bc21ebu) * 6.28318530718f + Frame * 0.018f;
 		float flutter = sin(phase) * scale * 0.32f;
 		float secondaryFlutter = cos(phase * 0.73f + 1.7f) * scale * 0.24f;
-		position.x += positionOffset.x * sin(phase * 0.55f) + flutter;
-		position.z += positionOffset.z * cos(phase * 0.61f) + secondaryFlutter;
+		position.x += positionOffset.x * 0.25f * sin(phase * 0.55f) + flutter;
+		position.z += positionOffset.z * 0.25f * cos(phase * 0.61f) + secondaryFlutter;
 		position.y += sin(phase * 0.37f) * scale * 0.08f;
 		rotation = phase + (clusterIndex / max(1.0f, (float)particle.ClusterSize)) * 6.28318530718f;
 	}
