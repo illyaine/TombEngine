@@ -8,6 +8,7 @@
 #include "Objects/game_object_ids.h"
 
 using namespace TEN::Effects::Environment;
+using namespace TEN::Renderer::ConstantBuffers;
 using namespace TEN::Renderer::Structures;
 
 namespace TEN::Renderer
@@ -42,7 +43,6 @@ namespace TEN::Renderer
 		_stStarfield.UV[1].y = sprite->UV[1].y;
 		_stStarfield.UV[1].z = sprite->UV[2].y;
 		_stStarfield.UV[1].w = sprite->UV[3].y;
-		UpdateConstantBuffer(_stStarfield, _cbStarfield);
 
 		auto rendererStars = std::vector<RendererStar>{};
 		rendererStars.reserve(stars.size());
@@ -94,7 +94,12 @@ namespace TEN::Renderer
 		if (_starfieldCount == 0 || _starfieldBufferView == nullptr)
 			return;
 
+		_stStarfield.Mode = GpuEnvironmentMode::Starfield;
+		_stStarfield.ClusterStride = 1;
+		_stStarfield.ClusterSpread = 0.0f;
+		UpdateConstantBuffer(_stStarfield, _cbStarfield);
 		BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+		BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
 
 		SetDepthState(DepthState::Read);
 		SetBlendMode(BlendMode::Additive);
@@ -119,6 +124,7 @@ namespace TEN::Renderer
 		ID3D11ShaderResourceView* nullView = nullptr;
 		_context->VSSetShaderResources(STARFIELD_BUFFER_SLOT, 1, &nullView);
 		BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbInstancedSpriteBuffer.get());
+		BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbInstancedSpriteBuffer.get());
 
 		_numInstancedSpritesDrawCalls++;
 	}
