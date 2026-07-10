@@ -93,7 +93,7 @@ void GetWeatherCluster(
 
 	if (clusterIndex > 0)
 	{
-		float offsetBase = EnvironmentClusterSpread * ((clusterIndex + 1.0f) / max(1.0f, (float)particle.ClusterSize));
+		float offsetBase = EnvironmentClusterSpread * 0.8f * ((clusterIndex + 1.0f) / max(1.0f, (float)particle.ClusterSize));
 		float xSign = (uniqueSeed & 1u) ? 1.0f : -1.0f;
 		float zSign = (uniqueSeed & 4u) ? 1.0f : -1.0f;
 		uint axisEmphasis = uniqueSeed & 3u;
