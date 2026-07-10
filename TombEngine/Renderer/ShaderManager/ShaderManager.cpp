@@ -115,6 +115,7 @@ namespace TEN::Renderer::Utils
 
 		Load(Shader::InstancedStatics, "InstancedStatics", "", ShaderType::PixelAndVertex);
 		Load(Shader::InstancedSprites, "InstancedSprites", "", ShaderType::PixelAndVertex);
+		Load(Shader::Starfield, "Starfield", "", ShaderType::PixelAndVertex);
 
 		Load(Shader::GBuffer, "GBuffer", "", ShaderType::Pixel);
 		Load(Shader::GBufferRooms, "GBuffer", "Rooms", ShaderType::Vertex);

@@ -6,6 +6,7 @@
 #include <d3d9types.h>
 #include <SimpleMath.h>
 #include <PostProcess.h>
+#include <limits>
 
 #include "Math/Math.h"
 #include "Game/control/box.h"
@@ -36,6 +37,7 @@
 #include "Renderer/ConstantBuffers/MaterialBuffer.h"
 #include "Renderer/ConstantBuffers/InstancedStaticBuffer.h"
 #include "Renderer/ConstantBuffers/InstancedSpriteBuffer.h"
+#include "Renderer/ConstantBuffers/StarfieldBuffer.h"
 #include "Renderer/ConstantBuffers/ConstantBuffer.h"
 #include "Renderer/ConstantBuffers/PostProcessBuffer.h"
 #include "Renderer/ConstantBuffers/SMAABuffer.h"
@@ -180,6 +182,8 @@ namespace TEN::Renderer
 		ConstantBuffer<CPostProcessBuffer> _cbPostProcessBuffer;
 		CInstancedSpriteBuffer _stInstancedSpriteBuffer;
 		ConstantBuffer<CInstancedSpriteBuffer> _cbInstancedSpriteBuffer;
+		CStarfieldBuffer _stStarfield;
+		ConstantBuffer<CStarfieldBuffer> _cbStarfield;
 		CBlendingBuffer _stBlending;
 		ConstantBuffer<CBlendingBuffer> _cbBlending;
 		CInstancedStaticMeshBuffer _stInstancedStaticMeshBuffer;
@@ -227,6 +231,13 @@ namespace TEN::Renderer
 		VertexBuffer<Vertex> _skyVertexBuffer;
 		IndexBuffer _skyIndexBuffer;
 		VertexBuffer<Vertex> _quadVertexBuffer;
+
+		// Starfield
+
+		ComPtr<ID3D11Buffer> _starfieldBuffer = nullptr;
+		ComPtr<ID3D11ShaderResourceView> _starfieldBufferView = nullptr;
+		unsigned int _starfieldRevision = std::numeric_limits<unsigned int>::max();
+		int _starfieldCount = 0;
 
 		std::vector<Vertex> _roomsVertices;
 		std::vector<int> _roomsIndices;
@@ -434,6 +445,8 @@ namespace TEN::Renderer
 		void PrepareLaserBarriers(RenderView& view);
 		void PrepareSingleLaserBeam(RenderView& view);
 		void DrawHorizonAndSky(ID3D11DepthStencilView* depthStencilView, RenderView& renderView, bool reflectionPass = false);
+		void DrawStarfield();
+		void UpdateStarfieldBuffer();
 		void DrawHorizonAndSkyForReflections(RenderView& renderView);
 		void DrawRooms(RenderView& view, RendererPass rendererPass);
 		void DrawItems(RenderView& view, RendererPass rendererPass, bool onlyPlayer = false);

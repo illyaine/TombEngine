@@ -3127,58 +3127,8 @@ namespace TEN::Renderer
 
 			BindTexture(TextureRegister::ColorMap, _sprites[Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_LENS_FLARE_3].Texture, SamplerStateRegister::LinearClamp);
 
-			int drawnStars = 0;
-			int starCount = (int)Weather.GetStars().size();
-
-			while (drawnStars < starCount)
-			{
-				int starsToDraw =
-					(starCount - drawnStars) > INSTANCED_SPRITES_BUCKET_SIZE ? 
-					INSTANCED_SPRITES_BUCKET_SIZE : 
-					(starCount - drawnStars);
-				int i = 0;
-
-				for (int i = 0; i < starsToDraw; i++)
-				{
-					auto& star = Weather.GetStars()[drawnStars + i];
-
-					RendererSpriteToDraw rDrawSprite;
-					rDrawSprite.Sprite = &_sprites[Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_LENS_FLARE_3];
-
-					rDrawSprite.Type = SpriteType::Billboard;
-					rDrawSprite.pos = renderView.Camera.WorldPosition + star.Direction * BLOCK(1);
-					rDrawSprite.Rotation = 0;
-					rDrawSprite.Scale = 1;
-					rDrawSprite.Width = STAR_SIZE * star.Scale;
-					rDrawSprite.Height = STAR_SIZE * star.Scale;
-
-					_stInstancedSpriteBuffer.Sprites[i].World = GetWorldMatrixForSprite(rDrawSprite, renderView);
-					_stInstancedSpriteBuffer.Sprites[i].Color = Vector4(
-						star.Color.x,
-						star.Color.y,
-						star.Color.z,
-						star.Blinking * star.Extinction);
-					_stInstancedSpriteBuffer.Sprites[i].IsBillboard = 1;
-					_stInstancedSpriteBuffer.Sprites[i].IsSoftParticle = 0;
-
-					// NOTE: Strange packing due to particular HLSL 16 byte alignment requirements.
-					_stInstancedSpriteBuffer.Sprites[i].UV[0].x = rDrawSprite.Sprite->UV[0].x;
-					_stInstancedSpriteBuffer.Sprites[i].UV[0].y = rDrawSprite.Sprite->UV[1].x;
-					_stInstancedSpriteBuffer.Sprites[i].UV[0].z = rDrawSprite.Sprite->UV[2].x;
-					_stInstancedSpriteBuffer.Sprites[i].UV[0].w = rDrawSprite.Sprite->UV[3].x;
-					_stInstancedSpriteBuffer.Sprites[i].UV[1].x = rDrawSprite.Sprite->UV[0].y;
-					_stInstancedSpriteBuffer.Sprites[i].UV[1].y = rDrawSprite.Sprite->UV[1].y;
-					_stInstancedSpriteBuffer.Sprites[i].UV[1].z = rDrawSprite.Sprite->UV[2].y;
-					_stInstancedSpriteBuffer.Sprites[i].UV[1].w = rDrawSprite.Sprite->UV[3].y;
-				}
-
-				UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
-
-				// Draw sprites with instancing.
-				DrawInstancedTriangles(4, starsToDraw, 0);
-
-				drawnStars += starsToDraw;
-			}
+			DrawStarfield();
+			_shaders.Bind(Shader::InstancedSprites);
 
 			// Draw meteors
 			if (Weather.GetMeteors().size() > 0)

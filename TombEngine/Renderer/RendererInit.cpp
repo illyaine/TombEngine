@@ -69,6 +69,7 @@ namespace TEN::Renderer
 		_cbPostProcessBuffer = CreateConstantBuffer<CPostProcessBuffer>();
 		_cbBlending = CreateConstantBuffer<CBlendingBuffer>();
 		_cbInstancedSpriteBuffer = CreateConstantBuffer<CInstancedSpriteBuffer>();
+		_cbStarfield = CreateConstantBuffer<CStarfieldBuffer>();
 		_cbInstancedStaticMeshBuffer = CreateConstantBuffer<CInstancedStaticMeshBuffer>();
 		_cbSMAABuffer = CreateConstantBuffer<CSMAABuffer>();
 		_cbMaterial = CreateConstantBuffer<CMaterialBuffer>();

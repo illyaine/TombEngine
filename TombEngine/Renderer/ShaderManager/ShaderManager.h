@@ -18,6 +18,7 @@ namespace TEN::Renderer::Utils
 		Items,
 		InstancedStatics,
 		InstancedSprites,
+		Starfield,
 		Sky,
 		Solid,
 		Inventory,

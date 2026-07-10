@@ -85,6 +85,7 @@ namespace TEN::Effects::Environment
 		// Clear starfield.
 		ResetStarField = true;
 		Stars.clear();
+		StarfieldRevision++;
 		Meteors.clear();
 	}
 
@@ -234,12 +235,23 @@ namespace TEN::Effects::Environment
 	{
 		int starCount = level.GetStarfieldStarCount();
 		if (starCount == 0)
+		{
+			if (!Stars.empty())
+			{
+				Stars.clear();
+				StarfieldRevision++;
+			}
+
 			return;
+		}
+
+		bool starfieldChanged = false;
 
 		if (ResetStarField)
 		{
 			Stars.clear();
 			ResetStarField = false;
+			starfieldChanged = true;
 		}
 
 		if (starCount != Stars.size())
@@ -285,10 +297,11 @@ namespace TEN::Effects::Environment
 				Stars.resize(starCount);
 			}
 
+			starfieldChanged = true;
 		}
 
-		for (auto& star : Stars)
-			star.Blinking = Random::GenerateFloat(0.5f, 1.0f);
+		if (starfieldChanged)
+			StarfieldRevision++;
 
 		if (level.GetStarfieldMeteorCount() > 0)
 		{

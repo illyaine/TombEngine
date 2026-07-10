@@ -50,7 +50,6 @@ namespace TEN::Effects::Environment
 
 		float Extinction = 1.0f;
 		float Scale		 = 1.0f;
-		float Blinking	 = 1.0f;
 	};
 
 	struct MeteorParticle
@@ -147,6 +146,7 @@ namespace TEN::Effects::Environment
 		std::vector<StarParticle>	Stars		   = {};
 		std::vector<MeteorParticle> Meteors		   = {};
 		bool						ResetStarField = true;
+		unsigned int				StarfieldRevision = 0;
 
 		// Lens flare
 
@@ -166,6 +166,7 @@ namespace TEN::Effects::Environment
 
 		const std::vector<WeatherParticle>& GetParticles() const { return Particles; }
 		const std::vector<StarParticle>&	GetStars() const { return Stars; }
+		unsigned int GetStarfieldRevision() const { return StarfieldRevision; }
 		const std::vector<MeteorParticle>&	GetMeteors() const { return Meteors; }
 
 	private:

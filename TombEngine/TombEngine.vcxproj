@@ -792,6 +792,7 @@ if not exist "%ScriptsDir%\Strings.lua" xcopy /Y "$(SolutionDir)Scripts\Strings.
     <ClInclude Include="Renderer\ConstantBuffers\ShaderLight.h" />
     <ClInclude Include="Renderer\ConstantBuffers\ShadowLightBuffer.h" />
     <ClInclude Include="Renderer\ConstantBuffers\SkyBuffer.h" />
+    <ClInclude Include="Renderer\ConstantBuffers\StarfieldBuffer.h" />
     <ClInclude Include="Renderer\ConstantBuffers\SMAABuffer.h" />
     <ClInclude Include="Renderer\Frustum.h" />
     <ClInclude Include="Renderer\Graphics\IndexBuffer.h" />
@@ -1352,6 +1353,7 @@ if not exist "%ScriptsDir%\Strings.lua" xcopy /Y "$(SolutionDir)Scripts\Strings.
     <ClCompile Include="Renderer\RendererPostProcess.cpp" />
     <ClCompile Include="Renderer\RendererSettings.cpp" />
     <ClCompile Include="Renderer\RendererSprites.cpp" />
+    <ClCompile Include="Renderer\RendererStarfield.cpp" />
     <ClCompile Include="Renderer\RendererString.cpp" />
     <ClCompile Include="Renderer\RendererUtils.cpp" />
     <ClCompile Include="Renderer\RenderView.cpp" />
@@ -1456,6 +1458,9 @@ if not exist "%ScriptsDir%\Strings.lua" xcopy /Y "$(SolutionDir)Scripts\Strings.
       <DeploymentContent>true</DeploymentContent>
     </None>
     <None Include="Shaders\CBSky.hlsli">
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Shaders\CBStarfield.hlsli">
       <DeploymentContent>true</DeploymentContent>
     </None>
     <None Include="Shaders\Materials.hlsli">
@@ -1634,6 +1639,18 @@ if not exist "%ScriptsDir%\Strings.lua" xcopy /Y "$(SolutionDir)Scripts\Strings.
       <DeploymentContent>true</DeploymentContent>
     </None>
     <None Include="Shaders\Sky.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</DeploymentContent>
+      <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
+      <FileType>Document</FileType>
+      <DeploymentContent>true</DeploymentContent>
+    </None>
+    <None Include="Shaders\Starfield.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
