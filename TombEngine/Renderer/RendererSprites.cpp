@@ -1,14 +1,51 @@
 #include "framework.h"
 #include "Renderer/Structures/RendererSprite.h"
 
+#include "Game/effects/weather.h"
+#include "Game/Setup.h"
 #include "Renderer/Structures/RendererSpriteBucket.h"
 #include "Renderer/Renderer.h"
 #include "Specific/Parallel.h"
 
+using namespace TEN::Effects::Environment;
+using namespace TEN::Renderer::ConstantBuffers;
 using namespace TEN::Renderer::Structures;
 
 namespace TEN::Renderer
 {
+	namespace
+	{
+		constexpr auto WEATHER_BUFFER_SLOT = 15;
+		constexpr auto GPU_WEATHER_CLUSTER_STRIDE = 16;
+
+		struct alignas(16) RendererWeatherParticle
+		{
+			Vector3 Position = Vector3::Zero;
+			float Size = 0.0f;
+			Vector3 Velocity = Vector3::Zero;
+			float Opacity = 0.0f;
+			int UniqueID = 0;
+			int ClusterSize = 1;
+			int Padding0 = 0;
+			int Padding1 = 0;
+		};
+
+		static_assert(sizeof(RendererWeatherParticle) == 48);
+
+		struct WeatherGpuBuffer
+		{
+			ComPtr<ID3D11Buffer> Buffer = nullptr;
+			ComPtr<ID3D11ShaderResourceView> View = nullptr;
+			size_t Capacity = 0;
+		};
+
+		struct WeatherCpuBucket
+		{
+			RendererSprite* Sprite = nullptr;
+			std::vector<RendererWeatherParticle> Particles = {};
+		};
+	}
+
 	void Renderer::AddSpriteBillboard(RendererSprite* sprite, const Vector3& pos, const Vector4& color, float orient2D, float scale,
 									  Vector2 size, BlendMode blendMode, bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
 	{
@@ -40,8 +77,8 @@ namespace TEN::Renderer
 	}
 
 	void Renderer::AddSpriteBillboardConstrained(RendererSprite* sprite, const Vector3& pos, const Vector4& color, float orient2D,
-												 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
-												 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
+											 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
+											 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
 	{
 		if (scale <= 0.0f)
 			scale = 1.0f;
@@ -259,6 +296,205 @@ namespace TEN::Renderer
 
 	void Renderer::DrawSprites(RenderView& view, RendererPass rendererPass)
 	{
+		if (rendererPass == RendererPass::Additive)
+		{
+			static ID3D11Device* resourceDevice = nullptr;
+			static WeatherGpuBuffer dustGpuBuffer = {};
+			static std::vector<WeatherGpuBuffer> snowGpuBuffers = {};
+			static std::vector<WeatherGpuBuffer> rainGpuBuffers = {};
+			static WeatherCpuBucket dustBucket = {};
+			static std::vector<WeatherCpuBucket> snowBuckets = {};
+			static std::vector<WeatherCpuBucket> rainBuckets = {};
+
+			if (resourceDevice != _device.Get())
+			{
+				resourceDevice = _device.Get();
+				dustGpuBuffer = {};
+				snowGpuBuffers.clear();
+				rainGpuBuffers.clear();
+			}
+
+			const bool hasDefaultSprites = Objects[ID_DEFAULT_SPRITES].loaded;
+			const bool hasDripSprite = Objects[ID_DRIP_SPRITE].loaded;
+			const bool hasSnowSprites = Objects[ID_SNOW_SPRITES].loaded && Objects[ID_SNOW_SPRITES].nmeshes > 0;
+			const bool hasRainSprites = Objects[ID_RAIN_SPRITES].loaded && Objects[ID_RAIN_SPRITES].nmeshes > 0;
+			const int snowSpriteCount = hasSnowSprites ? Objects[ID_SNOW_SPRITES].nmeshes : (hasDefaultSprites ? 1 : 0);
+			const int rainSpriteCount = hasRainSprites ? Objects[ID_RAIN_SPRITES].nmeshes : (hasDripSprite ? 1 : 0);
+
+			dustBucket.Particles.clear();
+			dustBucket.Sprite = hasDefaultSprites ? &_sprites[Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_UNDERWATERDUST] : nullptr;
+
+			snowBuckets.resize(snowSpriteCount);
+			snowGpuBuffers.resize(snowSpriteCount);
+			for (int i = 0; i < snowSpriteCount; i++)
+			{
+				snowBuckets[i].Particles.clear();
+				const int spriteIndex = hasSnowSprites ? Objects[ID_SNOW_SPRITES].meshIndex + i : Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_UNDERWATERDUST;
+				snowBuckets[i].Sprite = &_sprites[spriteIndex];
+			}
+
+			rainBuckets.resize(rainSpriteCount);
+			rainGpuBuffers.resize(rainSpriteCount);
+			for (int i = 0; i < rainSpriteCount; i++)
+			{
+				rainBuckets[i].Particles.clear();
+				const int spriteIndex = hasRainSprites ? Objects[ID_RAIN_SPRITES].meshIndex + i : Objects[ID_DRIP_SPRITE].meshIndex;
+				rainBuckets[i].Sprite = &_sprites[spriteIndex];
+			}
+
+			const auto interpolationFactor = GetInterpolationFactor();
+			for (const auto& particle : Weather.GetGpuParticles())
+			{
+				if (!particle.Enabled)
+					continue;
+
+				auto position = Vector3::Lerp(particle.PrevPosition, particle.Position, interpolationFactor);
+				auto velocity = particle.Velocity;
+				const float size = Lerp(particle.PrevSize, particle.Size, interpolationFactor);
+				const float cullRadius = particle.Type == WeatherType::None ? size : size + BLOCK(2.0f);
+
+				if (!view.Camera.Frustum.SphereInFrustum(position, cullRadius))
+					continue;
+
+				if (_currentMirror != nullptr)
+				{
+					auto velocityEnd = position + velocity;
+					ReflectVectorOptionally(position);
+					ReflectVectorOptionally(velocityEnd);
+					velocity = velocityEnd - position;
+				}
+
+				RendererWeatherParticle rendererParticle = {};
+				rendererParticle.Position = position;
+				rendererParticle.Size = size;
+				rendererParticle.Velocity = velocity;
+				rendererParticle.Opacity = particle.Transparency();
+				rendererParticle.UniqueID = particle.UniqueID;
+				rendererParticle.ClusterSize = particle.Stopped ? 1 : std::clamp(particle.ClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
+
+				switch (particle.Type)
+				{
+				case WeatherType::None:
+					if (dustBucket.Sprite != nullptr)
+						dustBucket.Particles.push_back(rendererParticle);
+					break;
+
+				case WeatherType::Snow:
+					if (!snowBuckets.empty())
+						snowBuckets[particle.UniqueID % snowBuckets.size()].Particles.push_back(rendererParticle);
+					break;
+
+				case WeatherType::Rain:
+					if (!rainBuckets.empty())
+						rainBuckets[particle.UniqueID % rainBuckets.size()].Particles.push_back(rendererParticle);
+					break;
+				}
+			}
+
+			auto uploadBuffer = [&](WeatherGpuBuffer& gpuBuffer, const std::vector<RendererWeatherParticle>& particles)
+			{
+				if (particles.empty())
+					return false;
+
+				if (gpuBuffer.Capacity < particles.size())
+				{
+					size_t capacity = 1;
+					while (capacity < particles.size())
+						capacity <<= 1;
+
+					auto bufferDesc = D3D11_BUFFER_DESC{};
+					bufferDesc.ByteWidth = static_cast<UINT>(sizeof(RendererWeatherParticle) * capacity);
+					bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+					bufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+					bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+					bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+					bufferDesc.StructureByteStride = sizeof(RendererWeatherParticle);
+
+					gpuBuffer.Buffer.Reset();
+					gpuBuffer.View.Reset();
+					Utils::throwIfFailed(_device->CreateBuffer(&bufferDesc, nullptr, gpuBuffer.Buffer.GetAddressOf()));
+
+					auto viewDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
+					viewDesc.Format = DXGI_FORMAT_UNKNOWN;
+					viewDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+					viewDesc.Buffer.FirstElement = 0;
+					viewDesc.Buffer.NumElements = static_cast<UINT>(capacity);
+					Utils::throwIfFailed(_device->CreateShaderResourceView(gpuBuffer.Buffer.Get(), &viewDesc, gpuBuffer.View.GetAddressOf()));
+					gpuBuffer.Capacity = capacity;
+				}
+
+				auto mappedResource = D3D11_MAPPED_SUBRESOURCE{};
+				Utils::throwIfFailed(_context->Map(gpuBuffer.Buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
+				memcpy(mappedResource.pData, particles.data(), particles.size() * sizeof(RendererWeatherParticle));
+				_context->Unmap(gpuBuffer.Buffer.Get(), 0);
+				return true;
+			};
+
+			auto packEnvironmentTextureCoordinates = [&](RendererSprite* sprite)
+			{
+				_stStarfield.UV[0].x = sprite->UV[0].x;
+				_stStarfield.UV[0].y = sprite->UV[1].x;
+				_stStarfield.UV[0].z = sprite->UV[2].x;
+				_stStarfield.UV[0].w = sprite->UV[3].x;
+				_stStarfield.UV[1].x = sprite->UV[0].y;
+				_stStarfield.UV[1].y = sprite->UV[1].y;
+				_stStarfield.UV[1].z = sprite->UV[2].y;
+				_stStarfield.UV[1].w = sprite->UV[3].y;
+			};
+
+			const bool hasGpuWeather = !dustBucket.Particles.empty() ||
+				std::any_of(snowBuckets.begin(), snowBuckets.end(), [](const auto& bucket) { return !bucket.Particles.empty(); }) ||
+				std::any_of(rainBuckets.begin(), rainBuckets.end(), [](const auto& bucket) { return !bucket.Particles.empty(); });
+
+			if (hasGpuWeather)
+			{
+				_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+				_context->IASetInputLayout(_inputLayout.Get());
+				unsigned int stride = sizeof(Vertex);
+				unsigned int offset = 0;
+				_context->IASetVertexBuffers(0, 1, _quadVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
+
+				BindRenderTargetAsTexture(TextureRegister::GBufferDepthMap, &_depthRenderTarget, SamplerStateRegister::PointWrap);
+				SetDepthState(DepthState::Read);
+				SetBlendMode(BlendMode::Additive);
+				SetCullMode(CullMode::None);
+				SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
+				_shaders.Bind(Shader::Starfield);
+
+				auto drawBucket = [&](WeatherCpuBucket& bucket, WeatherGpuBuffer& gpuBuffer, GpuEnvironmentMode mode, int clusterStride)
+				{
+					if (!uploadBuffer(gpuBuffer, bucket.Particles))
+						return;
+
+					packEnvironmentTextureCoordinates(bucket.Sprite);
+					_stStarfield.Mode = mode;
+					_stStarfield.ClusterStride = clusterStride;
+					_stStarfield.ClusterSpread = mode == GpuEnvironmentMode::UnderwaterDust ? 0.0f : BLOCK(1.0f);
+					UpdateConstantBuffer(_stStarfield, _cbStarfield);
+					BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+					BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+					BindTexture(TextureRegister::ColorMap, bucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
+
+					auto* weatherView = gpuBuffer.View.Get();
+					_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &weatherView);
+					DrawInstancedTriangles(4, static_cast<int>(bucket.Particles.size()) * clusterStride, 0);
+					_numInstancedSpritesDrawCalls++;
+				};
+
+				drawBucket(dustBucket, dustGpuBuffer, GpuEnvironmentMode::UnderwaterDust, 1);
+				for (int i = 0; i < snowBuckets.size(); i++)
+					drawBucket(snowBuckets[i], snowGpuBuffers[i], GpuEnvironmentMode::Snow, GPU_WEATHER_CLUSTER_STRIDE);
+				for (int i = 0; i < rainBuckets.size(); i++)
+					drawBucket(rainBuckets[i], rainGpuBuffers[i], GpuEnvironmentMode::Rain, GPU_WEATHER_CLUSTER_STRIDE);
+
+				ID3D11ShaderResourceView* nullView = nullptr;
+				_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &nullView);
+				BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbInstancedSpriteBuffer.get());
+				BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbInstancedSpriteBuffer.get());
+				_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			}
+		}
+
 		if (view.SpritesToDraw.empty())
 			return;
 
