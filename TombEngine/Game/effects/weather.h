@@ -103,6 +103,9 @@ namespace TEN::Effects::Environment
 		float	PrevSize	 = 0.0f;
 		float	PrevLife	 = 0.0f;
 
+		// Accumulates the unchecked movement segment so fast rain cannot tunnel through thin geometry.
+		Vector3 CollisionPosition = Vector3::Zero;
+
 		void StoreInterpolationData()
 		{
 			PrevPosition = Position;
