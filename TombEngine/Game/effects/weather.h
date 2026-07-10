@@ -93,6 +93,11 @@ namespace TEN::Effects::Environment
 		float Size				  = 0.0f;
 		int   ClusterSize		  = 1;
 
+		// Preserve the start of the skipped collision interval so fast rain can be
+		// swept against thin room geometry without tracing every particle every frame.
+		Vector3 CollisionOrigin = Vector3::Zero;
+		int CollisionOriginRoomNumber = NO_VALUE;
+
 		bool Enabled = false;
 		bool Stopped = false;
 
