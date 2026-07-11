@@ -14,8 +14,13 @@ namespace TEN::Renderer::ConstantBuffers
 	template <typename CBuff>
 	class ConstantBuffer
 	{
+		static constexpr unsigned int CHANGE_STREAK_BEFORE_COOLDOWN = 8;
+		static constexpr unsigned int COMPARISON_COOLDOWN_UPDATES = 16;
+
 		ComPtr<ID3D11Buffer> buffer;
 		std::array<std::byte, sizeof(CBuff)> _lastData = {};
+		unsigned int _consecutiveChangedUpdates = 0;
+		unsigned int _comparisonCooldown = 0;
 		bool _lastDataValid = false;
 
 	public:
@@ -27,6 +32,8 @@ namespace TEN::Renderer::ConstantBuffers
 			if (this != &other)
 			{
 				buffer = std::move(other.buffer);
+				_consecutiveChangedUpdates = 0;
+				_comparisonCooldown = 0;
 				_lastDataValid = false;
 			}
 
@@ -55,8 +62,30 @@ namespace TEN::Renderer::ConstantBuffers
 		void UpdateData(CBuff& data, ID3D11DeviceContext* ctx)
 		{
 			const auto* dataBytes = reinterpret_cast<const std::byte*>(&data);
-			if (_lastDataValid && std::memcmp(_lastData.data(), dataBytes, sizeof(CBuff)) == 0)
-				return;
+			bool cacheCurrentData = true;
+
+			if (_comparisonCooldown > 0)
+			{
+				_comparisonCooldown--;
+				cacheCurrentData = (_comparisonCooldown == 0);
+			}
+			else if (_lastDataValid)
+			{
+				if (std::memcmp(_lastData.data(), dataBytes, sizeof(CBuff)) == 0)
+				{
+					_consecutiveChangedUpdates = 0;
+					return;
+				}
+
+				_consecutiveChangedUpdates++;
+				if (_consecutiveChangedUpdates >= CHANGE_STREAK_BEFORE_COOLDOWN)
+				{
+					_consecutiveChangedUpdates = 0;
+					_comparisonCooldown = COMPARISON_COOLDOWN_UPDATES;
+					_lastDataValid = false;
+					cacheCurrentData = false;
+				}
+			}
 
 			auto mappedResource = D3D11_MAPPED_SUBRESOURCE{};
 			auto res = ctx->Map(buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -66,8 +95,11 @@ namespace TEN::Renderer::ConstantBuffers
 				std::memcpy(dataPtr, &data, sizeof(CBuff));
 				ctx->Unmap(buffer.Get(), 0);
 
-				std::memcpy(_lastData.data(), dataBytes, sizeof(CBuff));
-				_lastDataValid = true;
+				if (cacheCurrentData)
+				{
+					std::memcpy(_lastData.data(), dataBytes, sizeof(CBuff));
+					_lastDataValid = true;
+				}
 			}
 			else
 			{
