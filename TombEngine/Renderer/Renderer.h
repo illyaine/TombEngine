@@ -615,23 +615,27 @@ namespace TEN::Renderer
 
 		inline int ResolveShadowMapFace(const Matrix& viewProjection) const
 		{
+			if (_shadowLight == nullptr || _shadowLight->Out <= 16.0f)
+				return NO_VALUE;
+
+			auto shadowLightPos = (_shadowLight->Hash == 0) ?
+				_shadowLight->Position :
+				Vector3::Lerp(_shadowLight->PrevPosition, _shadowLight->Position, GetInterpolationFactor());
+			auto projection = Matrix::CreatePerspectiveFieldOfView(90.0f * PI / 180.0f, 1.0f, 16.0f, _shadowLight->Out);
+
 			for (int face = 0; face < 6; face++)
 			{
-				if (memcmp(&viewProjection, &_stShadowMap.LightViewProjections[face], sizeof(Matrix)) == 0)
+				auto view = Matrix::CreateLookAt(
+					shadowLightPos,
+					shadowLightPos + RenderTargetCube::forwardVectors[face] * BLOCK(10),
+					RenderTargetCube::upVectors[face]);
+				auto expectedViewProjection = view * projection;
+
+				if (memcmp(&viewProjection, &expectedViewProjection, sizeof(Matrix)) == 0)
 					return face;
 			}
 
 			return NO_VALUE;
-		}
-
-		inline bool IsActiveShadowMapTargetBound() const
-		{
-			if (_activeShadowMapFace < 0 || _activeShadowMapFace >= _shadowMap.RenderTargetView.size())
-				return false;
-
-			auto currentTarget = ComPtr<ID3D11RenderTargetView>{};
-			_context->OMGetRenderTargets(1, currentTarget.GetAddressOf(), nullptr);
-			return currentTarget.Get() == _shadowMap.RenderTargetView[_activeShadowMapFace].Get();
 		}
 
 		inline unsigned int BuildShadowCasterFaceMask()
@@ -661,6 +665,18 @@ namespace TEN::Renderer
 				if (item.ItemNumber == NO_VALUE || memcmp(&item.InterpolatedWorld, &_stItem.World, sizeof(Matrix)) != 0)
 					continue;
 
+				// Lara auxiliary meshes, full skinning and unusual mesh layouts use the conservative
+				// six-face path because GetSpheres() does not describe all rendered geometry.
+				if (item.ObjectID == ID_LARA)
+					return 0x3F;
+
+				auto& rendererObject = GetRendererObject((GAME_OBJECT_ID)item.ObjectID);
+				if (GetSkinningMode(rendererObject, item.SkinIndex) == SkinningMode::Full ||
+					item.MeshIndex.size() != rendererObject.ObjectMeshes.size())
+				{
+					return 0x3F;
+				}
+
 				for (const auto& sphere : GetSpheres(item.ItemNumber))
 				{
 					foundCasterSpheres = true;
@@ -673,6 +689,8 @@ namespace TEN::Renderer
 							faceMask |= (1u << face);
 					}
 				}
+
+				break;
 			}
 
 			// Unknown auxiliary meshes and objects without animation spheres retain the legacy path.
@@ -681,7 +699,7 @@ namespace TEN::Renderer
 
 		inline bool ShouldCullCurrentShadowDraw()
 		{
-			if (_activeShadowMapFace == NO_VALUE || _shadowLight == nullptr || !IsActiveShadowMapTargetBound())
+			if (_activeShadowMapFace == NO_VALUE || _shadowLight == nullptr)
 				return false;
 
 			auto shadowLightPos = (_shadowLight->Hash == 0) ?
