@@ -30,8 +30,8 @@ namespace TEN::Effects::Environment
 
 	constexpr auto DUST_SPAWN_DENSITY		 = 300;
 	// This is above the natural maximum produced by the current spawn density and lifetime.
-	// It is a safety ceiling, not a quality throttle.
-	constexpr auto DUST_PARTICLE_COUNT_MAX = 16384;
+	// It is a reserve target, not a quality throttle.
+	constexpr auto DUST_PARTICLE_RESERVE = 16384;
 	constexpr auto DUST_LIFE				 = 40;
 	constexpr auto DUST_SPAWN_RADIUS		 = BLOCK(10);
 
@@ -118,9 +118,9 @@ namespace TEN::Effects::Environment
 	class EnvironmentController
 	{
 	private:
-		// Weather
-
-		std::vector<WeatherParticle> Particles = {};
+		// Weather and underwater dust use independent simulation pools.
+		std::vector<WeatherParticle> WeatherParticles = {};
+		std::vector<WeatherParticle> DustParticles = {};
 
 		// Sky
 
@@ -172,8 +172,8 @@ namespace TEN::Effects::Environment
 		void Update();
 		void Clear();
 
-		// The legacy sprite preparation path is intentionally empty. GPU weather rendering
-		// consumes the logical particles directly through GetGpuParticles().
+		// The legacy sprite preparation path is intentionally empty. GPU environment rendering
+		// consumes the logical simulation pools directly.
 		const std::vector<WeatherParticle>& GetParticles() const
 		{
 			static const std::vector<WeatherParticle> EmptyParticles = {};
@@ -182,7 +182,12 @@ namespace TEN::Effects::Environment
 
 		const std::vector<WeatherParticle>& GetGpuParticles() const
 		{
-			return Particles;
+			return WeatherParticles;
+		}
+
+		const std::vector<WeatherParticle>& GetGpuDustParticles() const
+		{
+			return DustParticles;
 		}
 
 		const std::vector<StarParticle>&	GetStars() const { return Stars; }
