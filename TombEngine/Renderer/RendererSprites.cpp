@@ -67,6 +67,7 @@ namespace TEN::Renderer
 		{
 			RendererSprite* Sprite = nullptr;
 			Texture2D* Texture = nullptr;
+			ID3D11Texture2D* Resource = nullptr;
 			Vector2 UV[4] = {};
 		};
 
@@ -388,12 +389,14 @@ namespace TEN::Renderer
 				if (cache.Sources.size() != buckets.size())
 					return false;
 
-				for (int i = 0; i < buckets.size(); i++)
+				for (size_t i = 0; i < buckets.size(); i++)
 				{
 					auto* sprite = buckets[i].Sprite;
 					if (sprite == nullptr ||
+						sprite->Texture == nullptr ||
 						cache.Sources[i].Sprite != sprite ||
 						cache.Sources[i].Texture != sprite->Texture ||
+						cache.Sources[i].Resource != sprite->Texture->Texture.Get() ||
 						memcmp(cache.Sources[i].UV, sprite->UV, sizeof(sprite->UV)) != 0)
 					{
 						return false;
@@ -436,6 +439,7 @@ namespace TEN::Renderer
 					auto source = WeatherFrameSource{};
 					source.Sprite = sprite;
 					source.Texture = sprite->Texture;
+					source.Resource = sprite->Texture->Texture.Get();
 					memcpy(source.UV, sprite->UV, sizeof(sprite->UV));
 					cache.Sources.push_back(source);
 				}
@@ -887,7 +891,7 @@ namespace TEN::Renderer
 					spritesToDraw = 0;
 					_spriteVertices.clear();
 				}
-			}
+		}
 		}
 
 		// Set up vertex parameters.
