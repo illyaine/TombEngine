@@ -12,6 +12,7 @@
 #include "Game/Setup.h"
 #include "Game/spotcam.h"
 #include "Math/Math.h"
+#include "Math/Objects/GameBoundingBox.h"
 #include "Objects/Effects/LensFlare.h"
 #include "Renderer/RenderView.h"
 #include "Scripting/Include/Flow/ScriptInterfaceFlowHandler.h"
@@ -459,27 +460,59 @@ namespace TEN::Renderer
 			if (obj.Hidden)
 				continue;
 
-			// Clip object by frustum only if it doesn't cast shadows and is not in mirror room,
-			// otherwise disappearing shadows or reflections may be seen if object gets out of frustum.
+			// Shadow casters and reflected rooms stay conservative so off-screen shadows and reflections cannot disappear.
 			bool inFrustum = true;
-			
 			if (!isRoomReflected && obj.ShadowType == ShadowMode::None)
 			{
-				inFrustum = false;
+				bool canUseAnimationBounds =
+					item.ObjectNumber != ID_LARA &&
+					!Objects[item.ObjectNumber].Animations.empty() &&
+					GetSkinningMode(obj, item.Model.SkinIndex) != SkinningMode::Full &&
+					item.Model.MeshIndex.size() == obj.ObjectMeshes.size();
 
-				// Get all spheres and check if frustum intersects any of them.
-				auto spheres = GetSpheres(itemNumber);
-
-				for (int i = 0; !inFrustum, i < spheres.size(); i++)
+				if (canUseAnimationBounds && item.Model.Mutators.size() == obj.ObjectMeshes.size())
 				{
-					// Blow up sphere radius by half for cases of too small calculated spheres.
-					if (renderView.Camera.Frustum.SphereInFrustum(spheres[i].Center, spheres[i].Radius * 1.5f))
-						inFrustum = true;
+					for (const auto& mutator : item.Model.Mutators)
+					{
+						if (!mutator.IsEmpty())
+						{
+							canUseAnimationBounds = false;
+							break;
+						}
+					}
 				}
 
-				// NOTE: removed continue loop here if not in frustum,
-				// for updating first positions and animations data
+				if (canUseAnimationBounds)
+				{
+					for (size_t i = 0; i < obj.ObjectMeshes.size(); i++)
+					{
+						if (obj.ObjectMeshes[i] == nullptr || GetMesh(item.Model.MeshIndex[i]) != obj.ObjectMeshes[i])
+						{
+							canUseAnimationBounds = false;
+							break;
+						}
+					}
+				}
+
+				if (canUseAnimationBounds)
+				{
+					auto broadSphere = GameBoundingBox(&item).ToLocalBoundingSphere();
+					auto world =
+						Matrix::CreateScale(item.Pose.Scale) *
+						item.Pose.Orientation.ToRotationMatrix() *
+						Matrix::CreateTranslation(item.Pose.Position.ToVector3());
+
+					broadSphere.Center = Vector3::Transform(broadSphere.Center, world);
+					broadSphere.Radius *= std::max({
+						std::abs(item.Pose.Scale.x),
+						std::abs(item.Pose.Scale.y),
+						std::abs(item.Pose.Scale.z) });
+
+					// Keep the historical safety margin while replacing per-mesh animated sphere generation with a cheap broad phase.
+					inFrustum = broadSphere.Radius <= EPSILON ||
+						renderView.Camera.Frustum.SphereInFrustum(broadSphere.Center, broadSphere.Radius * 1.5f);
 			}
+		}
 
 			auto& newItem = _items[itemNumber];
 
@@ -492,9 +525,21 @@ namespace TEN::Renderer
 			newItem.Scale = Matrix::CreateScale(item.Pose.Scale);
 			newItem.World = newItem.Scale * newItem.Rotation * newItem.Translation;
 
-			// Disable interpolation either when renderer slot or item slot has flag. 
-			// Renderer slot has no interpolation flag set in case it is fetched for first time (e.g. item first time in frustum).
+			// Keep the current world transform available to lazy bone queries, but defer animation and interpolation work until visible.
 			newItem.DisableInterpolation = item.DisableInterpolation || newItem.DisableInterpolation;
+			if (!inFrustum)
+			{
+				newItem.DisableInterpolation = true;
+				continue;
+			}
+
+			if (!newItem.DoneAnimations)
+			{
+				if (item.ObjectNumber == ID_LARA)
+					UpdateLaraAnimations(false);
+				else
+					UpdateItemAnimations(itemNumber, false);
+			}
 
 			// Disable interpolation when object has traveled significant distance.
 			// Needed because when object goes out of frustum, previous position doesn't update.
@@ -527,13 +572,7 @@ namespace TEN::Renderer
 			newItem.InterpolatedWorld = Matrix::Lerp(newItem.PrevWorld, newItem.World, interpFactor);
 			
 			for (int j = 0; j < MAX_BONES; j++)
-				newItem.InterpolatedAnimTransforms[j] = Matrix::Lerp(newItem.PrevAnimTransforms[j], newItem.AnimTransforms[j], GetInterpolationFactor(forceValue));
-
-			// NOTE: now at least positions and animations are updated,
-			// because even off-screen the correct position is required 
-			// by GetJointPosition functions and similars
-			if (!inFrustum)
-				continue;
+				newItem.InterpolatedAnimTransforms[j] = Matrix::Lerp(newItem.PrevAnimTransforms[j], newItem.AnimTransforms[j], interpFactor);
 
 			CalculateLightFades(&newItem);
 			CollectLightsForItem(&newItem);
