@@ -20,8 +20,18 @@ struct WeatherInstance
 	float Opacity;
 	int UniqueID;
 	int ClusterSize;
+	int FrameIndex;
+	int Padding;
+};
+
+struct WeatherFrame
+{
+	float4 UVX;
+	float4 UVY;
+	int TextureSlice;
 	int Padding0;
 	int Padding1;
+	int Padding2;
 };
 
 struct PixelShaderInput
@@ -31,14 +41,17 @@ struct PixelShaderInput
 	float4 Color : COLOR;
 	float4 FogBulbs : TEXCOORD3;
 	float DistanceFog : FOG;
+	nointerpolation uint TextureSlice : TEXCOORD4;
 };
 
 StructuredBuffer<StarfieldInstance> Stars : register(t14);
 StructuredBuffer<WeatherInstance> WeatherParticles : register(t15);
+StructuredBuffer<WeatherFrame> WeatherFrames : register(t16);
 
 Texture2D Texture : register(t0);
 SamplerState Sampler : register(s0);
 Texture2D DepthTexture : register(t6);
+Texture2DArray WeatherTextureArray : register(t17);
 
 float Hash(uint value)
 {
@@ -142,12 +155,14 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 	PixelShaderInput output = (PixelShaderInput)0;
 
 	int polyIndex = DecodeIndexInPoly(input.Effects);
-	output.UV = float2(EnvironmentUV[0][polyIndex], EnvironmentUV[1][polyIndex]);
+	output.TextureSlice = 0;
 
 	float3 worldPosition = float3(0.0f, 0.0f, 0.0f);
 
 	if (EnvironmentMode == GPU_ENVIRONMENT_STARFIELD)
 	{
+		output.UV = float2(EnvironmentUV[0][polyIndex], EnvironmentUV[1][polyIndex]);
+
 		StarfieldInstance star = Stars[instanceID];
 		const float starDistance = 1024.0f;
 		const float starSize = 2.0f * star.Scale;
@@ -172,6 +187,17 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		{
 			output.Position = float4(-2.0f, -2.0f, 0.0f, 1.0f);
 			return output;
+		}
+
+		if (EnvironmentTextureMode == GPU_ENVIRONMENT_TEXTURE_BUCKET)
+		{
+			output.UV = float2(EnvironmentUV[0][polyIndex], EnvironmentUV[1][polyIndex]);
+		}
+		else
+		{
+			WeatherFrame frame = WeatherFrames[particle.FrameIndex];
+			output.UV = float2(frame.UVX[polyIndex], frame.UVY[polyIndex]);
+			output.TextureSlice = (uint)frame.TextureSlice;
 		}
 
 		float3 position;
@@ -255,7 +281,16 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 
 	// Sample the sprite only after the depth rejection so weather hidden by roofs and
 	// walls does not consume color texture bandwidth.
-	float4 output = Texture.Sample(Sampler, input.UV) * input.Color;
+	float4 output;
+	if ((EnvironmentMode == GPU_ENVIRONMENT_SNOW || EnvironmentMode == GPU_ENVIRONMENT_RAIN) &&
+		EnvironmentTextureMode == GPU_ENVIRONMENT_TEXTURE_ARRAY)
+	{
+		output = WeatherTextureArray.Sample(Sampler, float3(input.UV, (float)input.TextureSlice)) * input.Color;
+	}
+	else
+	{
+		output = Texture.Sample(Sampler, input.UV) * input.Color;
+	}
 
 	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
