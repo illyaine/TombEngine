@@ -99,7 +99,7 @@ namespace TEN::Effects::Environment
 			const Vector3& origin,
 			int roomNumber,
 			const Vector3& target,
-			const PointCollisionData& targetCollision)
+			PointCollisionData& targetCollision)
 		{
 			if (roomNumber < 0 || roomNumber >= g_Level.Rooms.size())
 				return false;
@@ -114,6 +114,23 @@ namespace TEN::Effects::Environment
 			auto originCollision = GetPointCollision(origin, roomNumber);
 			if (originCollision.GetRoomNumber() != roomNumber)
 				return false;
+
+			// Crossing a sector boundary can cross walls or split geometry even when endpoint heights match.
+			if (&originCollision.GetSector() != &targetCollision.GetSector())
+				return false;
+
+			// Bridge items and diagonal sectors require the exact swept collision path.
+			if (originCollision.GetFloorBridgeItemNumber() != NO_VALUE ||
+				originCollision.GetCeilingBridgeItemNumber() != NO_VALUE ||
+				targetCollision.GetFloorBridgeItemNumber() != NO_VALUE ||
+				targetCollision.GetCeilingBridgeItemNumber() != NO_VALUE ||
+				originCollision.IsDiagonalFloorSplit() ||
+				originCollision.IsDiagonalCeilingSplit() ||
+				targetCollision.IsDiagonalFloorSplit() ||
+				targetCollision.IsDiagonalCeilingSplit())
+			{
+				return false;
+			}
 
 			const auto originFloor = originCollision.GetFloorHeight();
 			const auto targetFloor = targetCollision.GetFloorHeight();
@@ -711,7 +728,7 @@ namespace TEN::Effects::Environment
 			if (!IsPointInRoom(pos, roomNumber))
 				roomNumber = FindRoomNumber(pos, Camera.pos.RoomNumber, true);
 
-			if (!IsPointInRoom(pos, roomNumber) || roomNumber == NO_VALUE)
+			if (roomNumber == NO_VALUE || !IsPointInRoom(pos, roomNumber))
 				continue;
 
 			// Check if water room.
