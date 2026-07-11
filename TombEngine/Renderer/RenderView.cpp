@@ -1,8 +1,43 @@
 #include "framework.h"
 #include "Renderer/RenderView.h"
 
+#include <array>
+#include <cstring>
+
 namespace TEN::Renderer
 {
+	namespace
+	{
+		struct MatrixInverseCacheEntry
+		{
+			Matrix Source = Matrix::Identity;
+			Matrix Inverse = Matrix::Identity;
+			bool Valid = false;
+		};
+
+		template <size_t CacheSize>
+		Matrix GetCachedInverse(
+			const Matrix& source,
+			std::array<MatrixInverseCacheEntry, CacheSize>& cache,
+			size_t& nextCacheEntry)
+		{
+			for (const auto& entry : cache)
+			{
+				if (entry.Valid && std::memcmp(&entry.Source, &source, sizeof(Matrix)) == 0)
+					return entry.Inverse;
+			}
+
+			auto inverse = source.Invert();
+			auto& entry = cache[nextCacheEntry];
+			entry.Source = source;
+			entry.Inverse = inverse;
+			entry.Valid = true;
+			nextCacheEntry = (nextCacheEntry + 1) % CacheSize;
+
+			return inverse;
+		}
+	}
+
 	RenderView::RenderView(CAMERA_INFO* cam, float roll, float fov, float nearPlane, float farPlane, int w, int h) : Camera(cam, roll, fov, nearPlane, farPlane, w, h) 
 	{
 		Viewport = {};
@@ -28,11 +63,16 @@ namespace TEN::Renderer
 	 
 	void RenderView::FillConstantBuffer(CCameraMatrixBuffer& bufferToFill)
 	{
+		static thread_local std::array<MatrixInverseCacheEntry, 4> viewInverseCache = {};
+		static thread_local std::array<MatrixInverseCacheEntry, 4> projectionInverseCache = {};
+		static thread_local size_t nextViewInverseCacheEntry = 0;
+		static thread_local size_t nextProjectionInverseCacheEntry = 0;
+
 		bufferToFill.Projection = Camera.Projection;
 		bufferToFill.View = Camera.View;
 		bufferToFill.ViewProjection = Camera.ViewProjection;
-		bufferToFill.InverseView = Camera.View.Invert();
-		bufferToFill.InverseProjection = Camera.Projection.Invert();
+		bufferToFill.InverseView = GetCachedInverse(Camera.View, viewInverseCache, nextViewInverseCacheEntry);
+		bufferToFill.InverseProjection = GetCachedInverse(Camera.Projection, projectionInverseCache, nextProjectionInverseCacheEntry);
 		bufferToFill.CamDirectionWS = Vector4(Camera.WorldDirection);
 		bufferToFill.CamPositionWS = Vector4(Camera.WorldPosition);
 		bufferToFill.ViewSize = Camera.ViewSize;
