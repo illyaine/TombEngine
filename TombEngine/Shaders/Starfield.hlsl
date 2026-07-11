@@ -69,12 +69,12 @@ float LegacyAngleToRadians(int angle)
 
 float3 GetCameraRight()
 {
-	return normalize(float3(View[0][0], View[1][0], View[2][0]));
+	return float3(View[0][0], View[1][0], View[2][0]);
 }
 
 float3 GetCameraUp()
 {
-	return normalize(float3(View[0][1], View[1][1], View[2][1]));
+	return float3(View[0][1], View[1][1], View[2][1]);
 }
 
 void GetWeatherCluster(
@@ -138,7 +138,7 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		const float starDistance = 1024.0f;
 		const float starSize = 2.0f * star.Scale;
 		float3 cameraUp = GetCameraUp();
-		float3 billboardForward = normalize(star.Direction);
+		float3 billboardForward = star.Direction;
 		float3 billboardRight = normalize(cross(cameraUp, billboardForward));
 		float3 billboardUp = cross(billboardForward, billboardRight);
 		float3 center = CamPositionWS.xyz + star.Direction * starDistance;
