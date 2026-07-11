@@ -3,12 +3,14 @@
 
 #include "Game/effects/weather.h"
 #include "Game/Setup.h"
+#include "Renderer/Graphics/Texture2DArray.h"
 #include "Renderer/Structures/RendererSpriteBucket.h"
 #include "Renderer/Renderer.h"
 #include "Specific/Parallel.h"
 
 using namespace TEN::Effects::Environment;
 using namespace TEN::Renderer::ConstantBuffers;
+using namespace TEN::Renderer::Graphics;
 using namespace TEN::Renderer::Structures;
 
 namespace TEN::Renderer
@@ -16,6 +18,8 @@ namespace TEN::Renderer
 	namespace
 	{
 		constexpr auto WEATHER_BUFFER_SLOT = 15;
+		constexpr auto WEATHER_FRAME_BUFFER_SLOT = 16;
+		constexpr auto WEATHER_TEXTURE_ARRAY_SLOT = 17;
 		constexpr auto GPU_WEATHER_CLUSTER_STRIDE = 16;
 
 		struct alignas(16) RendererWeatherParticle
@@ -26,11 +30,23 @@ namespace TEN::Renderer
 			float Opacity = 0.0f;
 			int UniqueID = 0;
 			int ClusterSize = 1;
-			int Padding0 = 0;
-			int Padding1 = 0;
+			int FrameIndex = 0;
+			int Padding = 0;
 		};
 
 		static_assert(sizeof(RendererWeatherParticle) == 48);
+
+		struct alignas(16) RendererWeatherFrame
+		{
+			Vector4 UVX = Vector4::Zero;
+			Vector4 UVY = Vector4::Zero;
+			int TextureSlice = 0;
+			int Padding0 = 0;
+			int Padding1 = 0;
+			int Padding2 = 0;
+		};
+
+		static_assert(sizeof(RendererWeatherFrame) == 48);
 
 		struct WeatherGpuBuffer
 		{
@@ -45,6 +61,24 @@ namespace TEN::Renderer
 			std::vector<RendererWeatherParticle> Particles = {};
 			int MaxClusterSize = 1;
 			int ParticleOffset = 0;
+		};
+
+		struct WeatherFrameSource
+		{
+			RendererSprite* Sprite = nullptr;
+			Texture2D* Texture = nullptr;
+			Vector2 UV[4] = {};
+		};
+
+		struct WeatherTextureCache
+		{
+			bool CanBatch = false;
+			bool UsesTextureArray = false;
+			Texture2D* AtlasTexture = nullptr;
+			Texture2DArray TextureArray = {};
+			ComPtr<ID3D11Buffer> FrameBuffer = nullptr;
+			ComPtr<ID3D11ShaderResourceView> FrameView = nullptr;
+			std::vector<WeatherFrameSource> Sources = {};
 		};
 	}
 
@@ -305,12 +339,16 @@ namespace TEN::Renderer
 			static std::vector<WeatherCpuBucket> snowBuckets = {};
 			static std::vector<WeatherCpuBucket> rainBuckets = {};
 			static std::vector<RendererWeatherParticle> weatherParticles = {};
+			static WeatherTextureCache snowTextureCache = {};
+			static WeatherTextureCache rainTextureCache = {};
 
 			if (resourceDevice != _device.Get())
 			{
 				resourceDevice = _device.Get();
 				weatherGpuBuffer = {};
 				weatherParticles.clear();
+				snowTextureCache = {};
+				rainTextureCache = {};
 			}
 
 			const bool hasDefaultSprites = Objects[ID_DEFAULT_SPRITES].loaded;
@@ -344,6 +382,105 @@ namespace TEN::Renderer
 				const int spriteIndex = hasRainSprites ? Objects[ID_RAIN_SPRITES].meshIndex + i : Objects[ID_DRIP_SPRITE].meshIndex;
 				rainBuckets[i].Sprite = &_sprites[spriteIndex];
 			}
+
+			auto cacheMatches = [](const WeatherTextureCache& cache, const std::vector<WeatherCpuBucket>& buckets)
+			{
+				if (cache.Sources.size() != buckets.size())
+					return false;
+
+				for (int i = 0; i < buckets.size(); i++)
+				{
+					auto* sprite = buckets[i].Sprite;
+					if (sprite == nullptr ||
+						cache.Sources[i].Sprite != sprite ||
+						cache.Sources[i].Texture != sprite->Texture ||
+						memcmp(cache.Sources[i].UV, sprite->UV, sizeof(sprite->UV)) != 0)
+					{
+						return false;
+					}
+				}
+
+				return true;
+			};
+
+			auto rebuildTextureCache = [&](WeatherTextureCache& cache, const std::vector<WeatherCpuBucket>& buckets)
+			{
+				cache = {};
+				if (buckets.empty())
+					return;
+
+				auto frames = std::vector<RendererWeatherFrame>{};
+				auto uniqueTextures = std::vector<Texture2D*>{};
+				frames.reserve(buckets.size());
+				cache.Sources.reserve(buckets.size());
+
+				for (const auto& bucket : buckets)
+				{
+					auto* sprite = bucket.Sprite;
+					if (sprite == nullptr || sprite->Texture == nullptr)
+						return;
+
+					auto textureIt = std::find(uniqueTextures.begin(), uniqueTextures.end(), sprite->Texture);
+					if (textureIt == uniqueTextures.end())
+					{
+						uniqueTextures.push_back(sprite->Texture);
+						textureIt = uniqueTextures.end() - 1;
+					}
+
+					auto frame = RendererWeatherFrame{};
+					frame.UVX = Vector4(sprite->UV[0].x, sprite->UV[1].x, sprite->UV[2].x, sprite->UV[3].x);
+					frame.UVY = Vector4(sprite->UV[0].y, sprite->UV[1].y, sprite->UV[2].y, sprite->UV[3].y);
+					frame.TextureSlice = static_cast<int>(std::distance(uniqueTextures.begin(), textureIt));
+					frames.push_back(frame);
+
+					auto source = WeatherFrameSource{};
+					source.Sprite = sprite;
+					source.Texture = sprite->Texture;
+					memcpy(source.UV, sprite->UV, sizeof(sprite->UV));
+					cache.Sources.push_back(source);
+				}
+
+				if (uniqueTextures.empty())
+					return;
+
+				if (uniqueTextures.size() == 1)
+				{
+					cache.AtlasTexture = uniqueTextures[0];
+				}
+				else
+				{
+					if (!Texture2DArray::AreCompatible(uniqueTextures))
+						return;
+
+					cache.TextureArray = Texture2DArray(_device.Get(), _context.Get(), uniqueTextures);
+					cache.UsesTextureArray = true;
+				}
+
+				auto bufferDesc = D3D11_BUFFER_DESC{};
+				bufferDesc.ByteWidth = static_cast<UINT>(sizeof(RendererWeatherFrame) * frames.size());
+				bufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+				bufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+				bufferDesc.CPUAccessFlags = 0;
+				bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+				bufferDesc.StructureByteStride = sizeof(RendererWeatherFrame);
+
+				auto initialData = D3D11_SUBRESOURCE_DATA{};
+				initialData.pSysMem = frames.data();
+				Utils::throwIfFailed(_device->CreateBuffer(&bufferDesc, &initialData, cache.FrameBuffer.GetAddressOf()));
+
+				auto viewDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
+				viewDesc.Format = DXGI_FORMAT_UNKNOWN;
+				viewDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+				viewDesc.Buffer.FirstElement = 0;
+				viewDesc.Buffer.NumElements = static_cast<UINT>(frames.size());
+				Utils::throwIfFailed(_device->CreateShaderResourceView(cache.FrameBuffer.Get(), &viewDesc, cache.FrameView.GetAddressOf()));
+				cache.CanBatch = true;
+			};
+
+			if (!cacheMatches(snowTextureCache, snowBuckets))
+				rebuildTextureCache(snowTextureCache, snowBuckets);
+			if (!cacheMatches(rainTextureCache, rainBuckets))
+				rebuildTextureCache(rainTextureCache, rainBuckets);
 
 			const auto interpolationFactor = GetInterpolationFactor();
 			for (const auto& particle : Weather.GetGpuParticles())
@@ -385,7 +522,9 @@ namespace TEN::Renderer
 				case WeatherType::Snow:
 					if (!snowBuckets.empty())
 					{
-						auto& bucket = snowBuckets[particle.UniqueID % snowBuckets.size()];
+						const int frameIndex = particle.UniqueID % static_cast<int>(snowBuckets.size());
+						rendererParticle.FrameIndex = frameIndex;
+						auto& bucket = snowBuckets[frameIndex];
 						bucket.MaxClusterSize = std::max(bucket.MaxClusterSize, rendererParticle.ClusterSize);
 						bucket.Particles.push_back(rendererParticle);
 					}
@@ -394,7 +533,9 @@ namespace TEN::Renderer
 				case WeatherType::Rain:
 					if (!rainBuckets.empty())
 					{
-						auto& bucket = rainBuckets[particle.UniqueID % rainBuckets.size()];
+						const int frameIndex = particle.UniqueID % static_cast<int>(rainBuckets.size());
+						rendererParticle.FrameIndex = frameIndex;
+						auto& bucket = rainBuckets[frameIndex];
 						bucket.MaxClusterSize = std::max(bucket.MaxClusterSize, rendererParticle.ClusterSize);
 						bucket.Particles.push_back(rendererParticle);
 					}
@@ -493,6 +634,8 @@ namespace TEN::Renderer
 				{
 					auto* weatherView = weatherGpuBuffer.View.Get();
 					_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &weatherView);
+					BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+					BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
 
 					auto drawBucket = [&](WeatherCpuBucket& bucket, GpuEnvironmentMode mode)
 					{
@@ -505,24 +648,80 @@ namespace TEN::Renderer
 						_stStarfield.ClusterStride = clusterStride;
 						_stStarfield.ClusterSpread = mode == GpuEnvironmentMode::UnderwaterDust ? 0.0f : BLOCK(1.0f);
 						_stStarfield.ParticleOffset = bucket.ParticleOffset;
+						_stStarfield.TextureMode = GpuEnvironmentTextureMode::Bucket;
 						UpdateConstantBuffer(_stStarfield, _cbStarfield);
-						BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
-						BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
 						BindTexture(TextureRegister::ColorMap, bucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
 
 						DrawInstancedTriangles(4, static_cast<int>(bucket.Particles.size()) * clusterStride, 0);
 						_numInstancedSpritesDrawCalls++;
 					};
 
+					auto drawWeatherType = [&](std::vector<WeatherCpuBucket>& buckets, WeatherTextureCache& cache, GpuEnvironmentMode mode)
+					{
+						int particleCount = 0;
+						int maxClusterSize = 1;
+						int particleOffset = 0;
+						bool foundParticles = false;
+
+						for (const auto& bucket : buckets)
+						{
+							if (bucket.Particles.empty())
+								continue;
+
+							if (!foundParticles)
+							{
+								particleOffset = bucket.ParticleOffset;
+								foundParticles = true;
+							}
+
+							particleCount += static_cast<int>(bucket.Particles.size());
+							maxClusterSize = std::max(maxClusterSize, bucket.MaxClusterSize);
+						}
+
+						if (!foundParticles)
+							return;
+
+						if (!cache.CanBatch)
+						{
+							for (auto& bucket : buckets)
+								drawBucket(bucket, mode);
+							return;
+						}
+
+						auto* frameView = cache.FrameView.Get();
+						_context->VSSetShaderResources(WEATHER_FRAME_BUFFER_SLOT, 1, &frameView);
+
+						_stStarfield.Mode = mode;
+						_stStarfield.ClusterStride = std::clamp(maxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
+						_stStarfield.ClusterSpread = BLOCK(1.0f);
+						_stStarfield.ParticleOffset = particleOffset;
+
+						if (cache.UsesTextureArray)
+						{
+							_stStarfield.TextureMode = GpuEnvironmentTextureMode::Array;
+							auto* textureArrayView = cache.TextureArray.ShaderResourceView.Get();
+							_context->PSSetShaderResources(WEATHER_TEXTURE_ARRAY_SLOT, 1, &textureArrayView);
+						}
+						else
+						{
+							_stStarfield.TextureMode = GpuEnvironmentTextureMode::Atlas;
+							BindTexture(TextureRegister::ColorMap, cache.AtlasTexture, SamplerStateRegister::LinearClamp);
+						}
+
+						UpdateConstantBuffer(_stStarfield, _cbStarfield);
+						DrawInstancedTriangles(4, particleCount * _stStarfield.ClusterStride, 0);
+						_numInstancedSpritesDrawCalls++;
+					};
+
 					drawBucket(dustBucket, GpuEnvironmentMode::UnderwaterDust);
-					for (auto& bucket : snowBuckets)
-						drawBucket(bucket, GpuEnvironmentMode::Snow);
-					for (auto& bucket : rainBuckets)
-						drawBucket(bucket, GpuEnvironmentMode::Rain);
+					drawWeatherType(snowBuckets, snowTextureCache, GpuEnvironmentMode::Snow);
+					drawWeatherType(rainBuckets, rainTextureCache, GpuEnvironmentMode::Rain);
 				}
 
 				ID3D11ShaderResourceView* nullView = nullptr;
 				_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &nullView);
+				_context->VSSetShaderResources(WEATHER_FRAME_BUFFER_SLOT, 1, &nullView);
+				_context->PSSetShaderResources(WEATHER_TEXTURE_ARRAY_SLOT, 1, &nullView);
 				BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbInstancedSpriteBuffer.get());
 				BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbInstancedSpriteBuffer.get());
 				_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
