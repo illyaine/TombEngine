@@ -79,12 +79,14 @@ float LegacyAngleToRadians(int angle)
 
 float3 GetCameraRight()
 {
-	return normalize(float3(View[0][0], View[1][0], View[2][0]));
+	// View is created by Matrix::CreateLookAt(), so its basis vectors are already normalized.
+	return float3(View[0][0], View[1][0], View[2][0]);
 }
 
 float3 GetCameraUp()
 {
-	return normalize(float3(View[0][1], View[1][1], View[2][1]));
+	// View is created by Matrix::CreateLookAt(), so its basis vectors are already normalized.
+	return float3(View[0][1], View[1][1], View[2][1]);
 }
 
 float GetDepthSeparation(float sceneDepth, float particleDepth)
@@ -117,10 +119,11 @@ void GetWeatherCluster(
 
 	uint uniqueSeed = (uint)particle.UniqueID * 1664525u + clusterIndex * 1013904223u;
 	float3 positionOffset = float3(0.0f, 0.0f, 0.0f);
+	float inverseClusterSize = rcp(max(1.0f, (float)particle.ClusterSize));
 
 	if (clusterIndex > 0)
 	{
-		float offsetBase = EnvironmentClusterSpread * 0.8f * ((clusterIndex + 1.0f) / max(1.0f, (float)particle.ClusterSize));
+		float offsetBase = EnvironmentClusterSpread * 0.8f * (clusterIndex + 1.0f) * inverseClusterSize;
 		float xSign = (uniqueSeed & 1u) ? 1.0f : -1.0f;
 		float zSign = (uniqueSeed & 4u) ? 1.0f : -1.0f;
 		uint axisEmphasis = uniqueSeed & 3u;
@@ -140,7 +143,7 @@ void GetWeatherCluster(
 	if (EnvironmentMode == GPU_ENVIRONMENT_SNOW)
 	{
 		float phase = Hash(uniqueSeed ^ 0x68bc21ebu) * 6.28318530718f + Frame * 0.018f;
-		float clusterPhase = (clusterIndex / max(1.0f, (float)particle.ClusterSize)) * 6.28318530718f;
+		float clusterPhase = clusterIndex * inverseClusterSize * 6.28318530718f;
 		sincos(phase + clusterPhase, rotationSine, rotationCosine);
 
 		// Reuse the tumble phase for the flutter offsets so snow needs only one trigonometric pair.
@@ -221,10 +224,14 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 			float distanceToCamera = sqrt(max(dot(toCameraVector, toCameraVector), 0.0001f));
 			float3 toCamera = toCameraVector / distanceToCamera;
 			float3 rightCandidate = cross(rainAxis, toCamera);
-			if (dot(rightCandidate, rightCandidate) <= 0.0001f)
+			float rightLengthSquared = dot(rightCandidate, rightCandidate);
+			if (rightLengthSquared <= 0.0001f)
+			{
 				rightCandidate = GetCameraRight();
+				rightLengthSquared = 1.0f;
+			}
 
-			right = normalize(rightCandidate);
+			right = rightCandidate * rsqrt(rightLengthSquared);
 			up = rainAxis;
 
 			const float nearDistance = 512.0f;
