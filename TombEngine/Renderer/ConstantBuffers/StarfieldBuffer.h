@@ -19,7 +19,7 @@ namespace TEN::Renderer::ConstantBuffers
 		GpuEnvironmentMode Mode = GpuEnvironmentMode::Starfield;
 		int ClusterStride = 1;
 		float ClusterSpread = 0.0f;
-		float Padding = 0.0f;
+		int ParticleOffset = 0;
 	};
 
 	static_assert(sizeof(CStarfieldBuffer) == 48);
