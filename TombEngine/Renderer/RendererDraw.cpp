@@ -46,10 +46,54 @@ extern GUNSHELL_STRUCT Gunshells[MAX_GUNSHELL];
 
 namespace TEN::Renderer
 {
+	namespace
+	{
+		struct ShadowMapFrameCache
+		{
+			bool Valid = false;
+			const RendererLight* Light = nullptr;
+			Vector3 LightPosition = Vector3::Zero;
+			Matrix Projection = Matrix::Identity;
+			std::array<Matrix, 6> Views{};
+			std::array<Matrix, 6> ViewProjections{};
+			std::array<Frustum, 6> Frustums{};
+		};
+
+		thread_local ShadowMapFrameCache ShadowMapCache;
+
+		void BuildShadowMapFrameCache(const RendererLight* light, float interpolationFactor)
+		{
+			ShadowMapCache.Valid = false;
+			ShadowMapCache.Light = light;
+
+			if (light == nullptr || (light->Type != LightType::Point && light->Type != LightType::Spot))
+				return;
+
+			ShadowMapCache.LightPosition = (light->Hash == 0) ?
+				light->Position :
+				Vector3::Lerp(light->PrevPosition, light->Position, interpolationFactor);
+			ShadowMapCache.Projection = Matrix::CreatePerspectiveFieldOfView(PI_DIV_2, 1.0f, 16.0f, light->Out);
+
+			for (int face = 0; face < ShadowMapCache.Views.size(); face++)
+			{
+				ShadowMapCache.Views[face] = Matrix::CreateLookAt(
+					ShadowMapCache.LightPosition,
+					ShadowMapCache.LightPosition + RenderTargetCube::forwardVectors[face] * BLOCK(10),
+					RenderTargetCube::upVectors[face]);
+				ShadowMapCache.ViewProjections[face] = ShadowMapCache.Views[face] * ShadowMapCache.Projection;
+				ShadowMapCache.Frustums[face].Update(ShadowMapCache.Views[face], ShadowMapCache.Projection);
+			}
+
+			ShadowMapCache.Valid = true;
+		}
+	}
+
 	void Renderer::RenderBlobShadows(RenderView& renderView)
 	{
-		auto nearestSpheres = std::vector<Sphere>{};
-		nearestSpheres.reserve(g_Configuration.ShadowBlobsMax);
+		static thread_local std::vector<Sphere> nearestSpheres;
+		nearestSpheres.clear();
+		if (nearestSpheres.capacity() < g_Configuration.ShadowBlobsMax)
+			nearestSpheres.reserve(g_Configuration.ShadowBlobsMax);
 
 		// Collect player spheres.
 		static const std::array<LARA_MESHES, 4> sphereMeshes = { LM_HIPS, LM_TORSO, LM_LFOOT, LM_RFOOT };
@@ -102,8 +146,8 @@ namespace TEN::Renderer
 		{
 			std::sort(nearestSpheres.begin(), nearestSpheres.end(), [](const Sphere& a, const Sphere& b)
 				{
-					auto& laraPos = LaraItem->Pose.Position;
-					return Vector3::Distance(laraPos.ToVector3(), a.position) < Vector3::Distance(laraPos.ToVector3(), b.position);
+					const auto laraPos = LaraItem->Pose.Position.ToVector3();
+					return Vector3::DistanceSquared(laraPos, a.position) < Vector3::DistanceSquared(laraPos, b.position);
 				});
 
 			std::copy(nearestSpheres.begin(), nearestSpheres.begin() + g_Configuration.ShadowBlobsMax, _stShadowMap.Spheres);
@@ -144,27 +188,14 @@ namespace TEN::Renderer
 		if (_shadowLight->Type != LightType::Point && _shadowLight->Type != LightType::Spot)
 			return;
 
-		auto shadowLightPos = (_shadowLight->Hash == 0) ?
-			_shadowLight->Position :
-			Vector3::Lerp(_shadowLight->PrevPosition, _shadowLight->Position, GetInterpolationFactor());
+		if (!ShadowMapCache.Valid || ShadowMapCache.Light != _shadowLight)
+			BuildShadowMapFrameCache(_shadowLight, GetInterpolationFactor());
 
-		if (shadowLightPos == item->Position)
+		if (!ShadowMapCache.Valid || ShadowMapCache.LightPosition == item->Position)
 			return;
 
 		auto& obj = GetRendererObject((GAME_OBJECT_ID)item->ObjectID);
 		auto skinMode = GetSkinningMode(obj, item->SkinIndex);
-		auto projection = Matrix::CreatePerspectiveFieldOfView(90.0f * PI / 180.0f, 1.0f, 16.0f, _shadowLight->Out);
-
-		auto shadowViews = std::array<Matrix, 6>{};
-		auto shadowViewProjections = std::array<Matrix, 6>{};
-		for (int face = 0; face < 6; face++)
-		{
-			shadowViews[face] = Matrix::CreateLookAt(
-				shadowLightPos,
-				shadowLightPos + RenderTargetCube::forwardVectors[face] * BLOCK(10),
-				RenderTargetCube::upVectors[face]);
-			shadowViewProjections[face] = shadowViews[face] * projection;
-		}
 
 		unsigned int shadowFaceMask = 0x3F;
 		bool canCullFaces =
@@ -191,10 +222,6 @@ namespace TEN::Renderer
 			auto spheres = GetSpheres(item->ItemNumber);
 			if (!spheres.empty() && spheres.size() == obj.ObjectMeshes.size())
 			{
-				auto faceFrustums = std::array<Frustum, 6>{};
-				for (int face = 0; face < 6; face++)
-					faceFrustums[face].Update(shadowViews[face], projection);
-
 				shadowFaceMask = 0;
 				for (const auto& sphere : spheres)
 				{
@@ -203,7 +230,7 @@ namespace TEN::Renderer
 
 					for (int face = 0; face < 6; face++)
 					{
-						if (faceFrustums[face].SphereInFrustum(center, radius))
+						if (ShadowMapCache.Frustums[face].SphereInFrustum(center, radius))
 							shadowFaceMask |= (1u << face);
 					}
 				}
@@ -246,11 +273,10 @@ namespace TEN::Renderer
 
 			// Set camera matrices.
 			auto shadowProjection = CCameraMatrixBuffer{};
-			shadowProjection.ViewProjection = shadowViewProjections[step];
+			shadowProjection.ViewProjection = ShadowMapCache.ViewProjections[step];
 			UpdateConstantBuffer(shadowProjection, _cbCameraMatrices);
 			BindConstantBufferVS(ConstantBufferRegister::Camera, _cbCameraMatrices.get());
 
-			_stShadowMap.LightViewProjections[step] = shadowViewProjections[step];
 
 			SetAlphaTest(AlphaTestMode::GreatherThan, ALPHA_TEST_THRESHOLD);
 
@@ -412,6 +438,8 @@ namespace TEN::Renderer
 
 	void Renderer::PrepareRopes(RenderView& view)
 	{
+		const float interpolationFactor = GetInterpolationFactor();
+
 		for (const auto& rope : Ropes)
 		{
 			if (!rope.active)
@@ -432,7 +460,7 @@ namespace TEN::Renderer
 				relPos = Vector3(segment->x >> FP_SHIFT, segment->y >> FP_SHIFT, segment->z >> FP_SHIFT);
 				auto currentOutput = Vector3::Transform(relPos, translationMatrix);
 
-				auto absolutePos = Vector3::Lerp(prevOutput, currentOutput, GetInterpolationFactor());
+				auto absolutePos = Vector3::Lerp(prevOutput, currentOutput, interpolationFactor);
 				absolutePoints[i] = absolutePos;
 			}
 
@@ -1244,16 +1272,11 @@ namespace TEN::Renderer
 
 		for (const auto& tri : _triangles3DToDraw)
 		{
-			auto rVertices = std::vector<Vertex>{};
-			rVertices.reserve(tri.Vertices.size());
-
-			for (const auto& vertex : tri.Vertices)
+			auto rVertices = std::array<Vertex, 3>{};
+			for (int i = 0; i < rVertices.size(); i++)
 			{
-				auto rVertex = Vertex{};
-				rVertex.Position = vertex;
-				rVertex.Color = VectorColorToRGBA_TempToVector4(tri.Color);
-
-				rVertices.push_back(rVertex);
+				rVertices[i].Position = tri.Vertices[i];
+				rVertices[i].Color = VectorColorToRGBA_TempToVector4(tri.Color);
 			}
 
 			_primitiveBatch->DrawTriangle(rVertices[0], rVertices[1], rVertices[2]);
@@ -2533,12 +2556,20 @@ namespace TEN::Renderer
 	{
 		RenderBlobShadows(renderView);
 
-		if (g_Configuration.ShadowType != ShadowMode::None)
-		{
-			for (auto room : renderView.RoomsToDraw)
-				for (auto itemToDraw : room->ItemsToDraw)
-					RenderShadowMap(itemToDraw, renderView);
-		}
+		ShadowMapCache.Valid = false;
+		if (g_Configuration.ShadowType == ShadowMode::None)
+			return;
+
+		BuildShadowMapFrameCache(_shadowLight, GetInterpolationFactor());
+		if (!ShadowMapCache.Valid)
+			return;
+
+		for (int face = 0; face < ShadowMapCache.ViewProjections.size(); face++)
+			_stShadowMap.LightViewProjections[face] = ShadowMapCache.ViewProjections[face];
+
+		for (auto room : renderView.RoomsToDraw)
+			for (auto itemToDraw : room->ItemsToDraw)
+				RenderShadowMap(itemToDraw, renderView);
 	}
 
 	void Renderer::DrawWaterfalls(RendererItem* item, RenderView& view, float speed, RendererPass rendererPass)
@@ -2668,7 +2699,7 @@ namespace TEN::Renderer
 
 			for (auto it = view.SortedStaticsToDraw.begin(); it != view.SortedStaticsToDraw.end(); it++)
 			{
-				std::vector<RendererStatic*> statics = it->second;
+				const auto& statics = it->second;
 
 				RendererStatic* refStatic = statics[0];
 				RendererObject& refStaticObj = GetStaticRendererObject(refStatic->ObjectNumber);
@@ -2752,7 +2783,7 @@ namespace TEN::Renderer
 
 			for (auto it = view.SortedStaticsToDraw.begin(); it != view.SortedStaticsToDraw.end(); it++)
 			{
-				auto statics = it->second;
+				const auto& statics = it->second;
 
 				auto* refStatic = statics[0];
 				auto& refStaticObj = GetStaticRendererObject(refStatic->ObjectNumber);
@@ -2843,7 +2874,7 @@ namespace TEN::Renderer
 			// Collect sorted blend modes faces ordered by room if doing transparent pass.
 			for (auto it = view.SortedStaticsToDraw.begin(); it != view.SortedStaticsToDraw.end(); it++)
 			{
-				auto statics = it->second;
+				const auto& statics = it->second;
 
 				auto* refStatic = statics[0];
 				auto& refStaticObj = GetStaticRendererObject(refStatic->ObjectNumber);
