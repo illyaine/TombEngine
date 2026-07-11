@@ -75,16 +75,12 @@ namespace TEN::Renderer::Utils
 	class ShaderManager
 	{
 	private:
-		ComPtr<ID3D11Device>        _device  = nullptr;
+		ComPtr<ID3D11Device>		_device	 = nullptr;
 		ComPtr<ID3D11DeviceContext> _context = nullptr;
-		ComPtr<ID3D11SamplerState>  _gpuEnvironmentSampler = nullptr;
+		ComPtr<ID3D11SamplerState> _gpuEnvironmentSampler = nullptr;
 
-		ID3D11VertexShader*  _boundVertexShader  = nullptr;
-		ID3D11PixelShader*   _boundPixelShader   = nullptr;
-		ID3D11ComputeShader* _boundComputeShader = nullptr;
-
-		int                                                _compileCounter = 0;
-		std::array<RendererShader, (int)Shader::Count> _shaders        = {};
+		int											   _compileCounter = 0;
+		std::array<RendererShader, (int)Shader::Count> _shaders		   = {};
 
 	public:
 		ShaderManager() = default;
@@ -102,7 +98,7 @@ namespace TEN::Renderer::Utils
 		void LoadAAShaders(int width, int height, bool recompile);
 
 		RendererShader LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile);
-		void           Load(Shader shader, const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines = nullptr, bool forceRecompile = false);
-		void           Destroy(Shader shader);
+		void		   Load(Shader shader, const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines = nullptr, bool forceRecompile = false);
+		void		   Destroy(Shader shader);
 	};
 }
