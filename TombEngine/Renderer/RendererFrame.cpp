@@ -70,6 +70,7 @@ namespace TEN::Renderer
 	void Renderer::CollectRooms(RenderView& renderView, bool onlyRooms)
 	{
 		_visitedRoomsStack.clear();
+		const bool rebuildRendererCaches = _invalidateCache;
 
 		RoomVisibilityGeneration++;
 		if (RoomVisibilityGeneration == 0)
@@ -143,28 +144,38 @@ namespace TEN::Renderer
 		for (const auto& light : _dynamicLights[_dynamicLightList])
 			collectFogBulb(light);
 
-		auto collectRoomFogBulbs = [&](RendererRoom& room)
+		// Preserve the original all-active-room fog semantics, but cache which rooms can actually contribute.
+		static thread_local auto staticFogRooms = std::vector<RendererRoom*>{};
+		static thread_local size_t cachedFogRoomCount = 0;
+		if (rebuildRendererCaches || cachedFogRoomCount != _rooms.size())
 		{
-			if (room.FogCollectionGeneration == RoomVisibilityGeneration)
-				return;
+			staticFogRooms.clear();
+			cachedFogRoomCount = _rooms.size();
 
-			room.FogCollectionGeneration = RoomVisibilityGeneration;
-			if (!g_Level.Rooms[room.RoomNumber].Active())
-				return;
-
-			for (const auto& light : room.Lights)
-				collectFogBulb(light);
-		};
-
-		// Static fog bulbs only need to be considered from visible rooms and their spatial neighbours.
-		for (auto* visibleRoom : renderView.RoomsToDraw)
-		{
-			collectRoomFogBulbs(*visibleRoom);
-			for (int neighbour : visibleRoom->Neighbors)
+			for (auto& room : _rooms)
 			{
-				if (neighbour >= 0 && neighbour < _rooms.size())
-					collectRoomFogBulbs(_rooms[neighbour]);
+				bool hasFogBulb = false;
+				for (const auto& light : room.Lights)
+				{
+					if (light.Type == LightType::FogBulb)
+					{
+						hasFogBulb = true;
+						break;
+					}
+				}
+
+				if (hasFogBulb)
+					staticFogRooms.push_back(&room);
 			}
+		}
+
+		for (auto* room : staticFogRooms)
+		{
+			if (room == nullptr || !g_Level.Rooms[room->RoomNumber].Active())
+				continue;
+
+			for (const auto& light : room->Lights)
+				collectFogBulb(light);
 		}
 
 		std::sort(
@@ -506,7 +517,7 @@ namespace TEN::Renderer
 					GetSkinningMode(obj, item.Model.SkinIndex) != SkinningMode::Full &&
 					item.Model.MeshIndex.size() == obj.ObjectMeshes.size();
 
-				if (canUseAnimationBounds && item.Model.Mutators.size() == obj.ObjectMeshes.size())
+				if (canUseAnimationBounds)
 				{
 					for (const auto& mutator : item.Model.Mutators)
 					{
@@ -983,7 +994,6 @@ namespace TEN::Renderer
 		RendererRoom& room = _rooms[roomNumber];
 		room.DynamicLightCandidates.clear();
 		room.DynamicLightCandidatesReady = true;
-		room.DynamicLightCandidates.reserve(_dynamicLights[_dynamicLightList].size());
 		
 		// Build a conservative per-room dynamic candidate list once, then reuse it for all items, statics and effects in the room.
 		for (auto& dynamicLight : _dynamicLights[_dynamicLightList])
