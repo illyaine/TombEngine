@@ -192,18 +192,18 @@ namespace TEN::Effects::Environment
 			if (dustCount > DUST_PARTICLE_COUNT_MAX)
 			{
 				auto removeCount = dustCount - DUST_PARTICLE_COUNT_MAX;
-				for (auto particle = Particles.begin(); particle != Particles.end() && removeCount > 0;)
-				{
-					if (particle->Type == WeatherType::None)
-					{
-						particle = Particles.erase(particle);
-						removeCount--;
-					}
-					else
-					{
-						++particle;
-					}
-				}
+				Particles.erase(
+					std::remove_if(
+						Particles.begin(), Particles.end(),
+						[&removeCount](const auto& particle)
+						{
+							if (removeCount == 0 || particle.Type != WeatherType::None)
+								return false;
+
+							removeCount--;
+							return true;
+						}),
+					Particles.end());
 			}
 
 			return Particles;
