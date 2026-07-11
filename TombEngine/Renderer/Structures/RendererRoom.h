@@ -19,6 +19,12 @@ namespace TEN::Renderer::Structures
 	using namespace DirectX::SimpleMath;
 	using namespace TEN::Renderer::Graphics;
 
+	struct RendererRoomLightCandidate
+	{
+		RendererLight* Light = nullptr;
+		int SourceRoomNumber = NO_VALUE;
+	};
+
 	struct RendererRoom
 	{
 		bool Visited;
@@ -32,7 +38,7 @@ namespace TEN::Renderer::Structures
 		std::vector<RendererEffect*> EffectsToDraw;
 		std::vector<RendererStatic*> StaticsToDraw;
 		std::vector<RendererLight*> LightsToDraw;
-		std::vector<RendererLight*> StaticLightCandidates;
+		std::vector<RendererRoomLightCandidate> StaticLightCandidates;
 		std::vector<RendererLight*> DynamicLightCandidates;
 		std::vector<RendererDecal> Decals;
 		std::vector<RendererDoor> Doors;
