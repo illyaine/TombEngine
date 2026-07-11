@@ -133,7 +133,7 @@ namespace TEN::Renderer
 		unsigned int offset = 0;
 		_context->IASetVertexBuffers(0, 1, _quadVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
 
-		_shaders.Bind(Shader::Starfield);
+		_shaders.Bind(Shader::GpuEnvironment);
 		auto* sprite = &_sprites[Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_LENS_FLARE_3];
 		BindTexture(TextureRegister::ColorMap, sprite->Texture, SamplerStateRegister::LinearClamp);
 
