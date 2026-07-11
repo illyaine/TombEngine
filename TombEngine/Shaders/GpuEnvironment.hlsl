@@ -152,7 +152,7 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 {
 	PixelShaderInput output = (PixelShaderInput)0;
 
-	int polyIndex = (int)(input.Effects >> 25);
+	uint polyIndex = input.Effects >> 25;
 	output.TextureSlice = 0;
 
 	float3 worldPosition = float3(0.0f, 0.0f, 0.0f);
@@ -181,7 +181,7 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 
 		// Bucket stride is shared by all particles in a draw. Smaller clusters still leave
 		// padded instances, so reject them before hash, trigonometry, billboard and fog work.
-		if (clusterIndex >= particle.ClusterSize)
+		if (clusterIndex >= (uint)particle.ClusterSize)
 		{
 			output.Position = float4(-2.0f, -2.0f, 0.0f, 1.0f);
 			return output;
@@ -261,8 +261,8 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 	}
 
 	output.Position = mul(float4(worldPosition, 1.0f), ViewProjection);
-	output.FogBulbs = DoFogBulbsForVertex(float4(worldPosition, 1.0f));
-	output.DistanceFog = DoDistanceFogForVertex(float4(worldPosition, 1.0f));
+	output.FogBulbs = DoFogBulbsForVertex(worldPosition);
+	output.DistanceFog = DoDistanceFogForVertex(worldPosition);
 
 	return output;
 }
@@ -313,7 +313,7 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 
 	output.xyz *= 1.0f - Luma(input.FogBulbs.xyz);
 	output.xyz = saturate(output.xyz);
-	output = DoDistanceFogForPixel(output, float4(0.0f, 0.0f, 0.0f, 0.0f), input.DistanceFog);
+	output.xyz = lerp(output.xyz, FogColor.xyz, saturate(input.DistanceFog));
 
 	return output;
 }
