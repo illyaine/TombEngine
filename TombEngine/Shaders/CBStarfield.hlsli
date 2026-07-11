@@ -12,7 +12,7 @@ cbuffer CBStarfield : register(b13)
 	int EnvironmentMode;
 	int EnvironmentClusterStride;
 	float EnvironmentClusterSpread;
-	float EnvironmentPadding;
+	int EnvironmentParticleOffset;
 };
 
 #endif
