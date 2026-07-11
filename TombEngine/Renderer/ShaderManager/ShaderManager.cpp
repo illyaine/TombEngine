@@ -14,6 +14,7 @@ namespace TEN::Renderer::Utils
 {
 	ShaderManager::~ShaderManager()
 	{
+		_starfieldSampler.Reset();
 		_device = nullptr;
 		_context = nullptr;
 
@@ -30,6 +31,16 @@ namespace TEN::Renderer::Utils
 	{
 		_device = device;
 		_context = context;
+
+		auto samplerDesc = D3D11_SAMPLER_DESC{};
+		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		samplerDesc.MinLOD = 0.0f;
+		samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+		throwIfFailed(_device->CreateSamplerState(&samplerDesc, _starfieldSampler.GetAddressOf()));
 	}
 
 	void ShaderManager::LoadPostprocessShaders()
@@ -161,6 +172,12 @@ namespace TEN::Renderer::Utils
 
 		if (shaderObj.Compute.Shader != nullptr || forceNull)
 			_context->CSSetShader(shaderObj.Compute.Shader.Get(), nullptr, 0);
+
+		if (shader == Shader::Starfield && _starfieldSampler != nullptr)
+		{
+			auto* sampler = _starfieldSampler.Get();
+			_context->PSSetSamplers(0, 1, &sampler);
+		}
 	}
 
 	RendererShader ShaderManager::LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile)
@@ -274,7 +291,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "PS", funcName, "ps_5_0", rendererShader.Pixel.Blob);
 			throwIfFailed(_device->CreatePixelShader(rendererShader.Pixel.Blob->GetBufferPointer(), rendererShader.Pixel.Blob->GetBufferSize(),
-													 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
+												 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create vertex shader.
@@ -282,7 +299,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "VS", funcName, "vs_5_0", rendererShader.Vertex.Blob);
 			throwIfFailed(_device->CreateVertexShader(rendererShader.Vertex.Blob->GetBufferPointer(), rendererShader.Vertex.Blob->GetBufferSize(),
-													  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
+												  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create compute shader.
@@ -290,7 +307,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "CS", funcName, "cs_5_0", rendererShader.Compute.Blob);
 			throwIfFailed(_device->CreateComputeShader(rendererShader.Compute.Blob->GetBufferPointer(), rendererShader.Compute.Blob->GetBufferSize(),
-													   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
+												   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
 		}
 
 		// Increment compile counter.
