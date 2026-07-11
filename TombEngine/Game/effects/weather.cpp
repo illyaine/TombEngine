@@ -95,6 +95,43 @@ namespace TEN::Effects::Environment
 			return result;
 		}
 
+		bool CanSkipExactRainSweep(
+			const Vector3& origin,
+			int roomNumber,
+			const Vector3& target,
+			const PointCollisionData& targetCollision)
+		{
+			if (roomNumber < 0 || roomNumber >= g_Level.Rooms.size())
+				return false;
+
+			if (targetCollision.GetRoomNumber() != roomNumber)
+				return false;
+
+			// Static collision geometry is not represented by room floor/ceiling samples.
+			if (!g_Level.Rooms[roomNumber].mesh.empty())
+				return false;
+
+			auto originCollision = GetPointCollision(origin, roomNumber);
+			if (originCollision.GetRoomNumber() != roomNumber)
+				return false;
+
+			const auto originFloor = originCollision.GetFloorHeight();
+			const auto targetFloor = targetCollision.GetFloorHeight();
+			const auto originCeiling = originCollision.GetCeilingHeight();
+			const auto targetCeiling = targetCollision.GetCeilingHeight();
+
+			// Only skip the exact sweep when both endpoints describe the same open sector interval.
+			if (originFloor != targetFloor || originCeiling != targetCeiling)
+				return false;
+
+			const float segmentTop = std::min(origin.y, target.y);
+			const float segmentBottom = std::max(origin.y, target.y);
+			const float safeCeiling = originCeiling + WEATHER_SURFACE_OFFSET;
+			const float safeFloor = originFloor - WEATHER_SURFACE_OFFSET;
+
+			return safeCeiling < safeFloor && segmentTop > safeCeiling && segmentBottom < safeFloor;
+		}
+
 		void SpawnRainSurfaceImpact(const WeatherSurfaceHit& hit)
 		{
 			// The legacy spark is vertically oriented, so avoid using it on near-vertical walls.
@@ -126,7 +163,8 @@ namespace TEN::Effects::Environment
 
 	EnvironmentController::EnvironmentController()
 	{
-		Particles.reserve(WEATHER_PARTICLE_COUNT_MAX);
+		WeatherParticles.reserve(WEATHER_PARTICLE_COUNT_MAX);
+		DustParticles.reserve(DUST_PARTICLE_RESERVE);
 	}
 
 	void EnvironmentController::Update()
@@ -163,8 +201,9 @@ namespace TEN::Effects::Environment
 		FlashProgress = 0.0f;
 		FlashColorBase = Vector3::Zero;
 
-		// Clear weather.
-		Particles.clear();
+		// Clear weather and underwater dust independently.
+		WeatherParticles.clear();
+		DustParticles.clear();
 
 		// Clear starfield.
 		ResetStarField = true;
@@ -420,13 +459,34 @@ namespace TEN::Effects::Environment
 
 	void EnvironmentController::UpdateWeather(const ScriptInterfaceLevel& level)
 	{
-		for (auto& part : Particles)
+		// Underwater dust has no collision work and is updated independently from outdoor weather.
+		for (auto& part : DustParticles)
 		{
 			part.StoreInterpolationData();
-
 			part.Life -= 2;
 
-			// Disable particle if dead. Will be cleaned on next call of SpawnWeatherParticles().
+			if (part.Life <= 0)
+			{
+				part.Enabled = false;
+				continue;
+			}
+
+			if (abs(Camera.pos.x - part.Position.x) > COLLISION_CHECK_DISTANCE ||
+				abs(Camera.pos.z - part.Position.z) > COLLISION_CHECK_DISTANCE)
+			{
+				part.Life = std::clamp(part.Life, 0.0f, WEATHER_PARTICLE_NEAR_DEATH_LIFE);
+			}
+
+			if (!part.Stopped)
+				part.Position += part.Velocity;
+		}
+
+		for (auto& part : WeatherParticles)
+		{
+			part.StoreInterpolationData();
+			part.Life -= 2;
+
+			// Disable particle if dead. It will be cleaned before the next spawn pass.
 			if (part.Life <= 0)
 			{
 				part.Enabled = false;
@@ -440,8 +500,7 @@ namespace TEN::Effects::Environment
 				part.Life = std::clamp(part.Life, 0.0f, WEATHER_PARTICLE_NEAR_DEATH_LIFE);
 			}
 
-			// If particle was locked (after landing or sticking in substance such as water or swamp),
-			// fade out and bypass collision checks and movement updates.
+			// If particle was locked after landing, fade out and bypass collision and movement updates.
 			if (part.Stopped)
 			{
 				if (part.Type == WeatherType::Snow)
@@ -454,22 +513,7 @@ namespace TEN::Effects::Environment
 			auto prevPos = part.Position;
 			part.Position.x += part.Velocity.x;
 			part.Position.z += part.Velocity.z;
-
-			switch (part.Type)
-			{
-			case WeatherType::None:
-				part.Position.y += part.Velocity.y;
-				break;
-
-			case WeatherType::Rain:
-			case WeatherType::Snow:
-				part.Position.y += (part.Velocity.y / 2.0f);
-				break;
-			}
-
-			// Particle is inert; don't check collisions.
-			if (part.Type == WeatherType::None)
-				continue;
+			part.Position.y += (part.Velocity.y / 2.0f);
 
 			PointCollisionData pointColl;
 			bool collisionCalculated = false;
@@ -479,9 +523,13 @@ namespace TEN::Effects::Environment
 
 			if (shouldCalculateCollision)
 			{
-				// Sweep the complete unchecked rain path. Point-only collision could tunnel through
-				// thin roofs and then incorrectly create a splash on the interior floor.
-				if (part.Type == WeatherType::Rain)
+				pointColl = GetPointCollision(part.Position, part.RoomNumber);
+				collisionCalculated = true;
+
+				// Sweep the complete unchecked rain path whenever the conservative room/sector broad phase
+				// cannot prove that the segment remains inside one open interval without static geometry.
+				if (part.Type == WeatherType::Rain &&
+					!CanSkipExactRainSweep(part.CollisionPosition, part.RoomNumber, part.Position, pointColl))
 				{
 					auto surfaceHit = GetWeatherSurfaceHit(part.CollisionPosition, part.RoomNumber, part.Position);
 					if (surfaceHit.has_value())
@@ -496,7 +544,6 @@ namespace TEN::Effects::Environment
 					}
 				}
 
-				pointColl = GetPointCollision(part.Position, part.RoomNumber);
 				part.CollisionPosition = part.Position;
 
 				// Determine collision checking frequency based on nearest floor/ceiling surface position.
@@ -509,7 +556,6 @@ namespace TEN::Effects::Environment
 				part.CollisionCheckDelay = std::min(
 					floor(coeff / std::max(std::numeric_limits<float>::denorm_min(), abs(part.Velocity.y))),
 					maxDelay);
-				collisionCalculated = true;
 			}
 			else
 			{
@@ -599,7 +645,7 @@ namespace TEN::Effects::Environment
 				}
 			}
 
-			// Update velocities for every particle type.
+			// Update velocities for the active weather type.
 			switch (part.Type)
 			{
 			case WeatherType::Snow:
@@ -633,12 +679,26 @@ namespace TEN::Effects::Environment
 
 				break;
 			}
+			default:
+				break;
 			}
 		}
 	}
 
 	void EnvironmentController::SpawnDustParticles(const ScriptInterfaceLevel& level)
 	{
+		if (!DustParticles.empty())
+		{
+			DustParticles.erase(
+				std::remove_if(
+					DustParticles.begin(), DustParticles.end(),
+					[](const WeatherParticle& part)
+					{
+						return !part.Enabled;
+					}),
+				DustParticles.end());
+		}
+
 		for (int i = 0; i < DUST_SPAWN_DENSITY; i++)
 		{
 			// TODO: Use functions in Math::Random namespace.
@@ -659,6 +719,7 @@ namespace TEN::Effects::Environment
 				continue;
 
 			auto part = WeatherParticle();
+			part.UniqueID = (int)DustParticles.size();
 			part.Velocity = Random::GenerateDirection() * DUST_VELOCITY_MAX;
 			part.Size = Random::GenerateFloat(DUST_SIZE_MAX / 2, DUST_SIZE_MAX);
 			part.Type = WeatherType::None;
@@ -669,23 +730,23 @@ namespace TEN::Effects::Environment
 			part.Stopped = false;
 			part.Enabled = true;
 			part.StartLife = part.Life;
-			Particles.push_back(part);
+			DustParticles.push_back(part);
 		}
 	}
 
 	void EnvironmentController::SpawnWeatherParticles(const ScriptInterfaceLevel& level)
 	{
-		// Clean up dead particles.
-		if (!Particles.empty())
+		// Clean up dead weather particles without touching the independent underwater dust pool.
+		if (!WeatherParticles.empty())
 		{
-			Particles.erase(
+			WeatherParticles.erase(
 				std::remove_if(
-					Particles.begin(), Particles.end(),
+					WeatherParticles.begin(), WeatherParticles.end(),
 					[](const WeatherParticle& part)
 					{
 						return !part.Enabled;
 					}),
-				Particles.end());
+				WeatherParticles.end());
 		}
 
 		if (level.GetWeatherType() == WeatherType::None || level.GetWeatherStrength() == 0.0f)
@@ -702,7 +763,7 @@ namespace TEN::Effects::Environment
 
 		if (density > 0.0f && level.GetWeatherType() != WeatherType::None)
 		{
-			while (Particles.size() < WEATHER_PARTICLE_COUNT_MAX)
+			while (WeatherParticles.size() < WEATHER_PARTICLE_COUNT_MAX)
 			{
 				if (newParticlesCount > density)
 					break;
@@ -766,7 +827,7 @@ namespace TEN::Effects::Environment
 					break;
 				}
 
-				part.UniqueID = (int)Particles.size();
+				part.UniqueID = (int)WeatherParticles.size();
 				part.Type = level.GetWeatherType();
 				part.RoomNumber = outsideRoom;
 				part.Position.x = xPos;
@@ -778,7 +839,7 @@ namespace TEN::Effects::Environment
 				part.CollisionCheckDelay = 0;
 				part.StartLife = part.Life;
 
-				Particles.push_back(part);
+				WeatherParticles.push_back(part);
 			}
 		}
 	}
