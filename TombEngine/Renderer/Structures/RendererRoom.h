@@ -32,10 +32,16 @@ namespace TEN::Renderer::Structures
 		std::vector<RendererEffect*> EffectsToDraw;
 		std::vector<RendererStatic*> StaticsToDraw;
 		std::vector<RendererLight*> LightsToDraw;
+		std::vector<RendererLight*> StaticLightCandidates;
+		std::vector<RendererLight*> DynamicLightCandidates;
 		std::vector<RendererDecal> Decals;
 		std::vector<RendererDoor> Doors;
 		BoundingBox BoundingBox;
 		RendererRectangle ClipBounds;
 		std::vector<int> Neighbors;
+		unsigned int VisibilityGeneration = 0;
+		unsigned int FogCollectionGeneration = 0;
+		bool StaticLightCandidatesValid = false;
+		bool DynamicLightCandidatesReady = false;
 	};
 }
