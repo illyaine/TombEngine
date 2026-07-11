@@ -69,7 +69,7 @@ namespace TEN::Renderer
 		_cbPostProcessBuffer = CreateConstantBuffer<CPostProcessBuffer>();
 		_cbBlending = CreateConstantBuffer<CBlendingBuffer>();
 		_cbInstancedSpriteBuffer = CreateConstantBuffer<CInstancedSpriteBuffer>();
-		_cbStarfield = CreateConstantBuffer<CStarfieldBuffer>();
+		_cbGpuEnvironment = CreateConstantBuffer<CGpuEnvironmentBuffer>();
 		_cbInstancedStaticMeshBuffer = CreateConstantBuffer<CInstancedStaticMeshBuffer>();
 		_cbSMAABuffer = CreateConstantBuffer<CSMAABuffer>();
 		_cbMaterial = CreateConstantBuffer<CMaterialBuffer>();
@@ -88,7 +88,7 @@ namespace TEN::Renderer
 		_triangles3DToDraw = createVector<RendererTriangle3D>(MAX_TRIANGLES_3D);
 
 		for (auto& dynamicLightList : _dynamicLights)
-			dynamicLightList = createVector<RendererLight>(MAX_DYNAMIC_LIGHTS);
+			_dynamicLightList = createVector<RendererLight>(MAX_DYNAMIC_LIGHTS);
 
 		for (auto& item : _items)
 			item.LightsToDraw = createVector<RendererLight*>(MAX_LIGHTS_PER_ITEM);
@@ -477,7 +477,7 @@ namespace TEN::Renderer
 		Utils::throwIfFailed(dxgiFactory->CreateSwapChain(_device.Get(), &sd, &_swapChain));
 
 		dxgiFactory->MakeWindowAssociation(handle, DXGI_MWA_NO_ALT_ENTER);
- 
+  
 		// Initialize render targets
 		ID3D11Texture2D* backBufferTexture = NULL;
 		Utils::throwIfFailed(_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast <void**>(&backBufferTexture)));
