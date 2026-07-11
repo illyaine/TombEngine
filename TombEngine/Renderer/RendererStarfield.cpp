@@ -33,14 +33,14 @@ namespace TEN::Renderer
 		auto* sprite = &_sprites[Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_LENS_FLARE_3];
 
 		// NOTE: Strange packing due to particular HLSL 16-byte alignment requirements.
-		_stStarfield.UV[0].x = sprite->UV[0].x;
-		_stStarfield.UV[0].y = sprite->UV[1].x;
-		_stStarfield.UV[0].z = sprite->UV[2].x;
-		_stStarfield.UV[0].w = sprite->UV[3].x;
-		_stStarfield.UV[1].x = sprite->UV[0].y;
-		_stStarfield.UV[1].y = sprite->UV[1].y;
-		_stStarfield.UV[1].z = sprite->UV[2].y;
-		_stStarfield.UV[1].w = sprite->UV[3].y;
+		_stGpuEnvironment.UV[0].x = sprite->UV[0].x;
+		_stGpuEnvironment.UV[0].y = sprite->UV[1].x;
+		_stGpuEnvironment.UV[0].z = sprite->UV[2].x;
+		_stGpuEnvironment.UV[0].w = sprite->UV[3].x;
+		_stGpuEnvironment.UV[1].x = sprite->UV[0].y;
+		_stGpuEnvironment.UV[1].y = sprite->UV[1].y;
+		_stGpuEnvironment.UV[1].z = sprite->UV[2].y;
+		_stGpuEnvironment.UV[1].w = sprite->UV[3].y;
 
 		auto rendererStars = std::vector<RendererStar>{};
 		rendererStars.reserve(stars.size());
@@ -115,12 +115,12 @@ namespace TEN::Renderer
 		if (_starfieldCount == 0 || _starfieldBufferView == nullptr)
 			return;
 
-		_stStarfield.Mode = GpuEnvironmentMode::Starfield;
-		_stStarfield.ClusterStride = 1;
-		_stStarfield.ClusterSpread = 0.0f;
-		UpdateConstantBuffer(_stStarfield, _cbStarfield);
-		BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
-		BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+		_stGpuEnvironment.Mode = GpuEnvironmentMode::Starfield;
+		_stGpuEnvironment.ClusterStride = 1;
+		_stGpuEnvironment.ClusterSpread = 0.0f;
+		UpdateConstantBuffer(_stGpuEnvironment, _cbGpuEnvironment);
+		BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbGpuEnvironment.get());
+		BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbGpuEnvironment.get());
 
 		SetDepthState(DepthState::Read);
 		SetBlendMode(BlendMode::Additive);
