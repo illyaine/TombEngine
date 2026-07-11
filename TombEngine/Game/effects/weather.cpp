@@ -50,11 +50,11 @@ namespace TEN::Effects::Environment
 		std::optional<WeatherSurfaceHit> GetWeatherSurfaceHit(const Vector3& origin, int roomNumber, const Vector3& target)
 		{
 			auto direction = target - origin;
-			float distance = Vector3::Distance(origin, target);
+			float distance = direction.Length();
 			if (distance <= std::numeric_limits<float>::epsilon())
 				return std::nullopt;
 
-			direction.Normalize();
+			direction /= distance;
 			auto los = GetLosCollision(origin, roomNumber, direction, distance, false, false, true);
 
 			float nearestDistance = distance + 1.0f;
@@ -297,7 +297,6 @@ namespace TEN::Effects::Environment
 		}
 
 		WindAngle = (WindAngle + ((WindDAngle - WindAngle) >> 3)) & 0x1FFE;
-
 		WindX = WindCurrent * phd_sin(WindAngle << 3);
 		WindZ = WindCurrent * phd_cos(WindAngle << 3);
 	}
