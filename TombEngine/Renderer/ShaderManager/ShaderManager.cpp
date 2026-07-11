@@ -192,7 +192,7 @@ namespace TEN::Renderer::Utils
 		// Ensure the /Bin subdirectory exists.
 		std::filesystem::create_directories(compiledShaderPath);
 
-		// Helper function to load or compile the shader.
+		// Helper function to load or compile a shader.
 		auto loadOrCompileShader = [this, type, defines, forceRecompile, shaderPath, compiledShaderPath]
 			(const std::wstring& baseFileName, const std::string& shaderType, const std::string& functionName, const char* model, ComPtr<ID3D10Blob>& bytecode)
 		{
