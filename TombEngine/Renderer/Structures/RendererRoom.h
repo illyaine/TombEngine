@@ -22,7 +22,7 @@ namespace TEN::Renderer::Structures
 	struct RendererRoomLightCandidate
 	{
 		RendererLight* Light = nullptr;
-		int SourceRoomNumber = NO_VALUE;
+		int SourceRoomNumber = -1;
 	};
 
 	struct RendererRoom
