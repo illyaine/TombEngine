@@ -134,18 +134,15 @@ namespace TEN::Renderer
 	{
 		for (unsigned int i = 0; i < 6; i++)
 		{
-			if (frustum[i][0] * min.x + frustum[i][1] * min.y + frustum[i][2] * min.z + frustum[i][3] <= 0.0f &&
-				frustum[i][0] * max.x + frustum[i][1] * min.y + frustum[i][2] * min.z + frustum[i][3] <= 0.0f &&
-				frustum[i][0] * min.x + frustum[i][1] * max.y + frustum[i][2] * min.z + frustum[i][3] <= 0.0f &&
-				frustum[i][0] * max.x + frustum[i][1] * max.y + frustum[i][2] * min.z + frustum[i][3] <= 0.0f &&
-				frustum[i][0] * min.x + frustum[i][1] * min.y + frustum[i][2] * max.z + frustum[i][3] <= 0.0f &&
-				frustum[i][0] * max.x + frustum[i][1] * min.y + frustum[i][2] * max.z + frustum[i][3] <= 0.0f &&
-				frustum[i][0] * min.x + frustum[i][1] * max.y + frustum[i][2] * max.z + frustum[i][3] <= 0.0f &&
-				frustum[i][0] * max.x + frustum[i][1] * max.y + frustum[i][2] * max.z + frustum[i][3] <= 0.0f)
-			{
+			const auto& plane = frustum[i];
+			const auto x = (plane[0] >= 0.0f) ? max.x : min.x;
+			const auto y = (plane[1] >= 0.0f) ? max.y : min.y;
+			const auto z = (plane[2] >= 0.0f) ? max.z : min.z;
+
+			if (plane[0] * x + plane[1] * y + plane[2] * z + plane[3] <= 0.0f)
 				return false;
-			}
 		}
+
 		return true;
 	}
 
