@@ -182,6 +182,9 @@ namespace TEN::Effects::Environment
 
 		const std::vector<WeatherParticle>& GetGpuParticles()
 		{
+			if (Particles.size() <= DUST_PARTICLE_COUNT_MAX)
+				return Particles;
+
 			auto dustCount = std::count_if(
 				Particles.begin(), Particles.end(),
 				[](const auto& particle) { return particle.Type == WeatherType::None; });
