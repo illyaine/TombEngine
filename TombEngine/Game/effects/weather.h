@@ -180,32 +180,8 @@ namespace TEN::Effects::Environment
 			return EmptyParticles;
 		}
 
-		const std::vector<WeatherParticle>& GetGpuParticles()
+		const std::vector<WeatherParticle>& GetGpuParticles() const
 		{
-			if (Particles.size() <= DUST_PARTICLE_COUNT_MAX)
-				return Particles;
-
-			auto dustCount = std::count_if(
-				Particles.begin(), Particles.end(),
-				[](const auto& particle) { return particle.Type == WeatherType::None; });
-
-			if (dustCount > DUST_PARTICLE_COUNT_MAX)
-			{
-				auto removeCount = dustCount - DUST_PARTICLE_COUNT_MAX;
-				Particles.erase(
-					std::remove_if(
-						Particles.begin(), Particles.end(),
-						[&removeCount](const auto& particle)
-						{
-							if (removeCount == 0 || particle.Type != WeatherType::None)
-								return false;
-
-							removeCount--;
-							return true;
-						}),
-					Particles.end());
-			}
-
 			return Particles;
 		}
 
