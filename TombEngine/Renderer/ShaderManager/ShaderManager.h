@@ -18,7 +18,8 @@ namespace TEN::Renderer::Utils
 		Items,
 		InstancedStatics,
 		InstancedSprites,
-		Starfield,
+		GpuEnvironment,
+		Starfield = GpuEnvironment,
 		Sky,
 		Solid,
 		Inventory,
@@ -75,12 +76,12 @@ namespace TEN::Renderer::Utils
 	class ShaderManager
 	{
 	private:
-		ComPtr<ID3D11Device>		_device	 = nullptr;
+		ComPtr<ID3D11Device>        _device  = nullptr;
 		ComPtr<ID3D11DeviceContext> _context = nullptr;
-		ComPtr<ID3D11SamplerState> _starfieldSampler = nullptr;
+		ComPtr<ID3D11SamplerState>  _gpuEnvironmentSampler = nullptr;
 
-		int											   _compileCounter = 0;
-		std::array<RendererShader, (int)Shader::Count> _shaders		   = {};
+		int                                              _compileCounter = 0;
+		std::array<RendererShader, (int)Shader::Count> _shaders        = {};
 
 	public:
 		ShaderManager() = default;
@@ -98,7 +99,7 @@ namespace TEN::Renderer::Utils
 		void LoadAAShaders(int width, int height, bool recompile);
 
 		RendererShader LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile);
-		void		   Load(Shader shader, const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines = nullptr, bool forceRecompile = false);
-		void		   Destroy(Shader shader);
+		void           Load(Shader shader, const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines = nullptr, bool forceRecompile = false);
+		void           Destroy(Shader shader);
 	};
 }
