@@ -38,7 +38,7 @@
 #include "Renderer/ConstantBuffers/MaterialBuffer.h"
 #include "Renderer/ConstantBuffers/InstancedStaticBuffer.h"
 #include "Renderer/ConstantBuffers/InstancedSpriteBuffer.h"
-#include "Renderer/ConstantBuffers/StarfieldBuffer.h"
+#include "Renderer/ConstantBuffers/GpuEnvironmentBuffer.h"
 #include "Renderer/ConstantBuffers/ConstantBuffer.h"
 #include "Renderer/ConstantBuffers/PostProcessBuffer.h"
 #include "Renderer/ConstantBuffers/SMAABuffer.h"
@@ -183,8 +183,8 @@ namespace TEN::Renderer
 		ConstantBuffer<CPostProcessBuffer> _cbPostProcessBuffer;
 		CInstancedSpriteBuffer _stInstancedSpriteBuffer;
 		ConstantBuffer<CInstancedSpriteBuffer> _cbInstancedSpriteBuffer;
-		CStarfieldBuffer _stStarfield;
-		ConstantBuffer<CStarfieldBuffer> _cbStarfield;
+		CGpuEnvironmentBuffer _stGpuEnvironment;
+		ConstantBuffer<CGpuEnvironmentBuffer> _cbGpuEnvironment;
 		CBlendingBuffer _stBlending;
 		ConstantBuffer<CBlendingBuffer> _cbBlending;
 		CInstancedStaticMeshBuffer _stInstancedStaticMeshBuffer;
