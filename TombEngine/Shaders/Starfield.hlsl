@@ -75,6 +75,21 @@ float3 GetCameraUp()
 	return normalize(float3(View[0][1], View[1][1], View[2][1]));
 }
 
+float GetDepthSeparation(float sceneDepth, float particleDepth)
+{
+	float depthRange = FarPlane - NearPlane;
+	float depthSum = FarPlane + NearPlane;
+	float sceneDenominator = depthSum - sceneDepth * depthRange;
+	float particleDenominator = depthSum - particleDepth * depthRange;
+
+	// This is algebraically equivalent to LinearizeDepth(sceneDepth) minus
+	// LinearizeDepth(particleDepth), but requires only one division.
+	return max(
+		0.0f,
+		(2.0f * NearPlane * depthRange * (sceneDepth - particleDepth)) /
+		(sceneDenominator * particleDenominator));
+}
+
 void GetWeatherCluster(
 	WeatherInstance particle,
 	uint clusterIndex,
@@ -249,9 +264,7 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 
 	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
-		float sceneDepth = LinearizeDepth(sceneDepthRaw, NearPlane, FarPlane);
-		float particleDepth = LinearizeDepth(particleDepthRaw, NearPlane, FarPlane);
-		float surfaceSeparation = max(0.0f, sceneDepth - particleDepth);
+		float surfaceSeparation = GetDepthSeparation(sceneDepthRaw, particleDepthRaw);
 
 		if (EnvironmentMode == GPU_ENVIRONMENT_UNDERWATER_DUST)
 		{
