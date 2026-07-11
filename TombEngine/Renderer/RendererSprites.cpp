@@ -609,14 +609,14 @@ namespace TEN::Renderer
 
 			auto packEnvironmentTextureCoordinates = [&](RendererSprite* sprite)
 			{
-				_stStarfield.UV[0].x = sprite->UV[0].x;
-				_stStarfield.UV[0].y = sprite->UV[1].x;
-				_stStarfield.UV[0].z = sprite->UV[2].x;
-				_stStarfield.UV[0].w = sprite->UV[3].x;
-				_stStarfield.UV[1].x = sprite->UV[0].y;
-				_stStarfield.UV[1].y = sprite->UV[1].y;
-				_stStarfield.UV[1].z = sprite->UV[2].y;
-				_stStarfield.UV[1].w = sprite->UV[3].y;
+				_stGpuEnvironment.UV[0].x = sprite->UV[0].x;
+				_stGpuEnvironment.UV[0].y = sprite->UV[1].x;
+				_stGpuEnvironment.UV[0].z = sprite->UV[2].x;
+				_stGpuEnvironment.UV[0].w = sprite->UV[3].x;
+				_stGpuEnvironment.UV[1].x = sprite->UV[0].y;
+				_stGpuEnvironment.UV[1].y = sprite->UV[1].y;
+				_stGpuEnvironment.UV[1].z = sprite->UV[2].y;
+				_stGpuEnvironment.UV[1].w = sprite->UV[3].y;
 			};
 
 			if (!weatherParticles.empty())
@@ -632,14 +632,14 @@ namespace TEN::Renderer
 				SetBlendMode(BlendMode::Additive);
 				SetCullMode(CullMode::None);
 				SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
-				_shaders.Bind(Shader::Starfield);
+				_shaders.Bind(Shader::GpuEnvironment);
 
 				if (uploadBuffer(weatherGpuBuffer, weatherParticles))
 				{
 					auto* weatherView = weatherGpuBuffer.View.Get();
 					_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &weatherView);
-					BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
-					BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+					BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbGpuEnvironment.get());
+					BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbGpuEnvironment.get());
 
 					auto drawBucket = [&](WeatherCpuBucket& bucket, GpuEnvironmentMode mode)
 					{
@@ -648,12 +648,12 @@ namespace TEN::Renderer
 
 						const int clusterStride = std::clamp(bucket.MaxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
 						packEnvironmentTextureCoordinates(bucket.Sprite);
-						_stStarfield.Mode = mode;
-						_stStarfield.ClusterStride = clusterStride;
-						_stStarfield.ClusterSpread = mode == GpuEnvironmentMode::UnderwaterDust ? 0.0f : BLOCK(1.0f);
-						_stStarfield.ParticleOffset = bucket.ParticleOffset;
-						_stStarfield.TextureMode = GpuEnvironmentTextureMode::Bucket;
-						UpdateConstantBuffer(_stStarfield, _cbStarfield);
+						_stGpuEnvironment.Mode = mode;
+						_stGpuEnvironment.ClusterStride = clusterStride;
+						_stGpuEnvironment.ClusterSpread = mode == GpuEnvironmentMode::UnderwaterDust ? 0.0f : BLOCK(1.0f);
+						_stGpuEnvironment.ParticleOffset = bucket.ParticleOffset;
+						_stGpuEnvironment.TextureMode = GpuEnvironmentTextureMode::Bucket;
+						UpdateConstantBuffer(_stGpuEnvironment, _cbGpuEnvironment);
 						BindTexture(TextureRegister::ColorMap, bucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
 
 						DrawInstancedTriangles(4, static_cast<int>(bucket.Particles.size()) * clusterStride, 0);
@@ -695,25 +695,25 @@ namespace TEN::Renderer
 						auto* frameView = cache.FrameView.Get();
 						_context->VSSetShaderResources(WEATHER_FRAME_BUFFER_SLOT, 1, &frameView);
 
-						_stStarfield.Mode = mode;
-						_stStarfield.ClusterStride = std::clamp(maxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
-						_stStarfield.ClusterSpread = BLOCK(1.0f);
-						_stStarfield.ParticleOffset = particleOffset;
+						_stGpuEnvironment.Mode = mode;
+						_stGpuEnvironment.ClusterStride = std::clamp(maxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
+						_stGpuEnvironment.ClusterSpread = BLOCK(1.0f);
+						_stGpuEnvironment.ParticleOffset = particleOffset;
 
 						if (cache.UsesTextureArray)
 						{
-							_stStarfield.TextureMode = GpuEnvironmentTextureMode::Array;
+							_stGpuEnvironment.TextureMode = GpuEnvironmentTextureMode::Array;
 							auto* textureArrayView = cache.TextureArray.ShaderResourceView.Get();
 							_context->PSSetShaderResources(WEATHER_TEXTURE_ARRAY_SLOT, 1, &textureArrayView);
 						}
 						else
 						{
-							_stStarfield.TextureMode = GpuEnvironmentTextureMode::Atlas;
+							_stGpuEnvironment.TextureMode = GpuEnvironmentTextureMode::Atlas;
 							BindTexture(TextureRegister::ColorMap, cache.AtlasTexture, SamplerStateRegister::LinearClamp);
 						}
 
-						UpdateConstantBuffer(_stStarfield, _cbStarfield);
-						DrawInstancedTriangles(4, particleCount * _stStarfield.ClusterStride, 0);
+						UpdateConstantBuffer(_stGpuEnvironment, _cbGpuEnvironment);
+						DrawInstancedTriangles(4, particleCount * _stGpuEnvironment.ClusterStride, 0);
 						_numInstancedSpritesDrawCalls++;
 					};
 
