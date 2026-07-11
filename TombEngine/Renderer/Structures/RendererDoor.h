@@ -15,5 +15,6 @@ namespace TEN::Renderer::Structures
 		Vector3 CameraToDoor;
 		Vector4 AbsoluteVertices[4];
 		Vector4 TransformedVertices[4];
+		unsigned int VisibilityGeneration = 0;
 	};
 }
