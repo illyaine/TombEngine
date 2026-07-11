@@ -219,106 +219,129 @@ namespace TEN::Renderer::Utils
 				auto csoTime = std::filesystem::last_write_time(csoFileName);
 				auto srcTime = std::filesystem::last_write_time(srcFileNameWithExtension);
 
-				if (csoTime >= srcTime)
+				// Load compiled shader if it exists and is up-to-date.
+				if (srcTime < csoTime)
 				{
-					try
+					auto csoFile = std::ifstream(csoFileName, std::ios::binary);
+
+					if (csoFile.is_open())
 					{
-						throwIfFailed(D3DReadFileToBlob(csoFileName.c_str(), &bytecode));
-						TENLog("Shader " + ToString(csoFileName) + " loaded from binary file.", LogLevel::Info);
-						return true;
-					}
-					catch (...)
-					{
-						// Fall back to recompilation below.
+						// Load compiled shader.
+						csoFile.seekg(0, std::ios::end);
+						auto fileSize = csoFile.tellg();
+						csoFile.seekg(0, std::ios::beg);
+
+						auto buffer = std::vector<char>(fileSize);
+						csoFile.read(buffer.data(), fileSize);
+						csoFile.close();
+
+						D3DCreateBlob(fileSize, &bytecode);
+						memcpy(bytecode->GetBufferPointer(), buffer.data(), fileSize);
+
+						return;
 					}
 				}
 			}
 
-			ComPtr<ID3DBlob> errorBlob = nullptr;
-			auto flags = D3DCOMPILE_ENABLE_STRICTNESS;
-#if _DEBUG
-			flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-			flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
-#endif
-
-			auto result = D3DCompileFromFile(
-				srcFileNameWithExtension.c_str(),
-				defines,
-				D3D_COMPILE_STANDARD_FILE_INCLUDE,
-				functionName.c_str(),
-				model,
-				flags,
-				0,
-				&bytecode,
-				&errorBlob);
-
-			if (FAILED(result))
+			// Set up compilation flags according to build configuration.
+			unsigned int flags = D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_PACK_MATRIX_ROW_MAJOR;
+			if constexpr (DEBUG_BUILD)
 			{
-				std::string errorText = (errorBlob != nullptr) ?
-					std::string((const char*)errorBlob->GetBufferPointer(), errorBlob->GetBufferSize()) :
-					"Unknown shader compilation error.";
-				TENLog("Failed to compile shader " + ToString(srcFileNameWithExtension) + ": " + errorText, LogLevel::Error);
-				throw std::runtime_error(errorText);
+				flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+			}
+			else
+			{
+				flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_IEEE_STRICTNESS;
 			}
 
-			TENLog("Shader " + ToString(srcFileNameWithExtension) + " compiled.", LogLevel::Info);
+			auto trimmedFileName = std::filesystem::path(srcFileNameWithExtension).filename().string();
+			TENLog("Compiling shader: " + trimmedFileName, LogLevel::Info);
 
-			if (bytecode != nullptr)
-				D3DWriteBlobToFile(bytecode.Get(), csoFileName.c_str(), TRUE);
+			// Compile shader.
+			auto errors = ComPtr<ID3D10Blob>{};
+			HRESULT res = D3DCompileFromFile(srcFileNameWithExtension.c_str(), defines, D3D_COMPILE_STANDARD_FILE_INCLUDE,
+											 (shaderType + functionName).c_str(), model, flags, 0, bytecode.GetAddressOf(), errors.GetAddressOf());
 
-			return false;
+			if (FAILED(res))
+			{
+				if (errors)
+				{
+					auto error = std::string((const char*)(errors->GetBufferPointer()));
+					TENLog(error, LogLevel::Error);
+					throw std::runtime_error(error);
+				}
+				else
+				{
+					TENLog("Error while compiling shader: " + trimmedFileName, LogLevel::Error);
+					throwIfFailed(res);
+				}
+			}
+
+			// Save compiled shader to .cso file.
+			auto outCsoFile = std::ofstream(csoFileName, std::ios::binary);
+			if (outCsoFile.is_open())
+			{
+				outCsoFile.write((const char*)(bytecode->GetBufferPointer()), bytecode->GetBufferSize());
+				outCsoFile.close();
+			}
 		};
 
-		const auto vertexShaderTarget = "vs_5_0";
-		const auto pixelShaderTarget = "ps_5_0";
-		const auto computeShaderTarget = "cs_5_0";
-
-		auto loadStage = [&](ShaderType stageType, const std::string& stageName, const std::string& functionSuffix, const char* target, ComPtr<ID3D10Blob>& bytecode, auto createShader)
+		// Load or compile and create pixel shader.
+		if (type == ShaderType::Pixel || type == ShaderType::PixelAndVertex)
 		{
-			if ((type & stageType) == ShaderType::None)
-				return;
+			loadOrCompileShader(wideFileName, "PS", funcName, "ps_5_0", rendererShader.Pixel.Blob);
+			throwIfFailed(_device->CreatePixelShader(rendererShader.Pixel.Blob->GetBufferPointer(), rendererShader.Pixel.Blob->GetBufferSize(),
+												 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
+		}
 
-			auto entryPoint = funcName + functionSuffix;
-			bool loadedFromBinary = loadOrCompileShader(wideFileName, stageName, entryPoint, target, bytecode);
-			createShader(bytecode, loadedFromBinary);
-		};
+		// Load or compile and create vertex shader.
+		if (type == ShaderType::Vertex || type == ShaderType::PixelAndVertex)
+		{
+			loadOrCompileShader(wideFileName, "VS", funcName, "vs_5_0", rendererShader.Vertex.Blob);
+			throwIfFailed(_device->CreateVertexShader(rendererShader.Vertex.Blob->GetBufferPointer(), rendererShader.Vertex.Blob->GetBufferSize(),
+												  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
+		}
 
-		loadStage(ShaderType::Vertex, "VS", "VS", vertexShaderTarget, rendererShader.Vertex.Blob,
-			[this, &rendererShader](ComPtr<ID3D10Blob>& bytecode, bool)
-			{
-				throwIfFailed(_device->CreateVertexShader(bytecode->GetBufferPointer(), bytecode->GetBufferSize(), nullptr, &rendererShader.Vertex.Shader));
-			});
+		// Load or compile and create compute shader.
+		if (type == ShaderType::Compute)
+		{
+			loadOrCompileShader(wideFileName, "CS", funcName, "cs_5_0", rendererShader.Compute.Blob);
+			throwIfFailed(_device->CreateComputeShader(rendererShader.Compute.Blob->GetBufferPointer(), rendererShader.Compute.Blob->GetBufferSize(),
+												   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
+		}
 
-		loadStage(ShaderType::Pixel, "PS", "PS", pixelShaderTarget, rendererShader.Pixel.Blob,
-			[this, &rendererShader](ComPtr<ID3D10Blob>& bytecode, bool)
-			{
-				throwIfFailed(_device->CreatePixelShader(bytecode->GetBufferPointer(), bytecode->GetBufferSize(), nullptr, &rendererShader.Pixel.Shader));
-			});
-
-		loadStage(ShaderType::Compute, "CS", "CS", computeShaderTarget, rendererShader.Compute.Blob,
-			[this, &rendererShader](ComPtr<ID3D10Blob>& bytecode, bool)
-			{
-				throwIfFailed(_device->CreateComputeShader(bytecode->GetBufferPointer(), bytecode->GetBufferSize(), nullptr, &rendererShader.Compute.Shader));
-			});
+		// Increment compile counter.
+		_compileCounter++;
 
 		return rendererShader;
 	}
 
 	void ShaderManager::Load(Shader shader, const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile)
 	{
+		Destroy(shader);
 		_shaders[(int)shader] = LoadOrCompile(fileName, funcName, type, defines, forceRecompile);
-		_compileCounter++;
 	}
 
 	void ShaderManager::Destroy(Shader shader)
 	{
-		auto& shaderObj = _shaders[(int)shader];
-		shaderObj.Vertex.Shader.Reset();
-		shaderObj.Vertex.Blob.Reset();
-		shaderObj.Pixel.Shader.Reset();
-		shaderObj.Pixel.Blob.Reset();
-		shaderObj.Compute.Shader.Reset();
-		shaderObj.Compute.Blob.Reset();
+		auto& shaderData = _shaders[(int)shader];
+
+		if (shaderData.Vertex.Shader != nullptr)
+		{
+			shaderData.Vertex.Shader.Reset();
+			shaderData.Vertex.Blob.Reset();
+		}
+
+		if (shaderData.Pixel.Shader != nullptr)
+		{
+			shaderData.Pixel.Shader.Reset();
+			shaderData.Pixel.Blob.Reset();
+		}
+
+		if (shaderData.Compute.Shader != nullptr)
+		{
+			shaderData.Compute.Shader.Reset();
+			shaderData.Compute.Blob.Reset();
+		}
 	}
 }
