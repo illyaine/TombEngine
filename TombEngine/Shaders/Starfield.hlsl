@@ -81,11 +81,13 @@ void GetWeatherCluster(
 	uint clusterIndex,
 	out float3 position,
 	out float scale,
-	out float rotation)
+	out float rotationSine,
+	out float rotationCosine)
 {
 	position = particle.Position;
 	scale = particle.Size;
-	rotation = 0.0f;
+	rotationSine = 0.0f;
+	rotationCosine = 1.0f;
 
 	uint uniqueSeed = (uint)particle.UniqueID * 1664525u + clusterIndex * 1013904223u;
 	float3 positionOffset = float3(0.0f, 0.0f, 0.0f);
@@ -112,12 +114,13 @@ void GetWeatherCluster(
 	if (EnvironmentMode == GPU_ENVIRONMENT_SNOW)
 	{
 		float phase = Hash(uniqueSeed ^ 0x68bc21ebu) * 6.28318530718f + Frame * 0.018f;
-		float flutter = sin(phase) * scale * 0.32f;
-		float secondaryFlutter = cos(phase * 0.73f + 1.7f) * scale * 0.24f;
-		position.x += positionOffset.x * 0.25f * sin(phase * 0.55f) + flutter;
-		position.z += positionOffset.z * 0.25f * cos(phase * 0.61f) + secondaryFlutter;
-		position.y += sin(phase * 0.37f) * scale * 0.08f;
-		rotation = phase + (clusterIndex / max(1.0f, (float)particle.ClusterSize)) * 6.28318530718f;
+		float clusterPhase = (clusterIndex / max(1.0f, (float)particle.ClusterSize)) * 6.28318530718f;
+		sincos(phase + clusterPhase, rotationSine, rotationCosine);
+
+		// Reuse the tumble phase for the flutter offsets so snow needs only one trigonometric pair.
+		position.x += positionOffset.x * 0.25f * rotationCosine + rotationSine * scale * 0.32f;
+		position.z += positionOffset.z * 0.25f * rotationSine + rotationCosine * scale * 0.24f;
+		position.y += (rotationSine * rotationCosine) * scale * 0.16f;
 	}
 }
 
@@ -162,8 +165,9 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 
 		float3 position;
 		float scale;
-		float rotation;
-		GetWeatherCluster(particle, clusterIndex, position, scale, rotation);
+		float rotationSine;
+		float rotationCosine;
+		GetWeatherCluster(particle, clusterIndex, position, scale, rotationSine, rotationCosine);
 
 		float3 right;
 		float3 up;
@@ -199,11 +203,8 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 
 			if (EnvironmentMode == GPU_ENVIRONMENT_SNOW)
 			{
-				float sine;
-				float cosine;
-				sincos(rotation, sine, cosine);
-				float3 rotatedRight = right * cosine + up * sine;
-				float3 rotatedUp = up * cosine - right * sine;
+				float3 rotatedRight = right * rotationCosine + up * rotationSine;
+				float3 rotatedUp = up * rotationCosine - right * rotationSine;
 				right = rotatedRight;
 				up = rotatedUp;
 				width *= lerp(0.82f, 1.12f, Hash(visualSeed));
