@@ -44,6 +44,7 @@ namespace TEN::Renderer
 			RendererSprite* Sprite = nullptr;
 			std::vector<RendererWeatherParticle> Particles = {};
 			int MaxClusterSize = 1;
+			int ParticleOffset = 0;
 		};
 	}
 
@@ -78,8 +79,8 @@ namespace TEN::Renderer
 	}
 
 	void Renderer::AddSpriteBillboardConstrained(RendererSprite* sprite, const Vector3& pos, const Vector4& color, float orient2D,
-											 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
-											 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
+										 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
+										 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
 	{
 		if (scale <= 0.0f)
 			scale = 1.0f;
@@ -277,7 +278,6 @@ namespace TEN::Renderer
 				rDrawSprite.BlendMode != BlendMode::AlphaTest)
 			{
 				int distance = (rDrawSprite.pos - Camera.pos.ToVector3()).Length();
-
 				RendererSortableObject object;
 				object.ObjectType = RendererObjectType::Sprite;
 				object.Centre = rDrawSprite.pos;
@@ -301,18 +301,22 @@ namespace TEN::Renderer
 		{
 			static ID3D11Device* resourceDevice = nullptr;
 			static WeatherGpuBuffer dustGpuBuffer = {};
-			static std::vector<WeatherGpuBuffer> snowGpuBuffers = {};
-			static std::vector<WeatherGpuBuffer> rainGpuBuffers = {};
+			static WeatherGpuBuffer snowGpuBuffer = {};
+			static WeatherGpuBuffer rainGpuBuffer = {};
 			static WeatherCpuBucket dustBucket = {};
 			static std::vector<WeatherCpuBucket> snowBuckets = {};
 			static std::vector<WeatherCpuBucket> rainBuckets = {};
+			static std::vector<RendererWeatherParticle> snowParticles = {};
+			static std::vector<RendererWeatherParticle> rainParticles = {};
 
 			if (resourceDevice != _device.Get())
 			{
 				resourceDevice = _device.Get();
 				dustGpuBuffer = {};
-				snowGpuBuffers.clear();
-				rainGpuBuffers.clear();
+				snowGpuBuffer = {};
+				rainGpuBuffer = {};
+				snowParticles.clear();
+				rainParticles.clear();
 			}
 
 			const bool hasDefaultSprites = Objects[ID_DEFAULT_SPRITES].loaded;
@@ -324,24 +328,25 @@ namespace TEN::Renderer
 
 			dustBucket.Particles.clear();
 			dustBucket.MaxClusterSize = 1;
+			dustBucket.ParticleOffset = 0;
 			dustBucket.Sprite = hasDefaultSprites ? &_sprites[Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_UNDERWATERDUST] : nullptr;
 
 			snowBuckets.resize(snowSpriteCount);
-			snowGpuBuffers.resize(snowSpriteCount);
 			for (int i = 0; i < snowSpriteCount; i++)
 			{
 				snowBuckets[i].Particles.clear();
 				snowBuckets[i].MaxClusterSize = 1;
+				snowBuckets[i].ParticleOffset = 0;
 				const int spriteIndex = hasSnowSprites ? Objects[ID_SNOW_SPRITES].meshIndex + i : Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_UNDERWATERDUST;
 				snowBuckets[i].Sprite = &_sprites[spriteIndex];
 			}
 
 			rainBuckets.resize(rainSpriteCount);
-			rainGpuBuffers.resize(rainSpriteCount);
 			for (int i = 0; i < rainSpriteCount; i++)
 			{
 				rainBuckets[i].Particles.clear();
 				rainBuckets[i].MaxClusterSize = 1;
+				rainBuckets[i].ParticleOffset = 0;
 				const int spriteIndex = hasRainSprites ? Objects[ID_RAIN_SPRITES].meshIndex + i : Objects[ID_DRIP_SPRITE].meshIndex;
 				rainBuckets[i].Sprite = &_sprites[spriteIndex];
 			}
@@ -403,6 +408,25 @@ namespace TEN::Renderer
 				}
 			}
 
+			auto flattenBuckets = [](std::vector<WeatherCpuBucket>& buckets, std::vector<RendererWeatherParticle>& particles)
+			{
+				size_t particleCount = 0;
+				for (const auto& bucket : buckets)
+					particleCount += bucket.Particles.size();
+
+				particles.clear();
+				particles.reserve(particleCount);
+
+				for (auto& bucket : buckets)
+				{
+					bucket.ParticleOffset = static_cast<int>(particles.size());
+					particles.insert(particles.end(), bucket.Particles.begin(), bucket.Particles.end());
+				}
+			};
+
+			flattenBuckets(snowBuckets, snowParticles);
+			flattenBuckets(rainBuckets, rainParticles);
+
 			auto uploadBuffer = [&](WeatherGpuBuffer& gpuBuffer, const std::vector<RendererWeatherParticle>& particles)
 			{
 				if (particles.empty())
@@ -454,9 +478,7 @@ namespace TEN::Renderer
 				_stStarfield.UV[1].w = sprite->UV[3].y;
 			};
 
-			const bool hasGpuWeather = !dustBucket.Particles.empty() ||
-				std::any_of(snowBuckets.begin(), snowBuckets.end(), [](const auto& bucket) { return !bucket.Particles.empty(); }) ||
-				std::any_of(rainBuckets.begin(), rainBuckets.end(), [](const auto& bucket) { return !bucket.Particles.empty(); });
+			const bool hasGpuWeather = !dustBucket.Particles.empty() || !snowParticles.empty() || !rainParticles.empty();
 
 			if (hasGpuWeather)
 			{
@@ -473,9 +495,9 @@ namespace TEN::Renderer
 				SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
 				_shaders.Bind(Shader::Starfield);
 
-				auto drawBucket = [&](WeatherCpuBucket& bucket, WeatherGpuBuffer& gpuBuffer, GpuEnvironmentMode mode)
+				auto drawBucket = [&](WeatherCpuBucket& bucket, GpuEnvironmentMode mode)
 				{
-					if (!uploadBuffer(gpuBuffer, bucket.Particles))
+					if (bucket.Particles.empty())
 						return;
 
 					const int clusterStride = std::clamp(bucket.MaxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
@@ -483,22 +505,40 @@ namespace TEN::Renderer
 					_stStarfield.Mode = mode;
 					_stStarfield.ClusterStride = clusterStride;
 					_stStarfield.ClusterSpread = mode == GpuEnvironmentMode::UnderwaterDust ? 0.0f : BLOCK(1.0f);
+					_stStarfield.ParticleOffset = bucket.ParticleOffset;
 					UpdateConstantBuffer(_stStarfield, _cbStarfield);
 					BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
 					BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
 					BindTexture(TextureRegister::ColorMap, bucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
 
-					auto* weatherView = gpuBuffer.View.Get();
-					_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &weatherView);
 					DrawInstancedTriangles(4, static_cast<int>(bucket.Particles.size()) * clusterStride, 0);
 					_numInstancedSpritesDrawCalls++;
 				};
 
-				drawBucket(dustBucket, dustGpuBuffer, GpuEnvironmentMode::UnderwaterDust);
-				for (int i = 0; i < snowBuckets.size(); i++)
-					drawBucket(snowBuckets[i], snowGpuBuffers[i], GpuEnvironmentMode::Snow);
-				for (int i = 0; i < rainBuckets.size(); i++)
-					drawBucket(rainBuckets[i], rainGpuBuffers[i], GpuEnvironmentMode::Rain);
+				auto bindWeatherBuffer = [&](WeatherGpuBuffer& gpuBuffer, const std::vector<RendererWeatherParticle>& particles)
+				{
+					if (!uploadBuffer(gpuBuffer, particles))
+						return false;
+
+					auto* weatherView = gpuBuffer.View.Get();
+					_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &weatherView);
+					return true;
+				};
+
+				if (bindWeatherBuffer(dustGpuBuffer, dustBucket.Particles))
+					drawBucket(dustBucket, GpuEnvironmentMode::UnderwaterDust);
+
+				if (bindWeatherBuffer(snowGpuBuffer, snowParticles))
+				{
+					for (auto& bucket : snowBuckets)
+						drawBucket(bucket, GpuEnvironmentMode::Snow);
+				}
+
+				if (bindWeatherBuffer(rainGpuBuffer, rainParticles))
+				{
+					for (auto& bucket : rainBuckets)
+						drawBucket(bucket, GpuEnvironmentMode::Rain);
+				}
 
 				ID3D11ShaderResourceView* nullView = nullptr;
 				_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &nullView);
