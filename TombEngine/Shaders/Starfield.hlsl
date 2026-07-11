@@ -69,12 +69,12 @@ float LegacyAngleToRadians(int angle)
 
 float3 GetCameraRight()
 {
-	return float3(View[0][0], View[1][0], View[2][0]);
+	return normalize(float3(View[0][0], View[1][0], View[2][0]));
 }
 
 float3 GetCameraUp()
 {
-	return float3(View[0][1], View[1][1], View[2][1]);
+	return normalize(float3(View[0][1], View[1][1], View[2][1]));
 }
 
 void GetWeatherCluster(
