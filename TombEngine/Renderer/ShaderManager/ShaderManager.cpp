@@ -146,6 +146,7 @@ namespace TEN::Renderer::Utils
 
 		// LoadAAShaders should always be the first in the list, so that when AA settings are changed,
 		// they recompile with the same index as before.
+
 		LoadAAShaders(width, height, recompileAAShaders); 
 		LoadCommonShaders();
 		LoadPostprocessShaders();
@@ -162,27 +163,15 @@ namespace TEN::Renderer::Utils
 		}
 
 		const auto& shaderObj = _shaders[shaderIndex];
-		auto* vertexShader = shaderObj.Vertex.Shader.Get();
-		auto* pixelShader = shaderObj.Pixel.Shader.Get();
-		auto* computeShader = shaderObj.Compute.Shader.Get();
 
-		if ((vertexShader != nullptr || forceNull) && vertexShader != _boundVertexShader)
-		{
-			_context->VSSetShader(vertexShader, nullptr, 0);
-			_boundVertexShader = vertexShader;
-		}
+		if (shaderObj.Vertex.Shader != nullptr || forceNull)
+			_context->VSSetShader(shaderObj.Vertex.Shader.Get(), nullptr, 0);
 
-		if ((pixelShader != nullptr || forceNull) && pixelShader != _boundPixelShader)
-		{
-			_context->PSSetShader(pixelShader, nullptr, 0);
-			_boundPixelShader = pixelShader;
-		}
+		if (shaderObj.Pixel.Shader != nullptr || forceNull)
+			_context->PSSetShader(shaderObj.Pixel.Shader.Get(), nullptr, 0);
 
-		if ((computeShader != nullptr || forceNull) && computeShader != _boundComputeShader)
-		{
-			_context->CSSetShader(computeShader, nullptr, 0);
-			_boundComputeShader = computeShader;
-		}
+		if (shaderObj.Compute.Shader != nullptr || forceNull)
+			_context->CSSetShader(shaderObj.Compute.Shader.Get(), nullptr, 0);
 
 		if (shader == Shader::GpuEnvironment && _gpuEnvironmentSampler != nullptr)
 		{
@@ -203,7 +192,7 @@ namespace TEN::Renderer::Utils
 		// Ensure the /Bin subdirectory exists.
 		std::filesystem::create_directories(compiledShaderPath);
 
-		// Helper function to load or compile a shader.
+		// Helper function to load or compile the shader.
 		auto loadOrCompileShader = [this, type, defines, forceRecompile, shaderPath, compiledShaderPath]
 			(const std::wstring& baseFileName, const std::string& shaderType, const std::string& functionName, const char* model, ComPtr<ID3D10Blob>& bytecode)
 		{
@@ -302,7 +291,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "PS", funcName, "ps_5_0", rendererShader.Pixel.Blob);
 			throwIfFailed(_device->CreatePixelShader(rendererShader.Pixel.Blob->GetBufferPointer(), rendererShader.Pixel.Blob->GetBufferSize(),
-											 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
+												 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create vertex shader.
@@ -310,7 +299,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "VS", funcName, "vs_5_0", rendererShader.Vertex.Blob);
 			throwIfFailed(_device->CreateVertexShader(rendererShader.Vertex.Blob->GetBufferPointer(), rendererShader.Vertex.Blob->GetBufferSize(),
-											  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
+												  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create compute shader.
@@ -318,7 +307,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "CS", funcName, "cs_5_0", rendererShader.Compute.Blob);
 			throwIfFailed(_device->CreateComputeShader(rendererShader.Compute.Blob->GetBufferPointer(), rendererShader.Compute.Blob->GetBufferSize(),
-											   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
+												   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
 		}
 
 		// Increment compile counter.
