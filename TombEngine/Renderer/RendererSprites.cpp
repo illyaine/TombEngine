@@ -43,6 +43,7 @@ namespace TEN::Renderer
 		{
 			RendererSprite* Sprite = nullptr;
 			std::vector<RendererWeatherParticle> Particles = {};
+			int MaxClusterSize = 1;
 		};
 	}
 
@@ -322,6 +323,7 @@ namespace TEN::Renderer
 			const int rainSpriteCount = hasRainSprites ? Objects[ID_RAIN_SPRITES].nmeshes : (hasDripSprite ? 1 : 0);
 
 			dustBucket.Particles.clear();
+			dustBucket.MaxClusterSize = 1;
 			dustBucket.Sprite = hasDefaultSprites ? &_sprites[Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_UNDERWATERDUST] : nullptr;
 
 			snowBuckets.resize(snowSpriteCount);
@@ -329,6 +331,7 @@ namespace TEN::Renderer
 			for (int i = 0; i < snowSpriteCount; i++)
 			{
 				snowBuckets[i].Particles.clear();
+				snowBuckets[i].MaxClusterSize = 1;
 				const int spriteIndex = hasSnowSprites ? Objects[ID_SNOW_SPRITES].meshIndex + i : Objects[ID_DEFAULT_SPRITES].meshIndex + SPR_UNDERWATERDUST;
 				snowBuckets[i].Sprite = &_sprites[spriteIndex];
 			}
@@ -338,6 +341,7 @@ namespace TEN::Renderer
 			for (int i = 0; i < rainSpriteCount; i++)
 			{
 				rainBuckets[i].Particles.clear();
+				rainBuckets[i].MaxClusterSize = 1;
 				const int spriteIndex = hasRainSprites ? Objects[ID_RAIN_SPRITES].meshIndex + i : Objects[ID_DRIP_SPRITE].meshIndex;
 				rainBuckets[i].Sprite = &_sprites[spriteIndex];
 			}
@@ -381,12 +385,20 @@ namespace TEN::Renderer
 
 				case WeatherType::Snow:
 					if (!snowBuckets.empty())
-						snowBuckets[particle.UniqueID % snowBuckets.size()].Particles.push_back(rendererParticle);
+					{
+						auto& bucket = snowBuckets[particle.UniqueID % snowBuckets.size()];
+						bucket.MaxClusterSize = std::max(bucket.MaxClusterSize, rendererParticle.ClusterSize);
+						bucket.Particles.push_back(rendererParticle);
+					}
 					break;
 
 				case WeatherType::Rain:
 					if (!rainBuckets.empty())
-						rainBuckets[particle.UniqueID % rainBuckets.size()].Particles.push_back(rendererParticle);
+					{
+						auto& bucket = rainBuckets[particle.UniqueID % rainBuckets.size()];
+						bucket.MaxClusterSize = std::max(bucket.MaxClusterSize, rendererParticle.ClusterSize);
+						bucket.Particles.push_back(rendererParticle);
+					}
 					break;
 				}
 			}
@@ -461,11 +473,12 @@ namespace TEN::Renderer
 				SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
 				_shaders.Bind(Shader::Starfield);
 
-				auto drawBucket = [&](WeatherCpuBucket& bucket, WeatherGpuBuffer& gpuBuffer, GpuEnvironmentMode mode, int clusterStride)
+				auto drawBucket = [&](WeatherCpuBucket& bucket, WeatherGpuBuffer& gpuBuffer, GpuEnvironmentMode mode)
 				{
 					if (!uploadBuffer(gpuBuffer, bucket.Particles))
 						return;
 
+					const int clusterStride = std::clamp(bucket.MaxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
 					packEnvironmentTextureCoordinates(bucket.Sprite);
 					_stStarfield.Mode = mode;
 					_stStarfield.ClusterStride = clusterStride;
@@ -481,11 +494,11 @@ namespace TEN::Renderer
 					_numInstancedSpritesDrawCalls++;
 				};
 
-				drawBucket(dustBucket, dustGpuBuffer, GpuEnvironmentMode::UnderwaterDust, 1);
+				drawBucket(dustBucket, dustGpuBuffer, GpuEnvironmentMode::UnderwaterDust);
 				for (int i = 0; i < snowBuckets.size(); i++)
-					drawBucket(snowBuckets[i], snowGpuBuffers[i], GpuEnvironmentMode::Snow, GPU_WEATHER_CLUSTER_STRIDE);
+					drawBucket(snowBuckets[i], snowGpuBuffers[i], GpuEnvironmentMode::Snow);
 				for (int i = 0; i < rainBuckets.size(); i++)
-					drawBucket(rainBuckets[i], rainGpuBuffers[i], GpuEnvironmentMode::Rain, GPU_WEATHER_CLUSTER_STRIDE);
+					drawBucket(rainBuckets[i], rainGpuBuffers[i], GpuEnvironmentMode::Rain);
 
 				ID3D11ShaderResourceView* nullView = nullptr;
 				_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &nullView);
