@@ -152,7 +152,7 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 {
 	PixelShaderInput output = (PixelShaderInput)0;
 
-	int polyIndex = DecodeIndexInPoly(input.Effects);
+	int polyIndex = (int)(input.Effects >> 25);
 	output.TextureSlice = 0;
 
 	float3 worldPosition = float3(0.0f, 0.0f, 0.0f);
