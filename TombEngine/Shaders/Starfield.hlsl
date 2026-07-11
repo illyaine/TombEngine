@@ -152,8 +152,15 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		uint clusterIndex = instanceID % clusterStride;
 		WeatherInstance particle = WeatherParticles[particleIndex];
 
+		// Bucket stride is shared by all particles in a draw. Smaller clusters still leave
+		// padded instances, so reject them before hash, trigonometry, billboard and fog work.
 		if (clusterIndex >= particle.ClusterSize)
+		{
 			output.Active = 0.0f;
+			output.Position = float4(-2.0f, -2.0f, 0.0f, 1.0f);
+			output.PositionCopy = output.Position;
+			return output;
+		}
 
 		float3 position;
 		float scale;
@@ -170,7 +177,7 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		{
 			float velocityLengthSquared = dot(particle.Velocity, particle.Velocity);
 			float velocityLength = sqrt(max(velocityLengthSquared, 0.0001f));
-			float3 rainAxis = velocityLengthSquared > 0.0001f ? normalize(-particle.Velocity) : float3(0.0f, 1.0f, 0.0f);
+			float3 rainAxis = velocityLengthSquared > 0.0001f ? (-particle.Velocity / velocityLength) : float3(0.0f, 1.0f, 0.0f);
 			float3 toCamera = normalize(CamPositionWS.xyz - position);
 			float3 rightCandidate = cross(rainAxis, toCamera);
 			if (dot(rightCandidate, rightCandidate) <= 0.0001f)
@@ -193,8 +200,9 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 
 			if (EnvironmentMode == GPU_ENVIRONMENT_SNOW)
 			{
-				float sine = sin(rotation);
-				float cosine = cos(rotation);
+				float sine;
+				float cosine;
+				sincos(rotation, sine, cosine);
 				float3 rotatedRight = right * cosine + up * sine;
 				float3 rotatedUp = up * cosine - right * sine;
 				right = rotatedRight;
@@ -222,8 +230,6 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 {
 	clip(input.Active - 0.5f);
 
-	float4 output = Texture.Sample(Sampler, input.UV) * input.Color;
-
 	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
 		if (input.PositionCopy.w <= 0.0f)
@@ -233,13 +239,24 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 		input.PositionCopy.xy /= input.PositionCopy.w;
 		float2 texCoord = saturate(0.5f * (float2(input.PositionCopy.x, -input.PositionCopy.y) + 1.0f));
 		float sceneDepth = DepthTexture.Sample(DepthSampler, texCoord).x;
+
+		// Raw projected depth is sufficient for the occlusion decision and avoids two
+		// linearization calls for particles that are hidden behind scene geometry.
+		if (particleDepth - sceneDepth > 0.00001f)
+			discard;
+	}
+
+	// Sample the sprite only after the depth rejection so weather hidden by roofs and
+	// walls does not consume color texture bandwidth.
+	float4 output = Texture.Sample(Sampler, input.UV) * input.Color;
+
+	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
+	{
+		float particleDepth = input.PositionCopy.z / input.PositionCopy.w;
+		float2 texCoord = saturate(0.5f * (float2(input.PositionCopy.x, -input.PositionCopy.y) + 1.0f));
+		float sceneDepth = DepthTexture.Sample(DepthSampler, texCoord).x;
 		sceneDepth = LinearizeDepth(sceneDepth, NearPlane, FarPlane);
 		particleDepth = LinearizeDepth(particleDepth, NearPlane, FarPlane);
-
-		// Prevent rain and snow from being visible through roofs, walls and overhangs while
-		// the lower-frequency CPU sweep resolves the physical impact point.
-		if (particleDepth - sceneDepth > 0.01f)
-			discard;
 
 		float surfaceSeparation = max(0.0f, sceneDepth - particleDepth);
 		if (EnvironmentMode == GPU_ENVIRONMENT_UNDERWATER_DUST)
