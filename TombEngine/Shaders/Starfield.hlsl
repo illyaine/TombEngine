@@ -40,7 +40,6 @@ StructuredBuffer<WeatherInstance> WeatherParticles : register(t15);
 Texture2D Texture : register(t0);
 SamplerState Sampler : register(s0);
 Texture2D DepthTexture : register(t6);
-SamplerState DepthSampler : register(s6);
 
 float Hash(uint value)
 {
@@ -234,11 +233,9 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 
 	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
-		// SV_POSITION already contains viewport-space coordinates and the projected depth.
-		// Reuse it instead of interpolating clip-space position and dividing by w per pixel.
+		// SV_POSITION already identifies the exact depth-buffer pixel and projected depth.
 		particleDepthRaw = input.Position.z;
-		float2 depthTexCoord = saturate(input.Position.xy * InvViewSize);
-		sceneDepthRaw = DepthTexture.Sample(DepthSampler, depthTexCoord).x;
+		sceneDepthRaw = DepthTexture.Load(int3(int2(input.Position.xy), 0)).x;
 
 		// Raw projected depth is sufficient for the occlusion decision and avoids depth
 		// linearization for particles that are already hidden behind scene geometry.
