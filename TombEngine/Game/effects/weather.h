@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
 
 #include "Objects/Effects/LensFlare.h"
 #include "Objects/game_object_ids.h"
@@ -115,6 +116,59 @@ namespace TEN::Effects::Environment
 		}
 	};
 
+	class WeatherParticleView
+	{
+	public:
+		class Iterator
+		{
+		public:
+			Iterator(const WeatherParticleView& view, size_t index) : View(view), Index(index) {}
+
+			const WeatherParticle& operator*() const
+			{
+				return View[Index];
+			}
+
+			Iterator& operator++()
+			{
+				Index++;
+				return *this;
+			}
+
+			bool operator!=(const Iterator& other) const
+			{
+				return Index != other.Index;
+			}
+
+		private:
+			const WeatherParticleView& View;
+			size_t Index;
+		};
+
+		WeatherParticleView(
+			const std::vector<WeatherParticle>& weather,
+			const std::vector<WeatherParticle>& dust) : Weather(weather), Dust(dust)
+		{
+		}
+
+		Iterator begin() const { return Iterator(*this, 0); }
+		Iterator end() const { return Iterator(*this, size()); }
+		size_t size() const { return Weather.size() + Dust.size(); }
+		bool empty() const { return size() == 0; }
+
+		const WeatherParticle& operator[](size_t index) const
+		{
+			if (index < Weather.size())
+				return Weather[index];
+
+			return Dust[index - Weather.size()];
+		}
+
+	private:
+		const std::vector<WeatherParticle>& Weather;
+		const std::vector<WeatherParticle>& Dust;
+	};
+
 	class EnvironmentController
 	{
 	private:
@@ -123,12 +177,10 @@ namespace TEN::Effects::Environment
 		std::vector<WeatherParticle> DustParticles = {};
 
 		// Sky
-
 		Vector4 SkyCurrentColor[2]	  = {};
 		short	SkyCurrentPosition[2] = {};
 
 		// Wind
-
 		int WindX		= 0;
 		int WindZ		= 0;
 		int WindAngle	= 0;
@@ -136,13 +188,11 @@ namespace TEN::Effects::Environment
 		int WindCurrent = 0;
 
 		// Flash fader
-
 		Vector3 FlashColorBase = Vector3::Zero;
 		float	FlashSpeed	   = 1.0f;
 		float	FlashProgress  = 0.0f;
 
 		// Lightning
-
 		int	 StormCount		= 0;
 		int	 StormRand		= 0;
 		int	 StormTimer		= 0;
@@ -150,14 +200,12 @@ namespace TEN::Effects::Environment
 		byte StormSkyColor2 = 1;
 
 		// Starfield
-
 		std::vector<StarParticle>	Stars		   = {};
 		std::vector<MeteorParticle> Meteors		   = {};
 		bool						ResetStarField = true;
 		unsigned int				StarfieldRevision = 0;
 
 		// Lens flare
-
 		LensFlare GlobalLensFlare = {};
 
 	public:
@@ -172,23 +220,19 @@ namespace TEN::Effects::Environment
 		void Update();
 		void Clear();
 
-		// The legacy sprite preparation path is intentionally empty. GPU environment rendering
-		// consumes the logical simulation pools directly.
 		const std::vector<WeatherParticle>& GetParticles() const
 		{
 			static const std::vector<WeatherParticle> EmptyParticles = {};
 			return EmptyParticles;
 		}
 
-		const std::vector<WeatherParticle>& GetGpuParticles() const
+		WeatherParticleView GetGpuParticles() const
 		{
-			return WeatherParticles;
+			return WeatherParticleView(WeatherParticles, DustParticles);
 		}
 
-		const std::vector<WeatherParticle>& GetGpuDustParticles() const
-		{
-			return DustParticles;
-		}
+		const std::vector<WeatherParticle>& GetGpuWeatherParticles() const { return WeatherParticles; }
+		const std::vector<WeatherParticle>& GetGpuDustParticles() const { return DustParticles; }
 
 		const std::vector<StarParticle>&	GetStars() const { return Stars; }
 		unsigned int GetStarfieldRevision() const { return StarfieldRevision; }
