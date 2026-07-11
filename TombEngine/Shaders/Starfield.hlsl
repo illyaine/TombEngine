@@ -31,7 +31,6 @@ struct PixelShaderInput
 	float4 Color : COLOR;
 	float4 FogBulbs : TEXCOORD3;
 	float DistanceFog : FOG;
-	float Active : TEXCOORD4;
 };
 
 StructuredBuffer<StarfieldInstance> Stars : register(t14);
@@ -141,7 +140,6 @@ void GetWeatherCluster(
 PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 {
 	PixelShaderInput output = (PixelShaderInput)0;
-	output.Active = 1.0f;
 
 	int polyIndex = DecodeIndexInPoly(input.Effects);
 	output.UV = float2(EnvironmentUV[0][polyIndex], EnvironmentUV[1][polyIndex]);
@@ -172,7 +170,6 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		// padded instances, so reject them before hash, trigonometry, billboard and fog work.
 		if (clusterIndex >= particle.ClusterSize)
 		{
-			output.Active = 0.0f;
 			output.Position = float4(-2.0f, -2.0f, 0.0f, 1.0f);
 			return output;
 		}
@@ -241,8 +238,6 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 
 float4 PS(PixelShaderInput input) : SV_TARGET
 {
-	clip(input.Active - 0.5f);
-
 	float particleDepthRaw = 0.0f;
 	float sceneDepthRaw = 1.0f;
 
