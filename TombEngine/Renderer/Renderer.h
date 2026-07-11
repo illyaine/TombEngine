@@ -621,17 +621,38 @@ namespace TEN::Renderer
 			auto shadowLightPos = (_shadowLight->Hash == 0) ?
 				_shadowLight->Position :
 				Vector3::Lerp(_shadowLight->PrevPosition, _shadowLight->Position, GetInterpolationFactor());
-			auto projection = Matrix::CreatePerspectiveFieldOfView(90.0f * PI / 180.0f, 1.0f, 16.0f, _shadowLight->Out);
+
+			thread_local static const Renderer* cachedRenderer = nullptr;
+			thread_local static Vector3 cachedLightPosition = Vector3::Zero;
+			thread_local static float cachedLightRange = -1.0f;
+			thread_local static int cachedFrame = NO_VALUE;
+			thread_local static std::array<Matrix, 6> cachedViewProjections = {};
+
+			if (cachedRenderer != this ||
+				cachedLightPosition != shadowLightPos ||
+				cachedLightRange != _shadowLight->Out ||
+				cachedFrame != GlobalCounter)
+			{
+				auto projection = Matrix::CreatePerspectiveFieldOfView(90.0f * PI / 180.0f, 1.0f, 16.0f, _shadowLight->Out);
+
+				for (int face = 0; face < 6; face++)
+				{
+					auto view = Matrix::CreateLookAt(
+						shadowLightPos,
+						shadowLightPos + RenderTargetCube::forwardVectors[face] * BLOCK(10),
+						RenderTargetCube::upVectors[face]);
+					cachedViewProjections[face] = view * projection;
+				}
+
+				cachedRenderer = this;
+				cachedLightPosition = shadowLightPos;
+				cachedLightRange = _shadowLight->Out;
+				cachedFrame = GlobalCounter;
+			}
 
 			for (int face = 0; face < 6; face++)
 			{
-				auto view = Matrix::CreateLookAt(
-					shadowLightPos,
-					shadowLightPos + RenderTargetCube::forwardVectors[face] * BLOCK(10),
-					RenderTargetCube::upVectors[face]);
-				auto expectedViewProjection = view * projection;
-
-				if (memcmp(&viewProjection, &expectedViewProjection, sizeof(Matrix)) == 0)
+				if (memcmp(&viewProjection, &cachedViewProjections[face], sizeof(Matrix)) == 0)
 					return face;
 			}
 
@@ -761,7 +782,12 @@ namespace TEN::Renderer
 		inline void UpdateConstantBuffer(C& data, ConstantBuffer<C>& cb) noexcept
 		{
 			if constexpr (std::is_same_v<C, CCameraMatrixBuffer>)
-				_activeShadowMapFace = ResolveShadowMapFace(data.ViewProjection);
+			{
+				if (data.NearPlane == 0.0f && data.FarPlane == 0.0f)
+					_activeShadowMapFace = ResolveShadowMapFace(data.ViewProjection);
+				else
+					_activeShadowMapFace = NO_VALUE;
+			}
 
 			cb.UpdateData(data, _context.Get());
 			_numConstantBufferUpdates++;
