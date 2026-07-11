@@ -1,10 +1,42 @@
 #include "framework.h"
 #include "Frustum.h"
 
+#include <cstring>
+
 namespace TEN::Renderer
 {
 	void Frustum::Update(const Matrix& view, const Matrix& projection)
 	{
+		struct FrustumCacheEntry
+		{
+			Matrix View = Matrix::Identity;
+			Matrix Projection = Matrix::Identity;
+			std::array<std::array<float, 4>, 6> Planes = {};
+			bool Valid = false;
+		};
+
+		// Shadow cubemap faces and other repeated views frequently rebuild identical frustums.
+		// Keep a tiny thread-local cache so repeated callers only copy the six normalized planes.
+		static thread_local std::array<FrustumCacheEntry, 8> cache = {};
+		static thread_local size_t nextCacheEntry = 0;
+
+		auto matricesEqual = [](const Matrix& a, const Matrix& b)
+		{
+			return std::memcmp(&a, &b, sizeof(Matrix)) == 0;
+		};
+
+		for (const auto& entry : cache)
+		{
+			if (!entry.Valid)
+				continue;
+
+			if (matricesEqual(entry.View, view) && matricesEqual(entry.Projection, projection))
+			{
+				frustum = entry.Planes;
+				return;
+			}
+		}
+
 		std::array<float, 16> clip;
 		clip[0] = view._11 * projection._11 + view._12 * projection._21 + view._13 * projection._31 + view._14 * projection._41;
 		clip[1] = view._11 * projection._12 + view._12 * projection._22 + view._13 * projection._32 + view._14 * projection._42;
@@ -67,6 +99,13 @@ namespace TEN::Renderer
 		frustum[5][2] = clip[11] - clip[10];
 		frustum[5][3] = clip[15] - clip[14];
 		NormalizePlane(5);
+
+		auto& cacheEntry = cache[nextCacheEntry];
+		cacheEntry.View = view;
+		cacheEntry.Projection = projection;
+		cacheEntry.Planes = frustum;
+		cacheEntry.Valid = true;
+		nextCacheEntry = (nextCacheEntry + 1) % cache.size();
 	}
 
 	bool Frustum::PointInFrustum(const Vector3& position) const
@@ -116,10 +155,11 @@ namespace TEN::Renderer
 
 		if (magnitude > EPSILON)
 		{
-			frustum[side][0] /= magnitude;
-			frustum[side][1] /= magnitude;
-			frustum[side][2] /= magnitude;
-			frustum[side][3] /= magnitude;
+			const float inverseMagnitude = 1.0f / magnitude;
+			frustum[side][0] *= inverseMagnitude;
+			frustum[side][1] *= inverseMagnitude;
+			frustum[side][2] *= inverseMagnitude;
+			frustum[side][3] *= inverseMagnitude;
 		}
 		else
 		{
