@@ -419,14 +419,15 @@ namespace TEN::Renderer
 		return _meshes[meshIndex];
 	}
 
-	std::vector<BoundingSphere> Renderer::GetSpheres(int itemNumber)
+	RendererSphereView Renderer::GetSpheres(int itemNumber)
 	{
+		auto result = RendererSphereView{};
 		auto& itemToDraw = _items[itemNumber];
 		itemToDraw.ItemNumber = itemNumber;
 
 		const auto* nativeItem = &g_Level.Items[itemNumber];
 		if (nativeItem == nullptr)
-			return {};
+			return result;
 
 		if (!itemToDraw.DoneAnimations)
 		{
@@ -445,21 +446,19 @@ namespace TEN::Renderer
 		auto worldMatrix = rotMatrix * translationMatrix;
 
 		const auto& moveable = GetRendererObject(nativeItem->ObjectNumber);
+		if (moveable.ObjectMeshes.size() > result.Spheres.size())
+			return result;
 
-		// Collect spheres.
-		auto spheres = std::vector<BoundingSphere>{};
-		for (int i = 0; i < moveable.ObjectMeshes.size(); i++)
+		result.Count = moveable.ObjectMeshes.size();
+		for (size_t i = 0; i < result.Count; i++)
 		{
 			const auto& mesh = *moveable.ObjectMeshes[i];
-
-			const auto& translationMatrix = itemToDraw.AnimTransforms[i];
-			auto pos = Vector3::Transform(mesh.Sphere.Center, translationMatrix * worldMatrix);
-
-			auto sphere = BoundingSphere(pos, mesh.Sphere.Radius);
-			spheres.push_back(sphere);
+			const auto& animationTransform = itemToDraw.AnimTransforms[i];
+			auto pos = Vector3::Transform(mesh.Sphere.Center, animationTransform * worldMatrix);
+			result.Spheres[i] = BoundingSphere(pos, mesh.Sphere.Radius);
 		}
 
-		return spheres;
+		return result;
 	}
 
 	void Renderer::GetBoneMatrix(short itemNumber, int jointIndex, Matrix* outMatrix)
