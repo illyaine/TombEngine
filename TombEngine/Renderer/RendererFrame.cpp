@@ -509,7 +509,7 @@ namespace TEN::Renderer
 
 			// Shadow casters and reflected rooms stay conservative so off-screen shadows and reflections cannot disappear.
 			bool inFrustum = true;
-			if (!isRoomReflected && obj.ShadowType == ShadowMode::None)
+			if (!isRoomReflected && (g_Configuration.ShadowType == ShadowMode::None || obj.ShadowType == ShadowMode::None))
 			{
 				bool canUseAnimationBounds =
 					item.ObjectNumber != ID_LARA &&

@@ -3,21 +3,18 @@
 
 #include "Game/camera.h"
 #include "Game/collision/collide_room.h"
-#include "Game/collision/Los.h"
 #include "Game/collision/Point.h"
 #include "Game/effects/effects.h"
 #include "Game/effects/Ripple.h"
 #include "Game/effects/tomb4fx.h"
 #include "Game/savegame.h"
 #include "Game/Setup.h"
-#include "Game/StaticMesh.h"
 #include "Math/Math.h"
 #include "Objects/game_object_ids.h"
 #include "Sound/sound.h"
 #include "Scripting/Include/ScriptInterfaceLevel.h"
 #include "Specific/level.h"
 
-using namespace TEN::Collision::Los;
 using namespace TEN::Collision::Point;
 using namespace TEN::Effects::Ripple;
 using namespace TEN::Math;
@@ -34,12 +31,6 @@ namespace TEN::Effects::Environment
 		constexpr auto SNOW_WIND_SCALE = 4.0f;
 		constexpr auto RAIN_HORIZONTAL_VELOCITY_MAX = 64.0f;
 
-		struct WeatherSurfaceHit
-		{
-			Vector3 Position = Vector3::Zero;
-			Vector3 Normal = Vector3::Zero;
-			int RoomNumber = NO_VALUE;
-		};
 
 		float ApproachVelocity(float current, float target, float response, float maxStep)
 		{
@@ -47,116 +38,9 @@ namespace TEN::Effects::Environment
 			return current + step;
 		}
 
-		std::optional<WeatherSurfaceHit> GetWeatherSurfaceHit(const Vector3& origin, int roomNumber, const Vector3& target)
-		{
-			auto direction = target - origin;
-			float distance = direction.Length();
-			if (distance <= std::numeric_limits<float>::epsilon())
-				return std::nullopt;
 
-			direction /= distance;
-			auto los = GetLosCollision(origin, roomNumber, direction, distance, false, false, true);
 
-			float nearestDistance = distance + 1.0f;
-			auto result = WeatherSurfaceHit{};
-			bool intersected = false;
 
-			if (los.Room.IsIntersected && los.Room.Distance <= distance)
-			{
-				nearestDistance = los.Room.Distance;
-				result.Position = los.Room.Position;
-				result.RoomNumber = los.Room.RoomNumber;
-				if (los.Room.Triangle.has_value())
-					result.Normal = los.Room.Triangle->Normal;
-				intersected = true;
-			}
-
-			for (const auto& staticHit : los.Statics)
-			{
-				if (staticHit.Static == nullptr || staticHit.Distance > distance || staticHit.Distance >= nearestDistance)
-					continue;
-
-				const auto flags = staticHit.Static->Flags;
-				if (!(flags & StaticMeshFlags::SM_SOLID) || !(flags & StaticMeshFlags::SM_COLLISION))
-					continue;
-
-				nearestDistance = staticHit.Distance;
-				result.Position = staticHit.Position;
-				result.RoomNumber = staticHit.RoomNumber;
-				result.Normal = Vector3::Zero;
-				intersected = true;
-			}
-
-			if (!intersected)
-				return std::nullopt;
-
-			// Keep the visual impact on the incoming side of thin geometry.
-			result.Position -= direction * WEATHER_SURFACE_OFFSET;
-			return result;
-		}
-
-		bool CanSkipExactRainSweep(
-			const Vector3& origin,
-			int roomNumber,
-			const Vector3& target,
-			PointCollisionData& targetCollision)
-		{
-			if (roomNumber < 0 || roomNumber >= g_Level.Rooms.size())
-				return false;
-
-			if (targetCollision.GetRoomNumber() != roomNumber)
-				return false;
-
-			// Static collision geometry is not represented by room floor/ceiling samples.
-			if (!g_Level.Rooms[roomNumber].mesh.empty())
-				return false;
-
-			auto originCollision = GetPointCollision(origin, roomNumber);
-			if (originCollision.GetRoomNumber() != roomNumber)
-				return false;
-
-			// Crossing a sector boundary can cross walls or split geometry even when endpoint heights match.
-			if (&originCollision.GetSector() != &targetCollision.GetSector())
-				return false;
-
-			// Bridge items and diagonal sectors require the exact swept collision path.
-			if (originCollision.GetFloorBridgeItemNumber() != NO_VALUE ||
-				originCollision.GetCeilingBridgeItemNumber() != NO_VALUE ||
-				targetCollision.GetFloorBridgeItemNumber() != NO_VALUE ||
-				targetCollision.GetCeilingBridgeItemNumber() != NO_VALUE ||
-				originCollision.IsDiagonalFloorSplit() ||
-				originCollision.IsDiagonalCeilingSplit() ||
-				targetCollision.IsDiagonalFloorSplit() ||
-				targetCollision.IsDiagonalCeilingSplit())
-			{
-				return false;
-			}
-
-			const auto originFloor = originCollision.GetFloorHeight();
-			const auto targetFloor = targetCollision.GetFloorHeight();
-			const auto originCeiling = originCollision.GetCeilingHeight();
-			const auto targetCeiling = targetCollision.GetCeilingHeight();
-
-			// Only skip the exact sweep when both endpoints describe the same open sector interval.
-			if (originFloor != targetFloor || originCeiling != targetCeiling)
-				return false;
-
-			const float segmentTop = std::min(origin.y, target.y);
-			const float segmentBottom = std::max(origin.y, target.y);
-			const float safeCeiling = originCeiling + WEATHER_SURFACE_OFFSET;
-			const float safeFloor = originFloor - WEATHER_SURFACE_OFFSET;
-
-			return safeCeiling < safeFloor && segmentTop > safeCeiling && segmentBottom < safeFloor;
-		}
-
-		void SpawnRainSurfaceImpact(const WeatherSurfaceHit& hit)
-		{
-			// The legacy spark is vertically oriented, so avoid using it on near-vertical walls.
-			if (hit.Normal != Vector3::Zero && abs(hit.Normal.y) < 0.25f)
-				return;
-
-			AddWaterSparks((int)hit.Position.x, (int)hit.Position.y, (int)hit.Position.z, 4);
-		}
 	}
 
 	EnvironmentController Weather;
@@ -543,23 +427,6 @@ namespace TEN::Effects::Environment
 				pointColl = GetPointCollision(part.Position, part.RoomNumber);
 				collisionCalculated = true;
 
-				// Sweep the complete unchecked rain path whenever the conservative room/sector broad phase
-				// cannot prove that the segment remains inside one open interval without static geometry.
-				if (part.Type == WeatherType::Rain &&
-					!CanSkipExactRainSweep(part.CollisionPosition, part.RoomNumber, part.Position, pointColl))
-				{
-					auto surfaceHit = GetWeatherSurfaceHit(part.CollisionPosition, part.RoomNumber, part.Position);
-					if (surfaceHit.has_value())
-					{
-						part.Position = surfaceHit->Position;
-						part.CollisionPosition = surfaceHit->Position;
-						part.RoomNumber = surfaceHit->RoomNumber;
-						part.Stopped = true;
-						part.Enabled = false;
-						SpawnRainSurfaceImpact(*surfaceHit);
-						continue;
-					}
-				}
 
 				part.CollisionPosition = part.Position;
 
