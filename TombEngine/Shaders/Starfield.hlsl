@@ -98,7 +98,7 @@ float GetDepthSeparation(float sceneDepth, float particleDepth)
 	// LinearizeDepth(particleDepth), but requires only one division.
 	return max(
 		0.0f,
-		(2.0f * NearPlane * depthRange * (sceneDepth - particleDepth)) /
+		(2.0f * NearPlane * FarPlane * depthRange * (sceneDepth - particleDepth)) /
 		(sceneDenominator * particleDenominator));
 }
 
