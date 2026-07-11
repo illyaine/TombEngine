@@ -230,19 +230,23 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 {
 	clip(input.Active - 0.5f);
 
+	float particleDepthRaw = 0.0f;
+	float sceneDepthRaw = 1.0f;
+	float2 depthTexCoord = float2(0.0f, 0.0f);
+
 	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
 		if (input.PositionCopy.w <= 0.0f)
 			discard;
 
-		float particleDepth = input.PositionCopy.z / input.PositionCopy.w;
-		input.PositionCopy.xy /= input.PositionCopy.w;
-		float2 texCoord = saturate(0.5f * (float2(input.PositionCopy.x, -input.PositionCopy.y) + 1.0f));
-		float sceneDepth = DepthTexture.Sample(DepthSampler, texCoord).x;
+		particleDepthRaw = input.PositionCopy.z / input.PositionCopy.w;
+		float2 projectedPosition = input.PositionCopy.xy / input.PositionCopy.w;
+		depthTexCoord = saturate(0.5f * (float2(projectedPosition.x, -projectedPosition.y) + 1.0f));
+		sceneDepthRaw = DepthTexture.Sample(DepthSampler, depthTexCoord).x;
 
-		// Raw projected depth is sufficient for the occlusion decision and avoids two
-		// linearization calls for particles that are hidden behind scene geometry.
-		if (particleDepth - sceneDepth > 0.00001f)
+		// Raw projected depth is sufficient for the occlusion decision and avoids depth
+		// linearization for particles that are already hidden behind scene geometry.
+		if (particleDepthRaw - sceneDepthRaw > 0.00001f)
 			discard;
 	}
 
@@ -252,13 +256,10 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 
 	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
-		float particleDepth = input.PositionCopy.z / input.PositionCopy.w;
-		float2 texCoord = saturate(0.5f * (float2(input.PositionCopy.x, -input.PositionCopy.y) + 1.0f));
-		float sceneDepth = DepthTexture.Sample(DepthSampler, texCoord).x;
-		sceneDepth = LinearizeDepth(sceneDepth, NearPlane, FarPlane);
-		particleDepth = LinearizeDepth(particleDepth, NearPlane, FarPlane);
-
+		float sceneDepth = LinearizeDepth(sceneDepthRaw, NearPlane, FarPlane);
+		float particleDepth = LinearizeDepth(particleDepthRaw, NearPlane, FarPlane);
 		float surfaceSeparation = max(0.0f, sceneDepth - particleDepth);
+
 		if (EnvironmentMode == GPU_ENVIRONMENT_UNDERWATER_DUST)
 		{
 			output.w = min(output.w, surfaceSeparation * 1024.0f);
