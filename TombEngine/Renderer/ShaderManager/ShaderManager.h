@@ -19,7 +19,6 @@ namespace TEN::Renderer::Utils
 		InstancedStatics,
 		InstancedSprites,
 		GpuEnvironment,
-		Starfield = GpuEnvironment,
 		Sky,
 		Solid,
 		Inventory,
