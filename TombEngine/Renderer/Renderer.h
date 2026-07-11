@@ -105,6 +105,23 @@ namespace TEN::Renderer
 		size_t SharedSystemMemory = 0;
 	};
 
+	struct RendererSphereView
+	{
+		std::array<BoundingSphere, MAX_BONES> Spheres = {};
+		size_t Count = 0;
+
+		bool empty() const { return Count == 0; }
+		size_t size() const { return Count; }
+		auto begin() const { return Spheres.begin(); }
+		auto end() const { return Spheres.begin() + Count; }
+		const BoundingSphere& operator[](size_t index) const { return Spheres[index]; }
+
+		operator std::vector<BoundingSphere>() const
+		{
+			return std::vector<BoundingSphere>(begin(), end());
+		}
+	};
+
 	class Renderer
 	{
 	private:
@@ -261,23 +278,23 @@ namespace TEN::Renderer
 
 		// Lines
 
-		std::vector<RendererLine2D>		_lines2DToDraw = {};
-		std::vector<RendererLine3D>		_lines3DToDraw = {};
+		std::vector<RendererLine2D> 		_lines2DToDraw = {};
+		std::vector<RendererLine3D> 		_lines3DToDraw = {};
 		std::vector<RendererTriangle3D> _triangles3DToDraw = {};
 
 		// Textures, objects and sprites
 
-		std::vector<std::optional<RendererObject>>			   _moveableObjects;
-		std::vector<std::optional<RendererObject>>			   _staticObjects; // Key = static ID, value = renderer object.
-		std::vector<RendererSprite>							   _sprites;
-		std::vector<RendererSpriteSequence>					   _spriteSequences;
-		std::vector<RendererAnimatedTextureSet>				   _animatedTextureSets;
-		std::vector<RendererMesh*>							   _meshes;
-		std::vector<AtlasTexturesSet>							   _roomTextures;
-		std::vector<AtlasTexturesSet>							   _animatedTextures;
-		std::vector<AtlasTexturesSet>							   _moveablesTextures;
-		std::vector<AtlasTexturesSet>							   _staticTextures;
-		std::vector<Texture2D>								   _spritesTextures;
+		std::vector<std::optional<RendererObject>> 			   _moveableObjects;
+		std::vector<std::optional<RendererObject>> 			   _staticObjects; // Key = static ID, value = renderer object.
+		std::vector<RendererSprite> 							   _sprites;
+		std::vector<RendererSpriteSequence> 					   _spriteSequences;
+		std::vector<RendererAnimatedTextureSet> 				   _animatedTextureSets;
+		std::vector<RendererMesh*> 							   _meshes;
+		std::vector<AtlasTexturesSet> 							   _roomTextures;
+		std::vector<AtlasTexturesSet> 							   _animatedTextures;
+		std::vector<AtlasTexturesSet> 							   _moveablesTextures;
+		std::vector<AtlasTexturesSet> 							   _staticTextures;
+		std::vector<Texture2D> 								   _spritesTextures;
 		RendererSprite										   _videoSprite; // Video texture is an unique case
 
 		Matrix _playerWorldMatrix;
@@ -795,7 +812,7 @@ namespace TEN::Renderer
 		void FlipRooms(short roomNumber1, short roomNumber2);
 		void UpdateLaraAnimations(bool force);
 		void UpdateItemAnimations(int itemNumber, bool force);
-		std::vector<BoundingSphere> GetSpheres(int itemNumber);
+		RendererSphereView GetSpheres(int itemNumber);
 		void GetBoneMatrix(short itemNumber, int jointIndex, Matrix* outMatrix);
 		SkinningMode GetSkinningMode(const RendererObject& obj, int skinIndex);
 		void DrawObjectIn2DSpace(int objectNumber, Vector2 pos2D, EulerAngles orient, float scale1, float opacity = 1.0f, int meshBits = NO_JOINT_BITS);
