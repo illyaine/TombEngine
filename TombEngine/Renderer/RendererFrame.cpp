@@ -708,7 +708,7 @@ namespace TEN::Renderer
 				for (auto& light : _rooms[roomToCheck].Lights)
 				{
 					if (light.Type != LightType::FogBulb)
-						room.StaticLightCandidates.push_back(&light);
+						room.StaticLightCandidates.push_back({ &light, roomToCheck });
 				}
 			}
 			room.StaticLightCandidatesValid = true;
@@ -789,8 +789,9 @@ namespace TEN::Renderer
 					roomsLights->reserve(room.StaticLightCandidates.size());
 			}
 
-			for (auto* lightPtr : room.StaticLightCandidates)
+			for (const auto& candidate : room.StaticLightCandidates)
 			{
+				auto* lightPtr = candidate.Light;
 				if (lightPtr == nullptr)
 					continue;
 
@@ -800,8 +801,11 @@ namespace TEN::Renderer
 
 				if (light.Type == LightType::Sun)
 				{
-					if (light.RoomNumber != roomNumber && (prevRoomNumber != light.RoomNumber || prevRoomNumber == NO_VALUE))
+					if (candidate.SourceRoomNumber != roomNumber &&
+						(prevRoomNumber != candidate.SourceRoomNumber || prevRoomNumber == NO_VALUE))
+					{
 						continue;
+					}
 
 					intensity = light.Intensity * Luma(light.Color);
 				}
