@@ -1,6 +1,7 @@
 #pragma once
 #include <wrl/client.h>
 #include <d3d11.h>
+#include <stdexcept>
 #include "Renderer/Graphics/Texture2D.h"
 #include "Renderer/Graphics/TextureBase.h"
 #include "Renderer/Graphics/VRAMTracker.h"
@@ -67,7 +68,7 @@ namespace TEN::Renderer::Graphics
 
 		static bool AreCompatible(const std::vector<Texture2D*>& textures)
 		{
-			if (textures.empty() || textures[0] == nullptr || textures[0]->Texture == nullptr || textures[0]->ShaderResourceView == nullptr)
+			if (textures.empty() || textures[0] == nullptr || textures[0]->Texture.Get() == nullptr || textures[0]->ShaderResourceView.Get() == nullptr)
 				return false;
 
 			auto referenceDesc = D3D11_TEXTURE2D_DESC{};
@@ -81,7 +82,7 @@ namespace TEN::Renderer::Graphics
 
 			for (const auto* texture : textures)
 			{
-				if (texture == nullptr || texture->Texture == nullptr || texture->ShaderResourceView == nullptr)
+				if (texture == nullptr || texture->Texture.Get() == nullptr || texture->ShaderResourceView.Get() == nullptr)
 					return false;
 
 				auto desc = D3D11_TEXTURE2D_DESC{};
