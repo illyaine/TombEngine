@@ -29,7 +29,6 @@ struct PixelShaderInput
 	float4 Position : SV_POSITION;
 	float2 UV : TEXCOORD1;
 	float4 Color : COLOR;
-	float4 PositionCopy : TEXCOORD2;
 	float4 FogBulbs : TEXCOORD3;
 	float DistanceFog : FOG;
 	float Active : TEXCOORD4;
@@ -158,7 +157,6 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		{
 			output.Active = 0.0f;
 			output.Position = float4(-2.0f, -2.0f, 0.0f, 1.0f);
-			output.PositionCopy = output.Position;
 			return output;
 		}
 
@@ -220,7 +218,6 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 	}
 
 	output.Position = mul(float4(worldPosition, 1.0f), ViewProjection);
-	output.PositionCopy = output.Position;
 	output.FogBulbs = DoFogBulbsForVertex(float4(worldPosition, 1.0f));
 	output.DistanceFog = DoDistanceFogForVertex(float4(worldPosition, 1.0f));
 
@@ -233,16 +230,13 @@ float4 PS(PixelShaderInput input) : SV_TARGET
 
 	float particleDepthRaw = 0.0f;
 	float sceneDepthRaw = 1.0f;
-	float2 depthTexCoord = float2(0.0f, 0.0f);
 
 	if (EnvironmentMode != GPU_ENVIRONMENT_STARFIELD)
 	{
-		if (input.PositionCopy.w <= 0.0f)
-			discard;
-
-		particleDepthRaw = input.PositionCopy.z / input.PositionCopy.w;
-		float2 projectedPosition = input.PositionCopy.xy / input.PositionCopy.w;
-		depthTexCoord = saturate(0.5f * (float2(projectedPosition.x, -projectedPosition.y) + 1.0f));
+		// SV_POSITION already contains viewport-space coordinates and the projected depth.
+		// Reuse it instead of interpolating clip-space position and dividing by w per pixel.
+		particleDepthRaw = input.Position.z;
+		float2 depthTexCoord = saturate(input.Position.xy * InvViewSize);
 		sceneDepthRaw = DepthTexture.Sample(DepthSampler, depthTexCoord).x;
 
 		// Raw projected depth is sufficient for the occlusion decision and avoids depth
