@@ -164,7 +164,7 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 	else
 	{
 		uint clusterStride = (uint)max(1, EnvironmentClusterStride);
-		uint particleIndex = instanceID / clusterStride;
+		uint particleIndex = (uint)EnvironmentParticleOffset + (instanceID / clusterStride);
 		uint clusterIndex = instanceID % clusterStride;
 		WeatherInstance particle = WeatherParticles[particleIndex];
 
