@@ -7,6 +7,7 @@
 #include <SimpleMath.h>
 #include <PostProcess.h>
 #include <limits>
+#include <type_traits>
 
 #include "Math/Math.h"
 #include "Game/control/box.h"
@@ -257,6 +258,17 @@ namespace TEN::Renderer
 		int _dynamicLightList = 0;
 		std::vector<RendererLight> _dynamicLights[2];
 		RendererLight* _shadowLight;
+
+		// Shadow cubemap face culling
+
+		int _activeShadowMapFace = NO_VALUE;
+		Matrix _shadowCullCachedWorld = Matrix::Identity;
+		Vector3 _shadowCullCachedLightPosition = Vector3::Zero;
+		float _shadowCullCachedLightRange = 0.0f;
+		float _shadowCullCachedInterpolationFactor = -1.0f;
+		int _shadowCullCachedFrame = NO_VALUE;
+		unsigned int _shadowCullFaceMask = 0x3F;
+		bool _shadowCullCacheValid = false;
 
 		// Lines
 
@@ -601,8 +613,106 @@ namespace TEN::Renderer
 			matrix = matrix * _currentMirror->ReflectionMatrix;
 		}
 
+		inline int ResolveShadowMapFace(const Matrix& viewProjection) const
+		{
+			for (int face = 0; face < 6; face++)
+			{
+				if (memcmp(&viewProjection, &_stShadowMap.LightViewProjections[face], sizeof(Matrix)) == 0)
+					return face;
+			}
+
+			return NO_VALUE;
+		}
+
+		inline bool IsActiveShadowMapTargetBound() const
+		{
+			if (_activeShadowMapFace < 0 || _activeShadowMapFace >= _shadowMap.RenderTargetView.size())
+				return false;
+
+			auto currentTarget = ComPtr<ID3D11RenderTargetView>{};
+			_context->OMGetRenderTargets(1, currentTarget.GetAddressOf(), nullptr);
+			return currentTarget.Get() == _shadowMap.RenderTargetView[_activeShadowMapFace].Get();
+		}
+
+		inline unsigned int BuildShadowCasterFaceMask()
+		{
+			if (_shadowLight == nullptr || _shadowLight->Out <= 16.0f)
+				return 0x3F;
+
+			auto shadowLightPos = (_shadowLight->Hash == 0) ?
+				_shadowLight->Position :
+				Vector3::Lerp(_shadowLight->PrevPosition, _shadowLight->Position, GetInterpolationFactor());
+			auto projection = Matrix::CreatePerspectiveFieldOfView(90.0f * PI / 180.0f, 1.0f, 16.0f, _shadowLight->Out);
+
+			auto faceFrustums = std::array<Frustum, 6>{};
+			for (int face = 0; face < 6; face++)
+			{
+				auto view = Matrix::CreateLookAt(
+					shadowLightPos,
+					shadowLightPos + RenderTargetCube::forwardVectors[face] * BLOCK(10),
+					RenderTargetCube::upVectors[face]);
+				faceFrustums[face].Update(view, projection);
+			}
+
+			unsigned int faceMask = 0;
+			bool foundCasterSpheres = false;
+			for (const auto& item : _items)
+			{
+				if (item.ItemNumber == NO_VALUE || memcmp(&item.InterpolatedWorld, &_stItem.World, sizeof(Matrix)) != 0)
+					continue;
+
+				for (const auto& sphere : GetSpheres(item.ItemNumber))
+				{
+					foundCasterSpheres = true;
+					auto center = Vector3(sphere.Center.x, sphere.Center.y, sphere.Center.z);
+					float radius = std::max(sphere.Radius * 1.35f, sphere.Radius + (float)CLICK(1));
+
+					for (int face = 0; face < 6; face++)
+					{
+						if (faceFrustums[face].SphereInFrustum(center, radius))
+							faceMask |= (1u << face);
+					}
+				}
+			}
+
+			// Unknown auxiliary meshes and objects without animation spheres retain the legacy path.
+			return foundCasterSpheres ? faceMask : 0x3F;
+		}
+
+		inline bool ShouldCullCurrentShadowDraw()
+		{
+			if (_activeShadowMapFace == NO_VALUE || _shadowLight == nullptr || !IsActiveShadowMapTargetBound())
+				return false;
+
+			auto shadowLightPos = (_shadowLight->Hash == 0) ?
+				_shadowLight->Position :
+				Vector3::Lerp(_shadowLight->PrevPosition, _shadowLight->Position, GetInterpolationFactor());
+			bool cacheExpired = !_shadowCullCacheValid ||
+				memcmp(&_shadowCullCachedWorld, &_stItem.World, sizeof(Matrix)) != 0 ||
+				_shadowCullCachedLightPosition != shadowLightPos ||
+				_shadowCullCachedLightRange != _shadowLight->Out ||
+				_shadowCullCachedInterpolationFactor != _interpolationFactor ||
+				_shadowCullCachedFrame != GlobalCounter;
+
+			if (cacheExpired)
+			{
+				_shadowCullCachedWorld = _stItem.World;
+				_shadowCullCachedLightPosition = shadowLightPos;
+				_shadowCullCachedLightRange = _shadowLight->Out;
+				_shadowCullCachedInterpolationFactor = _interpolationFactor;
+				_shadowCullCachedFrame = GlobalCounter;
+				_shadowCullFaceMask = BuildShadowCasterFaceMask();
+				_shadowCullCacheValid = true;
+			}
+
+			return (_shadowCullFaceMask & (1u << _activeShadowMapFace)) == 0;
+		}
+
 		inline void DrawIndexedTriangles(int count, int baseIndex, int baseVertex)
 		{
+			if (ShouldCullCurrentShadowDraw())
+				return;
+
 			_context->DrawIndexed(count, baseIndex, baseVertex);
 			_numTriangles += count / 3;
 			_numDrawCalls++;
@@ -632,6 +742,9 @@ namespace TEN::Renderer
 		template <typename C>
 		inline void UpdateConstantBuffer(C& data, ConstantBuffer<C>& cb) noexcept
 		{
+			if constexpr (std::is_same_v<C, CCameraMatrixBuffer>)
+				_activeShadowMapFace = ResolveShadowMapFace(data.ViewProjection);
+
 			cb.UpdateData(data, _context.Get());
 			_numConstantBufferUpdates++;
 		}
