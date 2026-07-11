@@ -25,8 +25,6 @@ namespace TEN::Renderer
 
 		_starfieldRevision = revision;
 		_starfieldCount = 0;
-		_starfieldBuffer.Reset();
-		_starfieldBufferView.Reset();
 
 		const auto& stars = Weather.GetStars();
 		if (stars.empty())
@@ -58,31 +56,54 @@ namespace TEN::Renderer
 			});
 		}
 
-		auto bufferDesc = D3D11_BUFFER_DESC{};
-		bufferDesc.ByteWidth = static_cast<UINT>(sizeof(RendererStar) * rendererStars.size());
-		bufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
-		bufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-		bufferDesc.StructureByteStride = sizeof(RendererStar);
+		const auto requiredSize = static_cast<UINT>(sizeof(RendererStar) * rendererStars.size());
+		bool recreateBuffer = (_starfieldBuffer == nullptr || _starfieldBufferView == nullptr);
 
-		auto initialData = D3D11_SUBRESOURCE_DATA{};
-		initialData.pSysMem = rendererStars.data();
+		if (!recreateBuffer)
+		{
+			auto currentDesc = D3D11_BUFFER_DESC{};
+			_starfieldBuffer->GetDesc(&currentDesc);
+			recreateBuffer = currentDesc.ByteWidth < requiredSize;
+		}
 
-		Utils::throwIfFailed(_device->CreateBuffer(&bufferDesc, &initialData, _starfieldBuffer.GetAddressOf()));
+		if (recreateBuffer)
+		{
+			size_t capacity = 1;
+			while (capacity < rendererStars.size())
+				capacity <<= 1;
 
-		auto viewDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
-		viewDesc.Format = DXGI_FORMAT_UNKNOWN;
-		viewDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-		viewDesc.Buffer.FirstElement = 0;
-		viewDesc.Buffer.NumElements = static_cast<UINT>(rendererStars.size());
+			auto bufferDesc = D3D11_BUFFER_DESC{};
+			bufferDesc.ByteWidth = static_cast<UINT>(sizeof(RendererStar) * capacity);
+			bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+			bufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+			bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+			bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+			bufferDesc.StructureByteStride = sizeof(RendererStar);
 
-		Utils::throwIfFailed(_device->CreateShaderResourceView(_starfieldBuffer.Get(), &viewDesc, _starfieldBufferView.GetAddressOf()));
+			_starfieldBuffer.Reset();
+			_starfieldBufferView.Reset();
+			Utils::throwIfFailed(_device->CreateBuffer(&bufferDesc, nullptr, _starfieldBuffer.GetAddressOf()));
+
+			auto viewDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
+			viewDesc.Format = DXGI_FORMAT_UNKNOWN;
+			viewDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+			viewDesc.Buffer.FirstElement = 0;
+			viewDesc.Buffer.NumElements = static_cast<UINT>(capacity);
+
+			Utils::throwIfFailed(_device->CreateShaderResourceView(_starfieldBuffer.Get(), &viewDesc, _starfieldBufferView.GetAddressOf()));
+		}
+
+		auto mappedResource = D3D11_MAPPED_SUBRESOURCE{};
+		Utils::throwIfFailed(_context->Map(_starfieldBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource));
+		memcpy(mappedResource.pData, rendererStars.data(), requiredSize);
+		_context->Unmap(_starfieldBuffer.Get(), 0);
+
 		_starfieldCount = static_cast<int>(rendererStars.size());
 
 		const auto preparationEnd = std::chrono::high_resolution_clock::now();
 		const auto preparationTime = std::chrono::duration_cast<std::chrono::microseconds>(preparationEnd - preparationStart).count();
 		TENLog(
-			"Prepared GPU starfield buffer with " + std::to_string(_starfieldCount) +
+			"Updated GPU starfield buffer with " + std::to_string(_starfieldCount) +
 			" stars in " + std::to_string(preparationTime) + " microseconds.",
 			LogLevel::Info, LogConfig::Debug);
 	}
