@@ -144,25 +144,90 @@ namespace TEN::Renderer
 		if (_shadowLight->Type != LightType::Point && _shadowLight->Type != LightType::Spot)
 			return;
 
-		// Reset GPU state.
-		SetBlendMode(BlendMode::Opaque);
-		SetCullMode(CullMode::CounterClockwise);
-
 		auto shadowLightPos = (_shadowLight->Hash == 0) ?
 			_shadowLight->Position :
 			Vector3::Lerp(_shadowLight->PrevPosition, _shadowLight->Position, GetInterpolationFactor());
 
+		if (shadowLightPos == item->Position)
+			return;
+
+		auto& obj = GetRendererObject((GAME_OBJECT_ID)item->ObjectID);
+		auto skinMode = GetSkinningMode(obj, item->SkinIndex);
+		auto projection = Matrix::CreatePerspectiveFieldOfView(90.0f * PI / 180.0f, 1.0f, 16.0f, _shadowLight->Out);
+
+		auto shadowViews = std::array<Matrix, 6>{};
+		auto shadowViewProjections = std::array<Matrix, 6>{};
+		for (int face = 0; face < 6; face++)
+		{
+			shadowViews[face] = Matrix::CreateLookAt(
+				shadowLightPos,
+				shadowLightPos + RenderTargetCube::forwardVectors[face] * BLOCK(10),
+				RenderTargetCube::upVectors[face]);
+			shadowViewProjections[face] = shadowViews[face] * projection;
+		}
+
+		unsigned int shadowFaceMask = 0x3F;
+		bool canCullFaces =
+			_shadowLight->Out > 16.0f &&
+			item->ItemNumber != NO_VALUE &&
+			item->ObjectID != ID_LARA &&
+			skinMode != SkinningMode::Full &&
+			item->MeshIndex.size() == obj.ObjectMeshes.size();
+
+		if (canCullFaces)
+		{
+			for (size_t k = 0; k < obj.ObjectMeshes.size(); k++)
+			{
+				if (obj.ObjectMeshes[k] == nullptr || GetMesh(item->MeshIndex[k]) != obj.ObjectMeshes[k])
+				{
+					canCullFaces = false;
+					break;
+				}
+			}
+		}
+
+		if (canCullFaces)
+		{
+			auto spheres = GetSpheres(item->ItemNumber);
+			if (!spheres.empty() && spheres.size() == obj.ObjectMeshes.size())
+			{
+				auto faceFrustums = std::array<Frustum, 6>{};
+				for (int face = 0; face < 6; face++)
+					faceFrustums[face].Update(shadowViews[face], projection);
+
+				shadowFaceMask = 0;
+				for (const auto& sphere : spheres)
+				{
+					auto center = Vector3(sphere.Center.x, sphere.Center.y, sphere.Center.z);
+					float radius = std::max(sphere.Radius * 1.35f, sphere.Radius + (float)CLICK(1));
+
+					for (int face = 0; face < 6; face++)
+					{
+						if (faceFrustums[face].SphereInFrustum(center, radius))
+							shadowFaceMask |= (1u << face);
+					}
+				}
+			}
+		}
+
+		if (shadowFaceMask == 0)
+			return;
+
+		// Reset GPU state.
+		SetBlendMode(BlendMode::Opaque);
+		SetCullMode(CullMode::CounterClockwise);
+
 		for (int step = 0; step < 6; step++)
 		{
+			if ((shadowFaceMask & (1u << step)) == 0)
+				continue;
+
 			// Bind render target.
 			_context->OMSetRenderTargets(1, _shadowMap.RenderTargetView[step].GetAddressOf(),
 				_shadowMap.DepthStencilView[step].Get());
 
 			_context->RSSetViewports(1, &_shadowMapViewport);
 			ResetScissor();
-
-			if (shadowLightPos == item->Position)
-				return;
 
 			unsigned int stride = sizeof(Vertex);
 			unsigned int offset = 0;
@@ -180,23 +245,14 @@ namespace TEN::Renderer
 			BindTexture(TextureRegister::NormalMap, &std::get<1>(_moveablesTextures[0]), SamplerStateRegister::AnisotropicClamp);
 
 			// Set camera matrices.
-			auto view = Matrix::CreateLookAt(shadowLightPos, shadowLightPos +
-				RenderTargetCube::forwardVectors[step] * BLOCK(10),
-				RenderTargetCube::upVectors[step]);
-
-			auto projection = Matrix::CreatePerspectiveFieldOfView(90.0f * PI / 180.0f, 1.0f, 16.0f, _shadowLight->Out);
-
 			auto shadowProjection = CCameraMatrixBuffer{};
-			shadowProjection.ViewProjection = view * projection;
+			shadowProjection.ViewProjection = shadowViewProjections[step];
 			UpdateConstantBuffer(shadowProjection, _cbCameraMatrices);
 			BindConstantBufferVS(ConstantBufferRegister::Camera, _cbCameraMatrices.get());
 
-			_stShadowMap.LightViewProjections[step] = (view * projection);
+			_stShadowMap.LightViewProjections[step] = shadowViewProjections[step];
 
 			SetAlphaTest(AlphaTestMode::GreatherThan, ALPHA_TEST_THRESHOLD);
-
-			auto& obj = GetRendererObject((GAME_OBJECT_ID)item->ObjectID);
-			auto skinMode = GetSkinningMode(obj, item->SkinIndex);
 
 			BindConstantBufferVS(ConstantBufferRegister::Item, _cbItem.get());
 			BindConstantBufferPS(ConstantBufferRegister::Item, _cbItem.get());
@@ -456,7 +512,6 @@ namespace TEN::Renderer
 				return true;
 
 			setGpuStateForBucket(bucketIndex);
-
 			m_device->SetStreamSource(0, bucket->GetVertexBuffer(), 0, sizeof(Vertex));
 			m_device->SetIndices(bucket->GetIndexBuffer());
 
@@ -497,7 +552,6 @@ namespace TEN::Renderer
 						effect->CommitChanges();
 
 						drawPrimitives(D3DPT_TRIANGLELIST, 0, 0, bucket->NumVertices, 0, bucket->Indices.size() / 3);
-
 						effect->EndPass();
 					}
 				}
@@ -746,7 +800,7 @@ namespace TEN::Renderer
 							{
 								if (!SetupBlendModeAndAlphaTest(bucket.BlendMode, rendererPass, p))
 									continue;
-	
+					
 								DrawIndexedInstancedTriangles(bucket.NumIndices, 1, bucket.StartIndex, 0);
 
 								_numMoveablesDrawCalls++;
@@ -1497,7 +1551,6 @@ namespace TEN::Renderer
 		{
 			const auto& baseVertex0 = baseVertices[i];
 			const auto& baseVertex1 = baseVertices[(i == (baseVertices.size() - 1)) ? 0 : (i + 1)];
-
 			const auto& topVertex0 = topVertices[i];
 			const auto& topVertex1 = topVertices[(i == (topVertices.size() - 1)) ? 0 : (i + 1)];
 
@@ -2499,7 +2552,7 @@ namespace TEN::Renderer
 		if (!moveableObj.ObjectMeshes.size() || !moveableObj.ObjectMeshes[0]->Buckets.size())
 			return;
 		 
-		// Get first three vertices of a waterfall object, meaning the very first triangle
+		// Get first three vertices of a waterfall object mesh, meaning the very first triangle
 		const auto& v1 = _moveablesVertices[moveableObj.ObjectMeshes[0]->Buckets[0].StartVertex + 0];
 		const auto& v2 = _moveablesVertices[moveableObj.ObjectMeshes[0]->Buckets[0].StartVertex + 1];
 		const auto& v3 = _moveablesVertices[moveableObj.ObjectMeshes[0]->Buckets[0].StartVertex + 2];
@@ -2747,7 +2800,6 @@ namespace TEN::Renderer
 					if (instancesCount > 0)
 					{
 						UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
-
 						bool bindTextureAndMaterialsRequired = true;
 
 						for (int animated = 0; animated < 2; animated++)
@@ -3406,7 +3458,7 @@ namespace TEN::Renderer
 
 								bindTextureAndMaterialsRequired = false;
 							}
-												
+																
 							DrawIndexedTriangles(bucket.NumIndices, bucket.StartIndex, 0);
 
 							_numMoveablesDrawCalls++;
@@ -4053,7 +4105,7 @@ namespace TEN::Renderer
 		_context->OMSetRenderTargets(1, _SSAOBlurredRenderTarget.RenderTargetView.GetAddressOf(), nullptr);
 
 		BindRenderTargetAsTexture(TextureRegister::SSAO, &_SSAORenderTarget, SamplerStateRegister::PointWrap);
- 
+	 
 		DrawTriangles(3, 0);
 
 		_doingFullscreenPass = false;
