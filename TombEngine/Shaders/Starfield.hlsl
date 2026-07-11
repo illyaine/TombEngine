@@ -178,7 +178,9 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 			float velocityLengthSquared = dot(particle.Velocity, particle.Velocity);
 			float velocityLength = sqrt(max(velocityLengthSquared, 0.0001f));
 			float3 rainAxis = velocityLengthSquared > 0.0001f ? (-particle.Velocity / velocityLength) : float3(0.0f, 1.0f, 0.0f);
-			float3 toCamera = normalize(CamPositionWS.xyz - position);
+			float3 toCameraVector = CamPositionWS.xyz - position;
+			float distanceToCamera = sqrt(max(dot(toCameraVector, toCameraVector), 0.0001f));
+			float3 toCamera = toCameraVector / distanceToCamera;
 			float3 rightCandidate = cross(rainAxis, toCamera);
 			if (dot(rightCandidate, rightCandidate) <= 0.0001f)
 				rightCandidate = GetCameraRight();
@@ -188,7 +190,6 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 
 			const float nearDistance = 512.0f;
 			const float farDistance = 5734.4f;
-			float distanceToCamera = length(position - CamPositionWS.xyz);
 			float widthFactor = saturate((distanceToCamera - nearDistance) / max(1.0f, farDistance - nearDistance));
 			width = lerp(1.25f, 10.0f, widthFactor) * lerp(0.8f, 1.15f, Hash(visualSeed));
 			height = max(scale * 0.72f, velocityLength * 0.55f) * lerp(0.82f, 1.18f, Hash(visualSeed ^ 0xa511e9b3u));
