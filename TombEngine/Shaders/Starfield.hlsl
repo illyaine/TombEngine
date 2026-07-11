@@ -218,11 +218,14 @@ PixelShaderInput VS(VertexShaderInput input, uint instanceID : SV_InstanceID)
 		if (EnvironmentMode == GPU_ENVIRONMENT_RAIN)
 		{
 			float velocityLengthSquared = dot(particle.Velocity, particle.Velocity);
-			float velocityLength = sqrt(max(velocityLengthSquared, 0.0001f));
-			float3 rainAxis = velocityLengthSquared > 0.0001f ? (-particle.Velocity / velocityLength) : float3(0.0f, 1.0f, 0.0f);
+			float inverseVelocityLength = rsqrt(velocityLengthSquared);
+			float velocityLength = velocityLengthSquared * inverseVelocityLength;
+			float3 rainAxis = -particle.Velocity * inverseVelocityLength;
 			float3 toCameraVector = CamPositionWS.xyz - position;
-			float distanceToCamera = sqrt(max(dot(toCameraVector, toCameraVector), 0.0001f));
-			float3 toCamera = toCameraVector / distanceToCamera;
+			float distanceSquared = max(dot(toCameraVector, toCameraVector), 0.0001f);
+			float inverseDistance = rsqrt(distanceSquared);
+			float distanceToCamera = distanceSquared * inverseDistance;
+			float3 toCamera = toCameraVector * inverseDistance;
 			float3 rightCandidate = cross(rainAxis, toCamera);
 			float rightLengthSquared = dot(rightCandidate, rightCandidate);
 			if (rightLengthSquared <= 0.0001f)
