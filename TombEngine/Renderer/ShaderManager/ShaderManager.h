@@ -77,6 +77,7 @@ namespace TEN::Renderer::Utils
 	private:
 		ComPtr<ID3D11Device>		_device	 = nullptr;
 		ComPtr<ID3D11DeviceContext> _context = nullptr;
+		ComPtr<ID3D11SamplerState> _starfieldSampler = nullptr;
 
 		int											   _compileCounter = 0;
 		std::array<RendererShader, (int)Shader::Count> _shaders		   = {};
