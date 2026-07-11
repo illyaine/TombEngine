@@ -300,23 +300,17 @@ namespace TEN::Renderer
 		if (rendererPass == RendererPass::Additive)
 		{
 			static ID3D11Device* resourceDevice = nullptr;
-			static WeatherGpuBuffer dustGpuBuffer = {};
-			static WeatherGpuBuffer snowGpuBuffer = {};
-			static WeatherGpuBuffer rainGpuBuffer = {};
+			static WeatherGpuBuffer weatherGpuBuffer = {};
 			static WeatherCpuBucket dustBucket = {};
 			static std::vector<WeatherCpuBucket> snowBuckets = {};
 			static std::vector<WeatherCpuBucket> rainBuckets = {};
-			static std::vector<RendererWeatherParticle> snowParticles = {};
-			static std::vector<RendererWeatherParticle> rainParticles = {};
+			static std::vector<RendererWeatherParticle> weatherParticles = {};
 
 			if (resourceDevice != _device.Get())
 			{
 				resourceDevice = _device.Get();
-				dustGpuBuffer = {};
-				snowGpuBuffer = {};
-				rainGpuBuffer = {};
-				snowParticles.clear();
-				rainParticles.clear();
+				weatherGpuBuffer = {};
+				weatherParticles.clear();
 			}
 
 			const bool hasDefaultSprites = Objects[ID_DEFAULT_SPRITES].loaded;
@@ -408,24 +402,26 @@ namespace TEN::Renderer
 				}
 			}
 
-			auto flattenBuckets = [](std::vector<WeatherCpuBucket>& buckets, std::vector<RendererWeatherParticle>& particles)
+			size_t weatherParticleCount = dustBucket.Particles.size();
+			for (const auto& bucket : snowBuckets)
+				weatherParticleCount += bucket.Particles.size();
+			for (const auto& bucket : rainBuckets)
+				weatherParticleCount += bucket.Particles.size();
+
+			weatherParticles.clear();
+			weatherParticles.reserve(weatherParticleCount);
+
+			auto appendBucket = [&](WeatherCpuBucket& bucket)
 			{
-				size_t particleCount = 0;
-				for (const auto& bucket : buckets)
-					particleCount += bucket.Particles.size();
-
-				particles.clear();
-				particles.reserve(particleCount);
-
-				for (auto& bucket : buckets)
-				{
-					bucket.ParticleOffset = static_cast<int>(particles.size());
-					particles.insert(particles.end(), bucket.Particles.begin(), bucket.Particles.end());
-				}
+				bucket.ParticleOffset = static_cast<int>(weatherParticles.size());
+				weatherParticles.insert(weatherParticles.end(), bucket.Particles.begin(), bucket.Particles.end());
 			};
 
-			flattenBuckets(snowBuckets, snowParticles);
-			flattenBuckets(rainBuckets, rainParticles);
+			appendBucket(dustBucket);
+			for (auto& bucket : snowBuckets)
+				appendBucket(bucket);
+			for (auto& bucket : rainBuckets)
+				appendBucket(bucket);
 
 			auto uploadBuffer = [&](WeatherGpuBuffer& gpuBuffer, const std::vector<RendererWeatherParticle>& particles)
 			{
@@ -478,9 +474,7 @@ namespace TEN::Renderer
 				_stStarfield.UV[1].w = sprite->UV[3].y;
 			};
 
-			const bool hasGpuWeather = !dustBucket.Particles.empty() || !snowParticles.empty() || !rainParticles.empty();
-
-			if (hasGpuWeather)
+			if (!weatherParticles.empty())
 			{
 				_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 				_context->IASetInputLayout(_inputLayout.Get());
@@ -495,47 +489,34 @@ namespace TEN::Renderer
 				SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
 				_shaders.Bind(Shader::Starfield);
 
-				auto drawBucket = [&](WeatherCpuBucket& bucket, GpuEnvironmentMode mode)
+				if (uploadBuffer(weatherGpuBuffer, weatherParticles))
 				{
-					if (bucket.Particles.empty())
-						return;
-
-					const int clusterStride = std::clamp(bucket.MaxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
-					packEnvironmentTextureCoordinates(bucket.Sprite);
-					_stStarfield.Mode = mode;
-					_stStarfield.ClusterStride = clusterStride;
-					_stStarfield.ClusterSpread = mode == GpuEnvironmentMode::UnderwaterDust ? 0.0f : BLOCK(1.0f);
-					_stStarfield.ParticleOffset = bucket.ParticleOffset;
-					UpdateConstantBuffer(_stStarfield, _cbStarfield);
-					BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
-					BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
-					BindTexture(TextureRegister::ColorMap, bucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
-
-					DrawInstancedTriangles(4, static_cast<int>(bucket.Particles.size()) * clusterStride, 0);
-					_numInstancedSpritesDrawCalls++;
-				};
-
-				auto bindWeatherBuffer = [&](WeatherGpuBuffer& gpuBuffer, const std::vector<RendererWeatherParticle>& particles)
-				{
-					if (!uploadBuffer(gpuBuffer, particles))
-						return false;
-
-					auto* weatherView = gpuBuffer.View.Get();
+					auto* weatherView = weatherGpuBuffer.View.Get();
 					_context->VSSetShaderResources(WEATHER_BUFFER_SLOT, 1, &weatherView);
-					return true;
-				};
 
-				if (bindWeatherBuffer(dustGpuBuffer, dustBucket.Particles))
+					auto drawBucket = [&](WeatherCpuBucket& bucket, GpuEnvironmentMode mode)
+					{
+						if (bucket.Particles.empty())
+							return;
+
+						const int clusterStride = std::clamp(bucket.MaxClusterSize, 1, GPU_WEATHER_CLUSTER_STRIDE);
+						packEnvironmentTextureCoordinates(bucket.Sprite);
+						_stStarfield.Mode = mode;
+						_stStarfield.ClusterStride = clusterStride;
+						_stStarfield.ClusterSpread = mode == GpuEnvironmentMode::UnderwaterDust ? 0.0f : BLOCK(1.0f);
+						_stStarfield.ParticleOffset = bucket.ParticleOffset;
+						UpdateConstantBuffer(_stStarfield, _cbStarfield);
+						BindConstantBufferVS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+						BindConstantBufferPS(ConstantBufferRegister::InstancedSprites, _cbStarfield.get());
+						BindTexture(TextureRegister::ColorMap, bucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
+
+						DrawInstancedTriangles(4, static_cast<int>(bucket.Particles.size()) * clusterStride, 0);
+						_numInstancedSpritesDrawCalls++;
+					};
+
 					drawBucket(dustBucket, GpuEnvironmentMode::UnderwaterDust);
-
-				if (bindWeatherBuffer(snowGpuBuffer, snowParticles))
-				{
 					for (auto& bucket : snowBuckets)
 						drawBucket(bucket, GpuEnvironmentMode::Snow);
-				}
-
-				if (bindWeatherBuffer(rainGpuBuffer, rainParticles))
-				{
 					for (auto& bucket : rainBuckets)
 						drawBucket(bucket, GpuEnvironmentMode::Rain);
 				}
