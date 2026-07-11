@@ -1,6 +1,7 @@
 #pragma once
 #include <wrl/client.h>
 #include <d3d11.h>
+#include "Renderer/Graphics/Texture2D.h"
 #include "Renderer/Graphics/TextureBase.h"
 #include "Renderer/Graphics/VRAMTracker.h"
 #include <vector>
@@ -20,9 +21,11 @@ namespace TEN::Renderer::Graphics
 		std::vector<ComPtr<ID3D11DepthStencilView>> DepthStencilView;
 		ComPtr<ID3D11Texture2D> DepthStencilTexture;
 		int Resolution;
+		int Width;
+		int Height;
 		D3D11_VIEWPORT Viewport;
 
-		Texture2DArray() : Resolution(0), Viewport({}) {};
+		Texture2DArray() : Resolution(0), Width(0), Height(0), Viewport({}) {};
 
 		Texture2DArray(Texture2DArray&& other) noexcept
 			: TextureBase(std::move(other)),
@@ -30,8 +33,8 @@ namespace TEN::Renderer::Graphics
 			  Texture(std::move(other.Texture)),
 			  DepthStencilView(std::move(other.DepthStencilView)),
 			  DepthStencilTexture(std::move(other.DepthStencilTexture)),
-			  Resolution(other.Resolution), Viewport(other.Viewport),
-			  _vramSize(other._vramSize)
+			  Resolution(other.Resolution), Width(other.Width), Height(other.Height), Viewport(other.Viewport),
+			  _vramSize(other._vramSize), _vramCategory(other._vramCategory)
 		{
 			other._vramSize = 0;
 		}
@@ -41,7 +44,7 @@ namespace TEN::Renderer::Graphics
 			if (this != &other)
 			{
 				if (_vramSize > 0)
-					VRAMTracker::Get().Remove(VRAMCategory::RenderTarget, _vramSize);
+					VRAMTracker::Get().Remove(_vramCategory, _vramSize);
 
 				TextureBase::operator=(std::move(other));
 				RenderTargetView = std::move(other.RenderTargetView);
@@ -49,8 +52,11 @@ namespace TEN::Renderer::Graphics
 				DepthStencilView = std::move(other.DepthStencilView);
 				DepthStencilTexture = std::move(other.DepthStencilTexture);
 				Resolution = other.Resolution;
+				Width = other.Width;
+				Height = other.Height;
 				Viewport = other.Viewport;
 				_vramSize = other._vramSize;
+				_vramCategory = other._vramCategory;
 				other._vramSize = 0;
 			}
 			return *this;
@@ -59,8 +65,107 @@ namespace TEN::Renderer::Graphics
 		Texture2DArray(const Texture2DArray&) = delete;
 		Texture2DArray& operator=(const Texture2DArray&) = delete;
 
+		static bool AreCompatible(const std::vector<Texture2D*>& textures)
+		{
+			if (textures.empty() || textures[0] == nullptr || textures[0]->Texture == nullptr || textures[0]->ShaderResourceView == nullptr)
+				return false;
+
+			auto referenceDesc = D3D11_TEXTURE2D_DESC{};
+			textures[0]->Texture->GetDesc(&referenceDesc);
+
+			auto referenceViewDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
+			textures[0]->ShaderResourceView->GetDesc(&referenceViewDesc);
+
+			if (referenceDesc.ArraySize != 1 || referenceDesc.SampleDesc.Count != 1)
+				return false;
+
+			for (const auto* texture : textures)
+			{
+				if (texture == nullptr || texture->Texture == nullptr || texture->ShaderResourceView == nullptr)
+					return false;
+
+				auto desc = D3D11_TEXTURE2D_DESC{};
+				texture->Texture->GetDesc(&desc);
+
+				auto viewDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
+				texture->ShaderResourceView->GetDesc(&viewDesc);
+
+				if (desc.Width != referenceDesc.Width ||
+					desc.Height != referenceDesc.Height ||
+					desc.MipLevels != referenceDesc.MipLevels ||
+					desc.ArraySize != 1 ||
+					desc.Format != referenceDesc.Format ||
+					desc.SampleDesc.Count != 1 ||
+					viewDesc.Format != referenceViewDesc.Format)
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		Texture2DArray(ID3D11Device* device, ID3D11DeviceContext* context, const std::vector<Texture2D*>& textures)
+		{
+			if (!AreCompatible(textures))
+				throw std::invalid_argument("Texture2DArray source textures are incompatible.");
+
+			auto sourceDesc = D3D11_TEXTURE2D_DESC{};
+			textures[0]->Texture->GetDesc(&sourceDesc);
+
+			auto sourceViewDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
+			textures[0]->ShaderResourceView->GetDesc(&sourceViewDesc);
+
+			Width = sourceDesc.Width;
+			Height = sourceDesc.Height;
+			Resolution = (Width == Height) ? Width : 0;
+
+			if (textures.size() == 1)
+			{
+				Texture = textures[0]->Texture;
+			}
+			else
+			{
+				auto desc = sourceDesc;
+				desc.ArraySize = static_cast<UINT>(textures.size());
+				desc.Usage = D3D11_USAGE_DEFAULT;
+				desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+				desc.CPUAccessFlags = 0;
+				desc.MiscFlags = 0;
+
+				throwIfFailed(device->CreateTexture2D(&desc, nullptr, Texture.GetAddressOf()), device, "CreateTexture2D (source texture array)");
+
+				for (UINT slice = 0; slice < textures.size(); slice++)
+				{
+					for (UINT mip = 0; mip < sourceDesc.MipLevels; mip++)
+					{
+						context->CopySubresourceRegion(
+							Texture.Get(),
+							D3D11CalcSubresource(mip, slice, sourceDesc.MipLevels),
+							0, 0, 0,
+							textures[slice]->Texture.Get(),
+							D3D11CalcSubresource(mip, 0, sourceDesc.MipLevels),
+							nullptr);
+					}
+				}
+
+				_vramSize = VRAMTracker::ComputeTexture2DSize(desc);
+				_vramCategory = VRAMCategory::Texture;
+				VRAMTracker::Get().Add(_vramCategory, _vramSize);
+			}
+
+			auto shaderDesc = D3D11_SHADER_RESOURCE_VIEW_DESC{};
+			shaderDesc.Format = sourceViewDesc.Format;
+			shaderDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+			shaderDesc.Texture2DArray.MostDetailedMip = 0;
+			shaderDesc.Texture2DArray.MipLevels = sourceDesc.MipLevels;
+			shaderDesc.Texture2DArray.ArraySize = static_cast<UINT>(textures.size());
+			shaderDesc.Texture2DArray.FirstArraySlice = 0;
+			throwIfFailed(device->CreateShaderResourceView(Texture.Get(), &shaderDesc, ShaderResourceView.GetAddressOf()), device, "CreateSRV (source texture array)");
+		}
+
 		Texture2DArray(ID3D11Device* device, int resolution, int count, DXGI_FORMAT colorFormat, DXGI_FORMAT depthFormat)
-			: Resolution(resolution)
+			: Resolution(resolution), Width(resolution), Height(resolution)
 		{
 			DepthStencilView.resize(count);
 			RenderTargetView.resize(count);
@@ -136,16 +241,18 @@ namespace TEN::Renderer::Graphics
 				throwIfFailed(res, device, "CreateDepthStencilView (texture array slice " + std::to_string(i) + ")");
 			}
 
-			VRAMTracker::Get().Add(VRAMCategory::RenderTarget, _vramSize);
+			_vramCategory = VRAMCategory::RenderTarget;
+			VRAMTracker::Get().Add(_vramCategory, _vramSize);
 		}
 
 		~Texture2DArray()
 		{
 			if (_vramSize > 0)
-				VRAMTracker::Get().Remove(VRAMCategory::RenderTarget, _vramSize);
+				VRAMTracker::Get().Remove(_vramCategory, _vramSize);
 		}
 
 	private:
 		int _vramSize = 0;
+		VRAMCategory _vramCategory = VRAMCategory::RenderTarget;
 	};
 }
