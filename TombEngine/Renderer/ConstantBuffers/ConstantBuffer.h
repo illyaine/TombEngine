@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <cstring>
 #include <d3d11.h>
 #include <wrl/client.h>
 
@@ -12,6 +15,8 @@ namespace TEN::Renderer::ConstantBuffers
 	class ConstantBuffer
 	{
 		ComPtr<ID3D11Buffer> buffer;
+		std::array<std::byte, sizeof(CBuff)> _lastData = {};
+		bool _lastDataValid = false;
 
 	public:
 		ConstantBuffer() = default;
@@ -20,7 +25,10 @@ namespace TEN::Renderer::ConstantBuffers
 		ConstantBuffer& operator=(ConstantBuffer&& other) noexcept
 		{
 			if (this != &other)
+			{
 				buffer = std::move(other.buffer);
+				_lastDataValid = false;
+			}
 
 			return *this;
 		}
@@ -46,13 +54,20 @@ namespace TEN::Renderer::ConstantBuffers
 
 		void UpdateData(CBuff& data, ID3D11DeviceContext* ctx)
 		{
+			const auto* dataBytes = reinterpret_cast<const std::byte*>(&data);
+			if (_lastDataValid && std::memcmp(_lastData.data(), dataBytes, sizeof(CBuff)) == 0)
+				return;
+
 			auto mappedResource = D3D11_MAPPED_SUBRESOURCE{};
 			auto res = ctx->Map(buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 			if (SUCCEEDED(res))
 			{
-				void* dataPtr = (mappedResource.pData);
-				memcpy(dataPtr, &data, sizeof(CBuff));
+				void* dataPtr = mappedResource.pData;
+				std::memcpy(dataPtr, &data, sizeof(CBuff));
 				ctx->Unmap(buffer.Get(), 0);
+
+				std::memcpy(_lastData.data(), dataBytes, sizeof(CBuff));
+				_lastDataValid = true;
 			}
 			else
 			{
