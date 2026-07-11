@@ -56,7 +56,19 @@ using namespace TEN::Animation;
 		}
 		else
 		{
-			*this = frameData.Keyframe0.BoundingBox + (((frameData.Keyframe1.BoundingBox - frameData.Keyframe0.BoundingBox) * frameData.Alpha));
+			const auto& bounds0 = frameData.Keyframe0.BoundingBox;
+			const auto& bounds1 = frameData.Keyframe1.BoundingBox;
+			auto interpolateBound = [alpha = frameData.Alpha](int value0, int value1)
+			{
+				return value0 + (int)round((value1 - value0) * alpha);
+			};
+
+			X1 = interpolateBound(bounds0.X1, bounds1.X1);
+			X2 = interpolateBound(bounds0.X2, bounds1.X2);
+			Y1 = interpolateBound(bounds0.Y1, bounds1.Y1);
+			Y2 = interpolateBound(bounds0.Y2, bounds1.Y2);
+			Z1 = interpolateBound(bounds0.Z1, bounds1.Z1);
+			Z2 = interpolateBound(bounds0.Z2, bounds1.Z2);
 		}
 	}
 
