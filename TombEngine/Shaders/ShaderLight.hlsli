@@ -160,7 +160,7 @@ float3 DoDirectionalLight(float3 pos, float3 normal, ShaderLight light)
     return light.Color.xyz * light.Intensity * d;
 }
 
-float DoFogBulb(float3 pos, ShaderFogBulb bulb)
+float DoFogBulb(float3 pos, ShaderFogBulb bulb, float3 cameraToVertexDirection, float cameraToVertexSquaredDistance)
 {
 	// We find the intersection points p0 and p1 between the sphere of the fog bulb and the ray from camera to vertex.
 	// The magnitude of (p2 - p1) is used as the fog factor.
@@ -173,9 +173,7 @@ float DoFogBulb(float3 pos, ShaderFogBulb bulb)
 	p0 = p1 = float3(0, 0, 0);
 
 	float3 bulbToVertex = pos - bulb.Position;
-	float bulbToVertexSquaredDistance = pow(pos.x - bulb.Position.x, 2) + pow(pos.y - bulb.Position.y, 2) + pow(pos.z - bulb.Position.z, 2);
-	float3 cameraToVertexDirection = normalize(pos - CamPositionWS);
-	float cameraToVertexSquaredDistance = pow(pos.x - CamPositionWS.x, 2) + pow(pos.y - CamPositionWS.y, 2) + pow(pos.z - CamPositionWS.z, 2);
+	float bulbToVertexSquaredDistance = dot(bulbToVertex, bulbToVertex);
 		
 	if (bulb.SquaredCameraToFogBulbDistance < bulb.SquaredRadius)
 	{
@@ -253,7 +251,7 @@ float DoFogBulb(float3 pos, ShaderFogBulb bulb)
 	return fog;
 }
 
-float DoFogBulbForSky(float3 pos, ShaderFogBulb bulb)
+float DoFogBulbForSky(float3 pos, ShaderFogBulb bulb, float3 cameraToVertexDirection)
 {
 	// We find the intersection points p0 and p1 between the sphere of the fog bulb and the ray from camera to vertex.
 	// The magnitude of (p2 - p1) is used as the fog factor.
@@ -264,8 +262,6 @@ float DoFogBulbForSky(float3 pos, ShaderFogBulb bulb)
 	float3 p1;
 
 	p0 = p1 = float3(0, 0, 0);
-
-	float3 cameraToVertexDirection = normalize(pos - CamPositionWS);
 	
 	if (bulb.SquaredCameraToFogBulbDistance < bulb.SquaredRadius)
 	{
@@ -334,10 +330,13 @@ float DoDistanceFogForVertex(float3 pos)
 float4 DoFogBulbsForVertex(float3 pos)
 {
 	float4 fog = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float3 cameraToVertex = pos - CamPositionWS.xyz;
+	float cameraToVertexSquaredDistance = dot(cameraToVertex, cameraToVertex);
+	float3 cameraToVertexDirection = normalize(cameraToVertex);
 
 	for (int i = 0; i < NumFogBulbs; i++)
 	{
-		float fogFactor = DoFogBulb(pos, FogBulbs[i]);
+		float fogFactor = DoFogBulb(pos, FogBulbs[i], cameraToVertexDirection, cameraToVertexSquaredDistance);
 		float3 fogColor = FogBulbs[i].Color.xyz * fogFactor;
 
 		fog.xyz += fogColor;
@@ -352,10 +351,11 @@ float4 DoFogBulbsForVertex(float3 pos)
 float4 DoFogBulbsForSky(float3 pos)
 {
 	float4 fog = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	float3 cameraToVertexDirection = normalize(pos - CamPositionWS.xyz);
 
 	for (int i = 0; i < NumFogBulbs; i++)
 	{
-		float fogFactor = DoFogBulbForSky(pos, FogBulbs[i]);
+		float fogFactor = DoFogBulbForSky(pos, FogBulbs[i], cameraToVertexDirection);
 		float3 fogColor = FogBulbs[i].Color.xyz * fogFactor;
 
 		fog.xyz += fogColor;
