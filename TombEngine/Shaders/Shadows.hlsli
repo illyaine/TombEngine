@@ -117,6 +117,11 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
     }
 
     float ndot = dot(normal, dir);
+
+    // Point and spot shadow strength is multiplied by the diffuse term below.
+    if (ndot <= 0.0f)
+        return lighting;
+
     float facingFactor = saturate((ndot - bias) / (1.0f - bias + EPSILON));
 
     // A zero facing contribution leaves the original lighting unchanged, so no shadow-map work is needed.
