@@ -250,12 +250,22 @@ namespace TEN::Renderer
 			lights[index].OutRange = light.CachedSpotOutRangeCos;
 		}
 
-		// If light has hash, interpolate its position with previous position.
+		// Reuse interpolation results while the render interpolation factor is unchanged.
 		if (light.Hash != 0)
 		{
-			lights[index].Position  = Vector3::Lerp(light.PrevPosition, light.Position, GetInterpolationFactor());
+			const float interpolationFactor = GetInterpolationFactor();
+			if (!light.InterpolationCacheValid || light.CachedInterpolationFactor != interpolationFactor)
+			{
+				light.CachedInterpolationFactor = interpolationFactor;
+				light.CachedInterpolatedPosition = Vector3::Lerp(light.PrevPosition, light.Position, interpolationFactor);
+				if (usesDirection)
+					light.CachedInterpolatedDirection = Vector3::Lerp(light.PrevDirection, light.Direction, interpolationFactor);
+				light.InterpolationCacheValid = true;
+			}
+
+			lights[index].Position = light.CachedInterpolatedPosition;
 			if (usesDirection)
-				lights[index].Direction = Vector3::Lerp(light.PrevDirection, light.Direction, GetInterpolationFactor());
+				lights[index].Direction = light.CachedInterpolatedDirection;
 		}
 
 		ReflectVectorOptionally(lights[index].Position);
@@ -474,7 +484,6 @@ namespace TEN::Renderer
 			case DepthState::None:
 				_context->OMSetDepthStencilState(_renderStates->DepthNone(), 0xFFFFFFFF);
 				break;
-
 			}
 
 			_lastDepthState = depthState;
