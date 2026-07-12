@@ -94,13 +94,15 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
     if (BlendMode != BLENDMODE_OPAQUE && BlendMode != BLENDMODE_ALPHATEST && BlendMode != BLENDMODE_ALPHABLEND)	
         return lighting;
 
-    float shadowFactor = 1.0f;
-
     float3 lightVec = Light.Position - worldPos;
     float lightDistance = length(lightVec);
     float3 dir = normalize(lightVec);
     float ndot = dot(normal, dir);
     float facingFactor = saturate((ndot - bias) / (1.0f - bias + EPSILON));
+
+    // A zero facing contribution leaves the original lighting unchanged, so no shadow-map work is needed.
+    if (facingFactor <= 0.0f)
+        return lighting;
 
     // A point can belong to only one cubemap face away from exact seams. Select that face
     // directly instead of transforming every shaded pixel through all six shadow matrices.
@@ -113,29 +115,29 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
         step(-1.0f, lightClipSpace.y) * step(lightClipSpace.y, 1.0f) *
         step( 0.0f, lightClipSpace.z) * step(lightClipSpace.z, 1.0f);
 
-    if (insideLightBounds > 0.0f)
+    // No selected shadow face contribution means shadowFactor would stay at one.
+    if (insideLightBounds <= 0.0f)
+        return lighting;
+
+    lightClipSpace.x = lightClipSpace.x / 2 + 0.5;
+    lightClipSpace.y = lightClipSpace.y / -2 + 0.5;
+
+    float sum = 0.0f;
+    float texelSize = rcp((float)ShadowMapSize);
+
+    // Perform the same 5x5 PCF filtering with one shared texel-size calculation.
+    for (int y = -SHADOW_BLUR; y <= SHADOW_BLUR; y++)
     {
-        lightClipSpace.x = lightClipSpace.x / 2 + 0.5;
-        lightClipSpace.y = lightClipSpace.y / -2 + 0.5;
-
-        float sum = 0.0f;
-        float texelSize = rcp((float)ShadowMapSize);
-
-        // Perform the same 5x5 PCF filtering with one shared texel-size calculation.
-        for (int y = -SHADOW_BLUR; y <= SHADOW_BLUR; y++)
+        for (int x = -SHADOW_BLUR; x <= SHADOW_BLUR; x++)
         {
-            for (int x = -SHADOW_BLUR; x <= SHADOW_BLUR; x++)
-            {
-                sum += ShadowMap.SampleCmpLevelZero(
-                    ShadowMapSampler,
-                    float3(lightClipSpace.xy + float2(x, y) * texelSize, faceIndex),
-                    lightClipSpace.z);
-            }
+            sum += ShadowMap.SampleCmpLevelZero(
+                ShadowMapSampler,
+                float3(lightClipSpace.xy + float2(x, y) * texelSize, faceIndex),
+                lightClipSpace.z);
         }
-
-        shadowFactor = lerp(shadowFactor, sum / SHADOW_SAMPLE_COUNT, facingFactor);
     }
 
+    float shadowFactor = lerp(1.0f, sum / SHADOW_SAMPLE_COUNT, facingFactor);
     float distanceAttenuation = saturate((Light.Out - lightDistance) / (Light.Out - Light.In));
     float diffuse = saturate(ndot);
 
