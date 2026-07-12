@@ -100,7 +100,9 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
 
     float shadowFactor = 1.0f;
 
-    float3 dir = normalize(Light.Position - worldPos);
+    float3 lightVec = Light.Position - worldPos;
+    float lightDistance = length(lightVec);
+    float3 dir = normalize(lightVec);
     float ndot = dot(normal, dir);
     float facingFactor = saturate((ndot - bias) / (1.0f - bias + EPSILON));
 
@@ -139,15 +141,20 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
         shadowFactor = lerp(shadowFactor, sum / samples, facingFactor);
     }
 
+    float distanceAttenuation = saturate((Light.Out - lightDistance) / (Light.Out - Light.In));
+    float diffuse = saturate(ndot);
+
     if (Light.Type == LT_POINT)
     {
-        float pointFactor = Luma(DoPointLight(worldPos, normal, Light));
+        float pointFactor = Luma(saturate(Light.Color.xyz * Light.Intensity * distanceAttenuation * diffuse));
         return lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * pointFactor);
     }
 
     if (Light.Type == LT_SPOT)
     {
-        float spotFactor = Luma(DoSpotLight(worldPos, normal, Light));
+        float cosine = dot(-dir, Light.Direction.xyz);
+        float angleAttenuation = saturate((cosine - Light.OutRange) / (Light.InRange - Light.OutRange));
+        float spotFactor = Luma(saturate(Light.Color.xyz * Light.Intensity * angleAttenuation * distanceAttenuation * diffuse));
         return lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * spotFactor);
     }
 
