@@ -12,26 +12,29 @@ namespace TEN::Renderer
 			Matrix View = Matrix::Identity;
 			Matrix Projection = Matrix::Identity;
 			std::array<std::array<float, 4>, 6> Planes = {};
+			size_t LastUse = 0;
 			bool Valid = false;
 		};
 
 		// Shadow cubemap faces and other repeated views frequently rebuild identical frustums.
-		// Keep a tiny thread-local cache so repeated callers only copy the six normalized planes.
+		// Use LRU replacement so one-off camera views do not evict frequently reused shadow faces.
 		static thread_local std::array<FrustumCacheEntry, 8> cache = {};
-		static thread_local size_t nextCacheEntry = 0;
+		static thread_local size_t cacheUseCounter = 0;
 
 		auto matricesEqual = [](const Matrix& a, const Matrix& b)
 		{
 			return std::memcmp(&a, &b, sizeof(Matrix)) == 0;
 		};
 
-		for (const auto& entry : cache)
+		const size_t useStamp = ++cacheUseCounter;
+		for (auto& entry : cache)
 		{
 			if (!entry.Valid)
 				continue;
 
 			if (matricesEqual(entry.View, view) && matricesEqual(entry.Projection, projection))
 			{
+				entry.LastUse = useStamp;
 				frustum = entry.Planes;
 				return;
 			}
@@ -100,12 +103,24 @@ namespace TEN::Renderer
 		frustum[5][3] = clip[15] - clip[14];
 		NormalizePlane(5);
 
-		auto& cacheEntry = cache[nextCacheEntry];
-		cacheEntry.View = view;
-		cacheEntry.Projection = projection;
-		cacheEntry.Planes = frustum;
-		cacheEntry.Valid = true;
-		nextCacheEntry = (nextCacheEntry + 1) % cache.size();
+		auto* cacheEntry = &cache[0];
+		for (auto& entry : cache)
+		{
+			if (!entry.Valid)
+			{
+				cacheEntry = &entry;
+				break;
+			}
+
+			if (entry.LastUse < cacheEntry->LastUse)
+				cacheEntry = &entry;
+		}
+
+		cacheEntry->View = view;
+		cacheEntry->Projection = projection;
+		cacheEntry->Planes = frustum;
+		cacheEntry->LastUse = useStamp;
+		cacheEntry->Valid = true;
 	}
 
 	bool Frustum::PointInFrustum(const Vector3& position) const
