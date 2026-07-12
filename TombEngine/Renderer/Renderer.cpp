@@ -232,11 +232,22 @@ namespace TEN::Renderer
 
 		const bool usesDirection = (light.Type == LightType::Sun || light.Type == LightType::Spot);
 
-		// Precalculate ranges so that it's not recalculated in shader for every pixel.
+		// Precalculate spot ranges once until the source angles change.
 		if (light.Type == LightType::Spot)
 		{
-			lights[index].InRange  = cos(light.InRange * (PI / 180.0f));
-			lights[index].OutRange = cos(light.OutRange * (PI / 180.0f));
+			if (!light.SpotRangeCacheValid ||
+				light.CachedSpotInRange != light.InRange ||
+				light.CachedSpotOutRange != light.OutRange)
+			{
+				light.CachedSpotInRange = light.InRange;
+				light.CachedSpotOutRange = light.OutRange;
+				light.CachedSpotInRangeCos = cos(light.InRange * (PI / 180.0f));
+				light.CachedSpotOutRangeCos = cos(light.OutRange * (PI / 180.0f));
+				light.SpotRangeCacheValid = true;
+			}
+
+			lights[index].InRange = light.CachedSpotInRangeCos;
+			lights[index].OutRange = light.CachedSpotOutRangeCos;
 		}
 
 		// If light has hash, interpolate its position with previous position.
