@@ -119,6 +119,7 @@ namespace TEN::Renderer
 			                             90 * RADIAN);  
 			//RenderSimpleScene(dest.RenderTargetView[i].Get(), dest.DepthStencilView[i].Get(), renderView);
 			_context->ClearState();
+			_shaders.InvalidateBindings();
 		}
 	}
 
@@ -474,7 +475,6 @@ namespace TEN::Renderer
 			case DepthState::None:
 				_context->OMSetDepthStencilState(_renderStates->DepthNone(), 0xFFFFFFFF);
 				break;
-
 			}
 
 			_lastDepthState = depthState;
