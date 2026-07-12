@@ -72,6 +72,11 @@ namespace TEN::Renderer
 		_visitedRoomsStack.clear();
 		const bool rebuildRendererCaches = _invalidateCache;
 
+		// Select the current shadow light before collecting items so safe off-screen casters
+		// can be rejected when they are outside both the camera and shadow-light influence.
+		if (!onlyRooms)
+			CollectLightsForCamera();
+
 		RoomVisibilityGeneration++;
 		if (RoomVisibilityGeneration == 0)
 		{
@@ -493,6 +498,13 @@ namespace TEN::Renderer
 		const auto& room = g_Level.Rooms[rendererRoom.RoomNumber];
 
 		bool isRoomReflected = IsRoomReflected(renderView, roomNumber);
+		const bool hasShadowLight =
+			_shadowLight != nullptr &&
+			(_shadowLight->Type == LightType::Point || _shadowLight->Type == LightType::Spot) &&
+			_shadowLight->Out > EPSILON;
+		const auto shadowLightPosition = hasShadowLight ?
+			((_shadowLight->Hash == 0) ? _shadowLight->Position : Vector3::Lerp(_shadowLight->PrevPosition, _shadowLight->Position, GetInterpolationFactor())) :
+			Vector3::Zero;
 
 		short itemNumber = NO_VALUE;
 		for (itemNumber = room.itemNumber; itemNumber != NO_VALUE; itemNumber = g_Level.Items[itemNumber].NextItem)
@@ -522,9 +534,8 @@ namespace TEN::Renderer
 			if (obj.Hidden)
 				continue;
 
-			// Shadow casters and reflected rooms stay conservative so off-screen shadows and reflections cannot disappear.
 			bool inFrustum = true;
-			if (!isRoomReflected && (g_Configuration.ShadowType == ShadowMode::None || obj.ShadowType == ShadowMode::None))
+			if (!isRoomReflected)
 			{
 				bool canUseAnimationBounds =
 					item.ObjectNumber != ID_LARA &&
@@ -570,9 +581,23 @@ namespace TEN::Renderer
 						std::abs(item.Pose.Scale.y),
 						std::abs(item.Pose.Scale.z) });
 
-					// Keep the historical safety margin while replacing per-mesh animated sphere generation with a cheap broad phase.
-					inFrustum = broadSphere.Radius <= EPSILON ||
-						renderView.Camera.Frustum.SphereInFrustum(broadSphere.Center, broadSphere.Radius * 1.5f);
+					const float cullRadius = broadSphere.Radius * 1.5f;
+					const bool visibleToCamera = broadSphere.Radius <= EPSILON ||
+						renderView.Camera.Frustum.SphereInFrustum(broadSphere.Center, cullRadius);
+
+					const bool shadowModeAllowsObject =
+						g_Configuration.ShadowType != ShadowMode::None &&
+						obj.ShadowType != ShadowMode::None &&
+						(g_Configuration.ShadowType != ShadowMode::Player || obj.ShadowType == ShadowMode::Player);
+
+					bool neededForShadow = false;
+					if (!visibleToCamera && shadowModeAllowsObject && hasShadowLight)
+					{
+						const float shadowCullRadius = _shadowLight->Out + cullRadius;
+						neededForShadow = Vector3::DistanceSquared(broadSphere.Center, shadowLightPosition) <= SQUARE(shadowCullRadius);
+					}
+
+					inFrustum = visibleToCamera || neededForShadow;
 				}
 			}
 
@@ -890,6 +915,15 @@ namespace TEN::Renderer
 
 	void Renderer::CollectLightsForCamera()
 	{
+		if (Camera.pos.RoomNumber < 0 || Camera.pos.RoomNumber >= _rooms.size())
+		{
+			_shadowLight = nullptr;
+			return;
+		}
+
+		// This can run before room collection. Do not reuse dynamic candidates from the previous frame.
+		_rooms[Camera.pos.RoomNumber].DynamicLightCandidatesReady = false;
+
 		static thread_local auto lightsToDraw = std::vector<RendererLight*>{};
 		lightsToDraw.clear();
 		if (lightsToDraw.capacity() < MAX_LIGHTS_PER_ITEM)
