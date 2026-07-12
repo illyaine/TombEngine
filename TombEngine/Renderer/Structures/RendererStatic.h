@@ -1,5 +1,10 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <vector>
+
 #include "Math/Objects/GameBoundingBox.h"
 #include "Math/Objects/Pose.h"
 #include "Renderer/Structures/RendererLight.h"
@@ -76,11 +81,11 @@ namespace TEN::Renderer::Structures
 		{
 			auto pos = Vector3::Lerp(PrevPose.Position.ToVector3(), Pose.Position.ToVector3(), interpolationFactor);
 			auto scale = Vector3::Lerp(PrevPose.Scale, Pose.Scale, interpolationFactor);
-			
+
 			auto translationMatrix = Matrix::CreateTranslation(pos);
 			auto scaleMatrix = Matrix::CreateScale(scale);
 			auto rotMatrix = Matrix::Lerp(PrevPose.Orientation.ToRotationMatrix(), Pose.Orientation.ToRotationMatrix(), interpolationFactor);
-			
+
 			auto worldMatrix = rotMatrix * scaleMatrix * translationMatrix;
 
 			auto sphereCenter = Vector3::Transform(OriginalSphere.Center, worldMatrix);
@@ -89,7 +94,7 @@ namespace TEN::Renderer::Structures
 
 			World = worldMatrix;
 			Sphere = BoundingSphere(sphereCenter, sphereRadius);
-			
+
 			CacheLights = true;
 		}
 	};
