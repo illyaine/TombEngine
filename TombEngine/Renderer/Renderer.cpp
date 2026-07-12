@@ -21,7 +21,7 @@ namespace TEN::Renderer
 
 	Renderer::Renderer() :
 		_gameCamera({0, 0, 0}, {0, 0, 1}, {0, 1, 0}, 1, 1, 0, 1, 10, 90),
-		_oldGameCamera({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90),
+		_oldGameCamera({ 0, 0, 0}, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90),
 		_currentGameCamera({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90)
 	{
 	}
@@ -230,6 +230,8 @@ namespace TEN::Renderer
 	{
 		memcpy(&lights[index], &light, sizeof(ShaderLight));
 
+		const bool usesDirection = (light.Type == LightType::Sun || light.Type == LightType::Spot);
+
 		// Precalculate ranges so that it's not recalculated in shader for every pixel.
 		if (light.Type == LightType::Spot)
 		{
@@ -240,14 +242,17 @@ namespace TEN::Renderer
 		// If light has hash, interpolate its position with previous position.
 		if (light.Hash != 0)
 		{
-			lights[index].Position  = Vector3::Lerp(light.PrevPosition, light.Position, GetInterpolationFactor());
-			lights[index].Direction = Vector3::Lerp(light.PrevDirection, light.Direction, GetInterpolationFactor());
+			lights[index].Position = Vector3::Lerp(light.PrevPosition, light.Position, GetInterpolationFactor());
+			if (usesDirection)
+				lights[index].Direction = Vector3::Lerp(light.PrevDirection, light.Direction, GetInterpolationFactor());
 		}
 
 		ReflectVectorOptionally(lights[index].Position);
-		ReflectVectorOptionally(lights[index].Direction);
-
-		lights[index].Direction.Normalize();
+		if (usesDirection)
+		{
+			ReflectVectorOptionally(lights[index].Direction);
+			lights[index].Direction.Normalize();
+		}
 
 		// Bitmask light type to filter it in the shader later.
 		return (1 << (31 - (int)light.Type));
@@ -308,13 +313,13 @@ namespace TEN::Renderer
 
 	void Renderer::BindRoomDecals(const std::vector<RendererDecal>& decals)
 	{
-		memset(_stRoom.RoomDecals, 0, Decal::COUNT_MAX * sizeof(ShaderDecal));
-
 		if (!g_Configuration.EnableDecals)
 		{
 			_stRoom.NumRoomDecals = 0;
 			return;
 		}
+
+		memset(_stRoom.RoomDecals, 0, Decal::COUNT_MAX * sizeof(ShaderDecal));
 
 		for (int i = 0; i < decals.size(); i++)
 		{
@@ -458,7 +463,6 @@ namespace TEN::Renderer
 			case DepthState::None:
 				_context->OMSetDepthStencilState(_renderStates->DepthNone(), 0xFFFFFFFF);
 				break;
-
 			}
 
 			_lastDepthState = depthState;
