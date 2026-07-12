@@ -137,7 +137,7 @@ namespace TEN::Renderer
 			bulb.Color = light.Color;
 			bulb.Radius = light.Out;
 			bulb.FogBulbToCameraVector = bulb.Position - renderView.Camera.WorldPosition;
-			bulb.Distance = bulb.FogBulbToCameraVector.Length();
+			bulb.Distance = bulb.FogBulbToCameraVector.LengthSquared();
 			tempFogBulbs.push_back(bulb);
 		};
 
@@ -178,15 +178,23 @@ namespace TEN::Renderer
 				collectFogBulb(light);
 		}
 
-		std::sort(
-			tempFogBulbs.begin(), tempFogBulbs.end(),
-			[](const RendererFogBulb& bulb0, const RendererFogBulb& bulb1)
-			{
-				return bulb0.Distance < bulb1.Distance;
-			});
+		auto fogBulbCompare = [](const RendererFogBulb& bulb0, const RendererFogBulb& bulb1)
+		{
+			return bulb0.Distance < bulb1.Distance;
+		};
 
-		for (int i = 0; i < std::min(MAX_FOG_BULBS_DRAW, (int)tempFogBulbs.size()); i++)
-			renderView.FogBulbsToDraw.push_back(tempFogBulbs[i]);
+		const size_t fogBulbCount = std::min((size_t)MAX_FOG_BULBS_DRAW, tempFogBulbs.size());
+		if (fogBulbCount < tempFogBulbs.size())
+			std::partial_sort(tempFogBulbs.begin(), tempFogBulbs.begin() + fogBulbCount, tempFogBulbs.end(), fogBulbCompare);
+		else
+			std::sort(tempFogBulbs.begin(), tempFogBulbs.end(), fogBulbCompare);
+
+		for (size_t i = 0; i < fogBulbCount; i++)
+		{
+			auto bulb = tempFogBulbs[i];
+			bulb.Distance = sqrt(bulb.Distance);
+			renderView.FogBulbsToDraw.push_back(bulb);
+		}
 
 		// Collect lens flares.
 		static thread_local auto tempLensFlares = std::vector<RendererLensFlare>{};
@@ -194,17 +202,20 @@ namespace TEN::Renderer
 		if (tempLensFlares.capacity() < MAX_LENS_FLARES_DRAW)
 			tempLensFlares.reserve(MAX_LENS_FLARES_DRAW);
 
+		auto cameraDir = renderView.Camera.WorldDirection;
+		cameraDir.Normalize();
+
 		for (const auto& lensFlare : LensFlares)
 		{
 			auto lensFlareToCamera = lensFlare.Position - renderView.Camera.WorldPosition;
-			
-			float dist = 0.0f;
-			if (!lensFlare.IsGlobal)
-				dist = lensFlareToCamera.Length();
-			lensFlareToCamera.Normalize();
-			
-			auto cameraDir = renderView.Camera.WorldDirection;
-			cameraDir.Normalize();
+			float dist = lensFlareToCamera.Length();
+			if (dist > EPSILON)
+				lensFlareToCamera /= dist;
+			else
+				lensFlareToCamera = Vector3::Zero;
+
+			if (lensFlare.IsGlobal)
+				dist = 0.0f;
 
 			if (lensFlareToCamera.Dot(cameraDir) >= 0.0f)
 			{
@@ -220,20 +231,24 @@ namespace TEN::Renderer
 			}
 		}
 
-		std::sort(
-			tempLensFlares.begin(), tempLensFlares.end(),
-			[](const RendererLensFlare& lensFlare0, const RendererLensFlare& lensFlare1)
-			{
-				if (lensFlare0.IsGlobal && !lensFlare1.IsGlobal)
-					return true;
+		auto lensFlareCompare = [](const RendererLensFlare& lensFlare0, const RendererLensFlare& lensFlare1)
+		{
+			if (lensFlare0.IsGlobal && !lensFlare1.IsGlobal)
+				return true;
 
-				if (!lensFlare0.IsGlobal && lensFlare1.IsGlobal)
-					return false;
+			if (!lensFlare0.IsGlobal && lensFlare1.IsGlobal)
+				return false;
 
-				return (lensFlare0.Distance < lensFlare1.Distance);
-			});
+			return lensFlare0.Distance < lensFlare1.Distance;
+		};
 
-		for (int i = 0; i < std::min(MAX_LENS_FLARES_DRAW, (int)tempLensFlares.size()); i++)
+		const size_t lensFlareCount = std::min((size_t)MAX_LENS_FLARES_DRAW, tempLensFlares.size());
+		if (lensFlareCount < tempLensFlares.size())
+			std::partial_sort(tempLensFlares.begin(), tempLensFlares.begin() + lensFlareCount, tempLensFlares.end(), lensFlareCompare);
+		else
+			std::sort(tempLensFlares.begin(), tempLensFlares.end(), lensFlareCompare);
+
+		for (size_t i = 0; i < lensFlareCount; i++)
 			renderView.LensFlaresToDraw.push_back(tempLensFlares[i]);
 	}
 
@@ -590,7 +605,7 @@ namespace TEN::Renderer
 
 			// Disable interpolation when object has traveled significant distance.
 			// Needed because when object goes out of frustum, previous position doesn't update.
-			bool posChanged = Vector3::Distance(newItem.PrevPosition, newItem.Position) > BLOCK(1);
+			bool posChanged = Vector3::DistanceSquared(newItem.PrevPosition, newItem.Position) > SQUARE(BLOCK(1));
 
 			if (newItem.DisableInterpolation || posChanged)
 			{
