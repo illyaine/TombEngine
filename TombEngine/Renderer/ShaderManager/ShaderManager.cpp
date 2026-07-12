@@ -31,6 +31,7 @@ namespace TEN::Renderer::Utils
 	{
 		_device = device;
 		_context = context;
+		InvalidateBindings();
 
 		auto samplerDesc = D3D11_SAMPLER_DESC{};
 		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -165,19 +166,53 @@ namespace TEN::Renderer::Utils
 		const auto& shaderObj = _shaders[shaderIndex];
 
 		if (shaderObj.Vertex.Shader != nullptr || forceNull)
-			_context->VSSetShader(shaderObj.Vertex.Shader.Get(), nullptr, 0);
+		{
+			auto* vertexShader = shaderObj.Vertex.Shader.Get();
+			if (forceNull || !_vertexBindingValid || _boundVertexShader != vertexShader)
+			{
+				_context->VSSetShader(vertexShader, nullptr, 0);
+				_boundVertexShader = vertexShader;
+				_vertexBindingValid = true;
+			}
+		}
 
 		if (shaderObj.Pixel.Shader != nullptr || forceNull)
-			_context->PSSetShader(shaderObj.Pixel.Shader.Get(), nullptr, 0);
+		{
+			auto* pixelShader = shaderObj.Pixel.Shader.Get();
+			if (forceNull || !_pixelBindingValid || _boundPixelShader != pixelShader)
+			{
+				_context->PSSetShader(pixelShader, nullptr, 0);
+				_boundPixelShader = pixelShader;
+				_pixelBindingValid = true;
+			}
+		}
 
 		if (shaderObj.Compute.Shader != nullptr || forceNull)
-			_context->CSSetShader(shaderObj.Compute.Shader.Get(), nullptr, 0);
+		{
+			auto* computeShader = shaderObj.Compute.Shader.Get();
+			if (forceNull || !_computeBindingValid || _boundComputeShader != computeShader)
+			{
+				_context->CSSetShader(computeShader, nullptr, 0);
+				_boundComputeShader = computeShader;
+				_computeBindingValid = true;
+			}
+		}
 
 		if (shader == Shader::GpuEnvironment && _gpuEnvironmentSampler != nullptr)
 		{
 			auto* sampler = _gpuEnvironmentSampler.Get();
 			_context->PSSetSamplers(0, 1, &sampler);
 		}
+	}
+
+	void ShaderManager::InvalidateBindings() noexcept
+	{
+		_boundVertexShader = nullptr;
+		_boundPixelShader = nullptr;
+		_boundComputeShader = nullptr;
+		_vertexBindingValid = false;
+		_pixelBindingValid = false;
+		_computeBindingValid = false;
 	}
 
 	RendererShader ShaderManager::LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile)
@@ -192,7 +227,7 @@ namespace TEN::Renderer::Utils
 		// Ensure the /Bin subdirectory exists.
 		std::filesystem::create_directories(compiledShaderPath);
 
-		// Helper function to load or compile a shader.
+		// Helper function to load or compile shader.
 		auto loadOrCompileShader = [this, type, defines, forceRecompile, shaderPath, compiledShaderPath]
 			(const std::wstring& baseFileName, const std::string& shaderType, const std::string& functionName, const char* model, ComPtr<ID3D10Blob>& bytecode)
 		{
@@ -272,7 +307,7 @@ namespace TEN::Renderer::Utils
 				}
 				else
 				{
-					TENLog("Error while compiling shader: " + trimmedFileName, LogLevel::Error);
+					TENLog("Error while compiling shader: " + ToString(srcFileNameWithExtension), LogLevel::Error);
 					throwIfFailed(res);
 				}
 			}
@@ -291,7 +326,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "PS", funcName, "ps_5_0", rendererShader.Pixel.Blob);
 			throwIfFailed(_device->CreatePixelShader(rendererShader.Pixel.Blob->GetBufferPointer(), rendererShader.Pixel.Blob->GetBufferSize(),
-												 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
+											 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create vertex shader.
@@ -299,7 +334,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "VS", funcName, "vs_5_0", rendererShader.Vertex.Blob);
 			throwIfFailed(_device->CreateVertexShader(rendererShader.Vertex.Blob->GetBufferPointer(), rendererShader.Vertex.Blob->GetBufferSize(),
-												  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
+											  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create compute shader.
@@ -307,7 +342,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "CS", funcName, "cs_5_0", rendererShader.Compute.Blob);
 			throwIfFailed(_device->CreateComputeShader(rendererShader.Compute.Blob->GetBufferPointer(), rendererShader.Compute.Blob->GetBufferSize(),
-												   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
+											   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
 		}
 
 		// Increment compile counter.
