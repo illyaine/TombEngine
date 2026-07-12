@@ -89,6 +89,11 @@ namespace TEN::Renderer::Utils
 		bool _pixelBindingValid = false;
 		bool _computeBindingValid = false;
 
+		std::array<ID3D11Buffer*, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> _boundVSConstantBuffers = {};
+		std::array<ID3D11Buffer*, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> _boundPSConstantBuffers = {};
+		std::array<bool, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> _vsConstantBufferBindingValid = {};
+		std::array<bool, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> _psConstantBufferBindingValid = {};
+
 	public:
 		ShaderManager() = default;
 		~ShaderManager();
@@ -98,8 +103,9 @@ namespace TEN::Renderer::Utils
 		void Initialize(ComPtr<ID3D11Device>& device, ComPtr<ID3D11DeviceContext>& context);
 		void LoadShaders(int width, int height, bool recompileAAShaders = false);
 		void Bind(Shader shader, bool forceNull = false);
+		void BindConstantBufferVS(UINT slot, ID3D11Buffer* buffer);
+		void BindConstantBufferPS(UINT slot, ID3D11Buffer* buffer);
 		void InvalidateBindings() noexcept;
-		bool IsPixelShaderBound(Shader shader) const noexcept;
 
 	private:
 		void LoadCommonShaders();
