@@ -38,6 +38,7 @@ namespace TEN::Renderer
 	{
 		constexpr auto FULL_VIEW_PORT = Vector4(-1.0f, -1.0f, 1.0f, 1.0f);
 		unsigned int RoomVisibilityGeneration = 0;
+		unsigned int ShadowLightSelectionGeneration = ~0u;
 
 		void PrepareRoomForVisibility(RendererRoom& room)
 		{
@@ -73,11 +74,6 @@ namespace TEN::Renderer
 		_visitedRoomsStack.clear();
 		const bool rebuildRendererCaches = _invalidateCache;
 
-		// Select the current shadow light before collecting items so safe off-screen casters
-		// can be rejected when they are outside both the camera and shadow-light influence.
-		if (!onlyRooms)
-			CollectLightsForCamera();
-
 		RoomVisibilityGeneration++;
 		if (RoomVisibilityGeneration == 0)
 		{
@@ -91,7 +87,13 @@ namespace TEN::Renderer
 			}
 
 			RoomVisibilityGeneration = 1;
+			ShadowLightSelectionGeneration = ~0u;
 		}
+
+		// Select the current shadow light before collecting items so safe off-screen casters
+		// can be rejected when they are outside both the camera and shadow-light influence.
+		if (!onlyRooms)
+			CollectLightsForCamera();
 
 		GetVisibleRooms(NO_VALUE, renderView.Camera.RoomNumber, FULL_VIEW_PORT, false, 0, onlyRooms, renderView);
 
@@ -860,7 +862,7 @@ namespace TEN::Renderer
 						continue;
 					}
 
-					intensity = light.Intensity * Luma(light.Color);
+					intensity = light.Intensity * light.Luma;
 				}
 				else if (light.Type == LightType::Point || light.Type == LightType::Shadow || light.Type == LightType::Spot)
 				{
@@ -873,8 +875,7 @@ namespace TEN::Renderer
 
 					distance = sqrt(distSqr);
 					float attenuation = 1.0f - distance / light.Out;
-					float luma = (light.Type == LightType::Spot) ? light.Luma : Luma(light.Color);
-					intensity = attenuation * light.Intensity * luma;
+					intensity = attenuation * light.Intensity * light.Luma;
 
 					if (prioritizeShadowLight && light.CastShadows && light.Type != LightType::Shadow && intensity >= brightest)
 					{
@@ -917,6 +918,11 @@ namespace TEN::Renderer
 
 	void Renderer::CollectLightsForCamera()
 	{
+		if (ShadowLightSelectionGeneration == RoomVisibilityGeneration)
+			return;
+
+		ShadowLightSelectionGeneration = RoomVisibilityGeneration;
+
 		if (Camera.pos.RoomNumber < 0 || Camera.pos.RoomNumber >= _rooms.size())
 		{
 			_shadowLight = nullptr;
@@ -1145,8 +1151,26 @@ namespace TEN::Renderer
 			item.PrevRotation = item.Rotation;
 			item.PrevScale = item.Scale;
 
-			for (int j = 0; j < MAX_BONES; j++)
-				item.PrevAnimTransforms[j] = item.AnimTransforms[j];
+			if (item.ObjectID < 0 || item.ObjectID >= (int)_moveableObjects.size())
+				continue;
+
+			const RendererObject* obj = nullptr;
+			if (item.ObjectID == ID_LARA || item.ObjectID == ID_LARA_SKIN)
+			{
+				obj = &GetRendererObject((GAME_OBJECT_ID)item.ObjectID);
+			}
+			else if (_moveableObjects[item.ObjectID].has_value())
+			{
+				obj = &_moveableObjects[item.ObjectID].value();
+			}
+
+			if (obj == nullptr)
+				continue;
+
+			const size_t transformCount = std::min(
+				(size_t)MAX_BONES,
+				std::max(obj->AnimationTransforms.size(), obj->ObjectMeshes.size()));
+			std::memcpy(item.PrevAnimTransforms, item.AnimTransforms, transformCount * sizeof(Matrix));
 		}
 
 		for (auto& effect : _effects)
