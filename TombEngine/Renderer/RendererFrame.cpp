@@ -417,7 +417,7 @@ namespace TEN::Renderer
 			{
 				CollectItems(to, renderView);
 				CollectStatics(to, renderView);
-				CollectEffects(to, renderView);
+				CollectEffects(to);
 			}
 		}
 
@@ -931,15 +931,17 @@ namespace TEN::Renderer
 		}
 
 		const auto cameraPosition = Vector3(Camera.pos.x, Camera.pos.y, Camera.pos.z);
+		const auto& cameraRoom = _rooms[Camera.pos.RoomNumber];
 		float brightest = 0.0f;
 
-		auto considerLight = [&](RendererLight& light, bool requireShadowMapType)
+		auto considerLight = [&](RendererLight& light)
 		{
-			if (!light.CastShadows || light.Out <= EPSILON)
+			if (!light.CastShadows ||
+				(light.Type != LightType::Point && light.Type != LightType::Spot) ||
+				light.Out <= EPSILON)
+			{
 				return;
-
-			if (requireShadowMapType && light.Type != LightType::Point && light.Type != LightType::Spot)
-				return;
+			}
 
 			const float distSqr = Vector3::DistanceSquared(cameraPosition, light.Position);
 			if (distSqr >= SQUARE(BLOCK(20)) || distSqr > SQUARE(light.Out + CAMERA_LIGHT_COLLECTION_RADIUS))
@@ -956,15 +958,14 @@ namespace TEN::Renderer
 			}
 		};
 
-		// Preserve the generic collection semantics: dynamic shadow candidates were not type-filtered.
 		for (auto& light : _dynamicLights[_dynamicLightList])
-			considerLight(light, false);
+			considerLight(light);
 
-		auto& cameraRoom = _rooms[Camera.pos.RoomNumber];
 		if (!cameraRoom.StaticLightCandidatesValid || _invalidateCache)
 		{
-			cameraRoom.StaticLightCandidates.clear();
-			for (int roomToCheck : cameraRoom.Neighbors)
+			auto& mutableRoom = _rooms[Camera.pos.RoomNumber];
+			mutableRoom.StaticLightCandidates.clear();
+			for (int roomToCheck : mutableRoom.Neighbors)
 			{
 				if (roomToCheck < 0 || roomToCheck >= _rooms.size())
 					continue;
@@ -972,16 +973,16 @@ namespace TEN::Renderer
 				for (auto& light : _rooms[roomToCheck].Lights)
 				{
 					if (light.Type != LightType::FogBulb)
-						cameraRoom.StaticLightCandidates.push_back({ &light, roomToCheck });
+						mutableRoom.StaticLightCandidates.push_back({ &light, roomToCheck });
 				}
 			}
-			cameraRoom.StaticLightCandidatesValid = true;
+			mutableRoom.StaticLightCandidatesValid = true;
 		}
 
-		for (const auto& candidate : cameraRoom.StaticLightCandidates)
+		for (const auto& candidate : _rooms[Camera.pos.RoomNumber].StaticLightCandidates)
 		{
 			if (candidate.Light != nullptr)
-				considerLight(*candidate.Light, true);
+				considerLight(*candidate.Light);
 		}
 	}	
 	
@@ -1116,7 +1117,7 @@ namespace TEN::Renderer
 		}
 	}
 
-	void Renderer::CollectEffects(short roomNumber, RenderView& renderView)
+	void Renderer::CollectEffects(short roomNumber)
 	{
 		if (_rooms.size() <= roomNumber)
 			return;
@@ -1124,7 +1125,6 @@ namespace TEN::Renderer
 		RendererRoom& room = _rooms[roomNumber];
 		RoomData* r = &g_Level.Rooms[room.RoomNumber];
 		const float interpFactor = GetInterpolationFactor();
-		const bool isRoomReflected = IsRoomReflected(renderView, roomNumber);
 
 		short fxNum = NO_VALUE;
 		for (fxNum = r->fxNumber; fxNum != NO_VALUE; fxNum = EffectList[fxNum].nextFx)
@@ -1147,18 +1147,6 @@ namespace TEN::Renderer
 			newEffect->AmbientLight = room.AmbientLight;
 			newEffect->Color = fx->color;
 			newEffect->Mesh = GetMesh(obj->nmeshes ? obj->meshIndex : fx->frameNumber);
-
-			if (!isRoomReflected && newEffect->Mesh != nullptr)
-			{
-				auto sphere = newEffect->Mesh->Sphere;
-				sphere.Center = Vector3::Transform(sphere.Center, newEffect->World);
-
-				if (!renderView.Camera.Frustum.SphereInFrustum(sphere.Center, sphere.Radius))
-				{
-					fx->DisableInterpolation = true;
-					continue;
-				}
-			}
 
 			if (fx->DisableInterpolation)
 			{
