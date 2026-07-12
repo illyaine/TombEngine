@@ -24,6 +24,8 @@ namespace TEN::Renderer::Structures
 
 		BoundingSphere OriginalSphere;
 		BoundingSphere Sphere;
+		Vector3 CachedLightPosition = Vector3::Zero;
+		bool CachedLightPositionValid = false;
 
 		void Update(float interpolationFactor)
 		{
@@ -43,7 +45,12 @@ namespace TEN::Renderer::Structures
 			World = worldMatrix;
 			Sphere = BoundingSphere(sphereCenter, sphereRadius);
 			
-			CacheLights = true;
+			if (!CachedLightPositionValid || CachedLightPosition != pos)
+			{
+				CachedLightPosition = pos;
+				CachedLightPositionValid = true;
+				CacheLights = true;
+			}
 		}
 	};
 }
