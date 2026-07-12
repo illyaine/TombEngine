@@ -149,8 +149,9 @@ void DoPointAndSpotLight(float3 pos, float3 normal, ShaderLight light, float spe
     pointOutput = saturate(light.Color.xyz * light.Intensity * distanceAttenuation * d);
     spotOutput  = saturate(light.Color.xyz * light.Intensity * angleAttenuation * distanceAttenuation * d);
 	
-    pointOutput += DoSpecularSpot(pos, normal, light, 0.0f, specularIntensity, roughness);
-    spotOutput += DoSpecularSpot(pos, normal, light, 0.0f, specularIntensity, roughness);
+    float3 specularOutput = DoSpecularSpot(pos, normal, light, 0.0f, specularIntensity, roughness);
+    pointOutput += specularOutput;
+    spotOutput += specularOutput;
 }
 
 float3 DoDirectionalLight(float3 pos, float3 normal, ShaderLight light)
@@ -373,37 +374,29 @@ float3 CombineLights(float3 ambient, float3 vertex, float3 tex, float3 pos, floa
 	float3 shadow  = 0;
 	float3 spec    = 0;
 
-	int lightTypeMask = (numLights & ~LT_MASK);
 	numLights = numLights & LT_MASK;
 	
 	for (int i = 0; i < numLights; i++)
 	{
-		if (lightTypeMask & LT_MASK_SUN)
-		{
-			float isSun = step(0.5f, float(lights[i].Type == LT_SUN));
-			diffuse += isSun * DoDirectionalLight(pos, normal, lights[i]);
-            spec += isSun * DoSpecularSun(normal, lights[i], sheen, specular, roughness);
+        if (lights[i].Type == LT_SUN)
+        {
+            diffuse += DoDirectionalLight(pos, normal, lights[i]);
+            spec += DoSpecularSun(normal, lights[i], sheen, specular, roughness);
         }
-
-		if (lightTypeMask & LT_MASK_POINT)
-		{
-			float isPoint = step(0.5f, float(lights[i].Type == LT_POINT));
-			diffuse += isPoint * DoPointLight(pos, normal, lights[i]);
-            spec += isPoint * DoSpecularPoint(pos, normal, lights[i], sheen, specular, roughness);
+        else if (lights[i].Type == LT_POINT)
+        {
+            diffuse += DoPointLight(pos, normal, lights[i]);
+            spec += DoSpecularPoint(pos, normal, lights[i], sheen, specular, roughness);
         }
-
-		if (lightTypeMask & LT_MASK_SPOT)
-		{
-			float isSpot = step(0.5f, float(lights[i].Type == LT_SPOT));
-			diffuse += isSpot * DoSpotLight(pos, normal, lights[i]);
-            spec += isSpot * DoSpecularSpot(pos, normal, lights[i], sheen, specular, roughness);
+        else if (lights[i].Type == LT_SPOT)
+        {
+            diffuse += DoSpotLight(pos, normal, lights[i]);
+            spec += DoSpecularSpot(pos, normal, lights[i], sheen, specular, roughness);
         }
-		
-		if (lightTypeMask & LT_MASK_SHADOW)
-		{
-			float isShadow = step(0.5f, float(lights[i].Type == LT_SHADOW));
-			shadow += isShadow * DoShadowLight(pos, normal, lights[i]);
-		}
+        else if (lights[i].Type == LT_SHADOW)
+        {
+            shadow += DoShadowLight(pos, normal, lights[i]);
+        }
 	}
 
 	shadow = saturate(shadow);
