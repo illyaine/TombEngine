@@ -205,6 +205,38 @@ namespace TEN::Renderer::Utils
 		}
 	}
 
+	void ShaderManager::BindConstantBufferVS(UINT slot, ID3D11Buffer* buffer)
+	{
+		if (slot >= _boundVSConstantBuffers.size())
+		{
+			_context->VSSetConstantBuffers(slot, 1, &buffer);
+			return;
+		}
+
+		if (_vsConstantBufferBindingValid[slot] && _boundVSConstantBuffers[slot] == buffer)
+			return;
+
+		_context->VSSetConstantBuffers(slot, 1, &buffer);
+		_boundVSConstantBuffers[slot] = buffer;
+		_vsConstantBufferBindingValid[slot] = true;
+	}
+
+	void ShaderManager::BindConstantBufferPS(UINT slot, ID3D11Buffer* buffer)
+	{
+		if (slot >= _boundPSConstantBuffers.size())
+		{
+			_context->PSSetConstantBuffers(slot, 1, &buffer);
+			return;
+		}
+
+		if (_psConstantBufferBindingValid[slot] && _boundPSConstantBuffers[slot] == buffer)
+			return;
+
+		_context->PSSetConstantBuffers(slot, 1, &buffer);
+		_boundPSConstantBuffers[slot] = buffer;
+		_psConstantBufferBindingValid[slot] = true;
+	}
+
 	void ShaderManager::InvalidateBindings() noexcept
 	{
 		_boundVertexShader = nullptr;
@@ -213,16 +245,10 @@ namespace TEN::Renderer::Utils
 		_vertexBindingValid = false;
 		_pixelBindingValid = false;
 		_computeBindingValid = false;
-	}
-
-	bool ShaderManager::IsPixelShaderBound(Shader shader) const noexcept
-	{
-		const int shaderIndex = (int)shader;
-		if (!_pixelBindingValid || shaderIndex < 0 || shaderIndex >= _shaders.size())
-			return false;
-
-		auto* pixelShader = _shaders[shaderIndex].Pixel.Shader.Get();
-		return pixelShader != nullptr && _boundPixelShader == pixelShader;
+		_boundVSConstantBuffers.fill(nullptr);
+		_boundPSConstantBuffers.fill(nullptr);
+		_vsConstantBufferBindingValid.fill(false);
+		_psConstantBufferBindingValid.fill(false);
 	}
 
 	RendererShader ShaderManager::LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile)
