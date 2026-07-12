@@ -330,6 +330,9 @@ float DoDistanceFogForVertex(float3 pos)
 float4 DoFogBulbsForVertex(float3 pos)
 {
 	float4 fog = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	if (NumFogBulbs <= 0)
+		return fog;
+
 	float3 cameraToVertex = pos - CamPositionWS.xyz;
 	float cameraToVertexSquaredDistance = dot(cameraToVertex, cameraToVertex);
 	float3 cameraToVertexDirection = normalize(cameraToVertex);
@@ -351,6 +354,9 @@ float4 DoFogBulbsForVertex(float3 pos)
 float4 DoFogBulbsForSky(float3 pos)
 {
 	float4 fog = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	if (NumFogBulbs <= 0)
+		return fog;
+
 	float3 cameraToVertexDirection = normalize(pos - CamPositionWS.xyz);
 
 	for (int i = 0; i < NumFogBulbs; i++)
