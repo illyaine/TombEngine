@@ -186,7 +186,7 @@ namespace TEN::Renderer
 			return;
 		}
 
-		_context->PSSetSamplers((UINT)registerType, 1, &samplerState);
+		_shaders.BindSamplerPS((UINT)registerType, samplerState);
 	}
 
 	void Renderer::BindRenderTargetAsTexture(TextureRegister registerType, RenderTarget2D* target, SamplerStateRegister samplerType)
@@ -224,7 +224,7 @@ namespace TEN::Renderer
 			return;
 		}
 
-		_context->PSSetSamplers((UINT)registerType, 1, &samplerState);
+		_shaders.BindSamplerPS((UINT)registerType, samplerState);
 	}
 
 	int Renderer::BindLight(RendererLight& light, ShaderLight* lights, int index)
