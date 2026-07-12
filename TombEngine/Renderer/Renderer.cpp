@@ -281,30 +281,19 @@ namespace TEN::Renderer
 
 	void Renderer::BindRoomLights(std::vector<RendererLight*>& lights)
 	{
-		int lightTypeMask = 0;
-
-		for (int i = 0; i < lights.size(); i++)
-			lightTypeMask = lightTypeMask | BindLight(*lights[i], _stRoom.RoomLights, i);
-		
-		_stRoom.NumRoomLights = (int)lights.size() | lightTypeMask;
-	}
-
-	void Renderer::BindInstancedStaticLights(std::vector<RendererLight*>& lights, int instanceID)
-	{
-		struct StaticLightBindingCache
+		struct RoomLightBindingCache
 		{
-			std::array<RendererLight*, MAX_LIGHTS_PER_ITEM> Sources = {};
-			std::array<ShaderLight, MAX_LIGHTS_PER_ITEM> Lights = {};
+			std::array<RendererLight*, NUM_LIGHTS_PER_BUFFER> Sources = {};
 			int Count = -1;
-			int NumLights = 0;
+			int NumRoomLights = 0;
 			int Frame = -1;
 			int DynamicLightList = -1;
 			float InterpolationFactor = -1.0f;
 		};
 
-		static thread_local StaticLightBindingCache cache;
+		static thread_local RoomLightBindingCache cache;
 
-		const int lightCount = std::min((int)lights.size(), MAX_LIGHTS_PER_ITEM);
+		const int lightCount = std::min((int)lights.size(), NUM_LIGHTS_PER_BUFFER);
 		const float interpolationFactor = GetInterpolationFactor();
 		bool cacheHit =
 			_currentMirror == nullptr &&
@@ -325,12 +314,103 @@ namespace TEN::Renderer
 			}
 		}
 
+		if (cacheHit)
+		{
+			_stRoom.NumRoomLights = cache.NumRoomLights;
+			return;
+		}
+
+		int lightTypeMask = 0;
+		for (int i = 0; i < lightCount; i++)
+			lightTypeMask |= BindLight(*lights[i], _stRoom.RoomLights, i);
+
+		_stRoom.NumRoomLights = lightCount | lightTypeMask;
+
+		if (_currentMirror == nullptr)
+		{
+			cache.Count = lightCount;
+			cache.NumRoomLights = _stRoom.NumRoomLights;
+			cache.Frame = GlobalCounter;
+			cache.DynamicLightList = _dynamicLightList;
+			cache.InterpolationFactor = interpolationFactor;
+
+			for (int i = 0; i < lightCount; i++)
+				cache.Sources[i] = lights[i];
+		}
+	}
+
+	void Renderer::BindInstancedStaticLights(std::vector<RendererLight*>& lights, int instanceID)
+	{
+		constexpr size_t CACHE_SIZE = 64;
+
+		struct StaticLightBindingCacheEntry
+		{
+			std::array<RendererLight*, MAX_LIGHTS_PER_ITEM> Sources = {};
+			std::array<ShaderLight, MAX_LIGHTS_PER_ITEM> Lights = {};
+			size_t Hash = 0;
+			int Count = -1;
+			int NumLights = 0;
+		};
+
+		struct StaticLightBindingCache
+		{
+			std::array<StaticLightBindingCacheEntry, CACHE_SIZE> Entries = {};
+			int Frame = -1;
+			int DynamicLightList = -1;
+			float InterpolationFactor = -1.0f;
+		};
+
+		static thread_local StaticLightBindingCache cache;
+
 		auto& staticMesh = _stInstancedStaticMeshBuffer.StaticMeshes[instanceID];
+		const int lightCount = std::min((int)lights.size(), MAX_LIGHTS_PER_ITEM);
+
+		if (_currentMirror != nullptr)
+		{
+			int lightTypeMask = 0;
+			for (int i = 0; i < lightCount; i++)
+				lightTypeMask |= BindLight(*lights[i], staticMesh.Lights, i);
+
+			staticMesh.NumLights = lightCount | lightTypeMask;
+			return;
+		}
+
+		const float interpolationFactor = GetInterpolationFactor();
+		if (cache.Frame != GlobalCounter ||
+			cache.DynamicLightList != _dynamicLightList ||
+			cache.InterpolationFactor != interpolationFactor)
+		{
+			for (auto& entry : cache.Entries)
+				entry.Count = -1;
+
+			cache.Frame = GlobalCounter;
+			cache.DynamicLightList = _dynamicLightList;
+			cache.InterpolationFactor = interpolationFactor;
+		}
+
+		size_t hash = (size_t)lightCount;
+		for (int i = 0; i < lightCount; i++)
+			hash ^= reinterpret_cast<size_t>(lights[i]) + 0x9e3779b9u + (hash << 6) + (hash >> 2);
+
+		auto& entry = cache.Entries[hash & (CACHE_SIZE - 1)];
+		bool cacheHit = entry.Count == lightCount && entry.Hash == hash;
+		if (cacheHit)
+		{
+			for (int i = 0; i < lightCount; i++)
+			{
+				if (entry.Sources[i] != lights[i])
+				{
+					cacheHit = false;
+					break;
+				}
+			}
+		}
+
 		if (cacheHit)
 		{
 			if (lightCount > 0)
-				memcpy(staticMesh.Lights, cache.Lights.data(), lightCount * sizeof(ShaderLight));
-			staticMesh.NumLights = cache.NumLights;
+				memcpy(staticMesh.Lights, entry.Lights.data(), lightCount * sizeof(ShaderLight));
+			staticMesh.NumLights = entry.NumLights;
 			return;
 		}
 
@@ -339,20 +419,14 @@ namespace TEN::Renderer
 			lightTypeMask |= BindLight(*lights[i], staticMesh.Lights, i);
 
 		staticMesh.NumLights = lightCount | lightTypeMask;
+		entry.Hash = hash;
+		entry.Count = lightCount;
+		entry.NumLights = staticMesh.NumLights;
 
-		if (_currentMirror == nullptr)
-		{
-			cache.Count = lightCount;
-			cache.NumLights = staticMesh.NumLights;
-			cache.Frame = GlobalCounter;
-			cache.DynamicLightList = _dynamicLightList;
-			cache.InterpolationFactor = interpolationFactor;
-
-			for (int i = 0; i < lightCount; i++)
-				cache.Sources[i] = lights[i];
-			if (lightCount > 0)
-				memcpy(cache.Lights.data(), staticMesh.Lights, lightCount * sizeof(ShaderLight));
-		}
+		for (int i = 0; i < lightCount; i++)
+			entry.Sources[i] = lights[i];
+		if (lightCount > 0)
+			memcpy(entry.Lights.data(), staticMesh.Lights, lightCount * sizeof(ShaderLight));
 	}
 
 	void Renderer::BindMoveableLights(std::vector<RendererLight*>& lights, int roomNumber, int prevRoomNumber, float fade, bool shadow)
