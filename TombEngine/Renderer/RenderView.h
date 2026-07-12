@@ -1,4 +1,8 @@
 #pragma once
+
+#include <map>
+#include <vector>
+
 #include "Game/camera.h"
 #include "Renderer/ConstantBuffers/CameraMatrixBuffer.h"
 #include "Renderer/Frustum.h"
@@ -21,6 +25,78 @@ namespace TEN::Renderer
 {
 	using namespace TEN::Renderer::ConstantBuffers;
 	using namespace TEN::Renderer::Structures;
+
+	class ReusableStaticDrawGroups
+	{
+	private:
+		using GroupMap = std::map<int, std::vector<RendererStatic*>>;
+		GroupMap _groups;
+
+		template <typename TIterator>
+		class BasicIterator
+		{
+		private:
+			TIterator _it;
+			TIterator _end;
+
+			void SkipEmpty()
+			{
+				while (_it != _end && _it->second.empty())
+					++_it;
+			}
+
+		public:
+			BasicIterator(TIterator it, TIterator end) : _it(it), _end(end)
+			{
+				SkipEmpty();
+			}
+
+			auto& operator*() const { return *_it; }
+			auto* operator->() const { return &(*_it); }
+
+			BasicIterator& operator++()
+			{
+				++_it;
+				SkipEmpty();
+				return *this;
+			}
+
+			bool operator==(const BasicIterator& other) const { return _it == other._it; }
+			bool operator!=(const BasicIterator& other) const { return _it != other._it; }
+		};
+
+	public:
+		using iterator = BasicIterator<GroupMap::iterator>;
+		using const_iterator = BasicIterator<GroupMap::const_iterator>;
+
+		std::vector<RendererStatic*>& operator[](int objectNumber)
+		{
+			return _groups[objectNumber];
+		}
+
+		void clear()
+		{
+			for (auto& [objectNumber, statics] : _groups)
+				statics.clear();
+		}
+
+		size_t size() const
+		{
+			size_t count = 0;
+			for (const auto& [objectNumber, statics] : _groups)
+			{
+				if (!statics.empty())
+					count++;
+			}
+
+			return count;
+		}
+
+		iterator begin() { return iterator(_groups.begin(), _groups.end()); }
+		iterator end() { return iterator(_groups.end(), _groups.end()); }
+		const_iterator begin() const { return const_iterator(_groups.begin(), _groups.end()); }
+		const_iterator end() const { return const_iterator(_groups.end(), _groups.end()); }
+	};
 
 	struct RenderViewCamera
 	{
@@ -51,14 +127,14 @@ namespace TEN::Renderer
 		std::vector<RendererFogBulb>				FogBulbsToDraw			 = {};
 		std::vector<RendererSpriteToDraw>			SpritesToDraw			 = {};
 		std::vector<RendererDisplaySpriteToDraw>	DisplaySpritesToDraw	 = {};
-		std::map<int, std::vector<RendererStatic*>> SortedStaticsToDraw		 = {};
+		ReusableStaticDrawGroups					SortedStaticsToDraw		 = {};
 		std::vector<RendererSortableObject>			TransparentObjectsToDraw = {};
 		std::vector<RendererLensFlare>				LensFlaresToDraw		 = {};
 		std::vector<RendererMirror>					Mirrors					 = {};
 
 		RenderView(CAMERA_INFO* cam, float roll, float fov, float nearPlane, float farPlane, int w, int h);
 		RenderView(const Vector3& pos, const Vector3& dir, const Vector3& up, int w, int h, int room, float nearPlane, float farPlane, float fov);
-		
+
 		void FillConstantBuffer(CCameraMatrixBuffer& bufferToFill);
 		void Clear();
 	};
