@@ -31,7 +31,6 @@ namespace TEN::Renderer::Utils
 	{
 		_device = device;
 		_context = context;
-		InvalidateBindings();
 
 		auto samplerDesc = D3D11_SAMPLER_DESC{};
 		samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -147,6 +146,7 @@ namespace TEN::Renderer::Utils
 
 		// LoadAAShaders should always be the first in the list, so that when AA settings are changed,
 		// they recompile with the same index as before.
+
 		LoadAAShaders(width, height, recompileAAShaders); 
 		LoadCommonShaders();
 		LoadPostprocessShaders();
@@ -165,104 +165,19 @@ namespace TEN::Renderer::Utils
 		const auto& shaderObj = _shaders[shaderIndex];
 
 		if (shaderObj.Vertex.Shader != nullptr || forceNull)
-		{
-			auto* vertexShader = shaderObj.Vertex.Shader.Get();
-			if (forceNull || !_vertexBindingValid || _boundVertexShader != vertexShader)
-			{
-				_context->VSSetShader(vertexShader, nullptr, 0);
-				_boundVertexShader = vertexShader;
-				_vertexBindingValid = true;
-			}
-		}
+			_context->VSSetShader(shaderObj.Vertex.Shader.Get(), nullptr, 0);
 
 		if (shaderObj.Pixel.Shader != nullptr || forceNull)
-		{
-			auto* pixelShader = shaderObj.Pixel.Shader.Get();
-			if (forceNull || !_pixelBindingValid || _boundPixelShader != pixelShader)
-			{
-				_context->PSSetShader(pixelShader, nullptr, 0);
-				_boundPixelShader = pixelShader;
-				_pixelBindingValid = true;
-			}
-		}
+			_context->PSSetShader(shaderObj.Pixel.Shader.Get(), nullptr, 0);
 
 		if (shaderObj.Compute.Shader != nullptr || forceNull)
-		{
-			auto* computeShader = shaderObj.Compute.Shader.Get();
-			if (forceNull || !_computeBindingValid || _boundComputeShader != computeShader)
-			{
-				_context->CSSetShader(computeShader, nullptr, 0);
-				_boundComputeShader = computeShader;
-				_computeBindingValid = true;
-			}
-		}
+			_context->CSSetShader(shaderObj.Compute.Shader.Get(), nullptr, 0);
 
 		if (shader == Shader::GpuEnvironment && _gpuEnvironmentSampler != nullptr)
-			BindSamplerPS(0, _gpuEnvironmentSampler.Get());
-	}
-
-	void ShaderManager::BindConstantBufferVS(UINT slot, ID3D11Buffer* buffer)
-	{
-		if (slot >= _boundVSConstantBuffers.size())
 		{
-			_context->VSSetConstantBuffers(slot, 1, &buffer);
-			return;
+			auto* sampler = _gpuEnvironmentSampler.Get();
+			_context->PSSetSamplers(0, 1, &sampler);
 		}
-
-		if (_vsConstantBufferBindingValid[slot] && _boundVSConstantBuffers[slot] == buffer)
-			return;
-
-		_context->VSSetConstantBuffers(slot, 1, &buffer);
-		_boundVSConstantBuffers[slot] = buffer;
-		_vsConstantBufferBindingValid[slot] = true;
-	}
-
-	void ShaderManager::BindConstantBufferPS(UINT slot, ID3D11Buffer* buffer)
-	{
-		if (slot >= _boundPSConstantBuffers.size())
-		{
-			_context->PSSetConstantBuffers(slot, 1, &buffer);
-			return;
-		}
-
-		if (_psConstantBufferBindingValid[slot] && _boundPSConstantBuffers[slot] == buffer)
-			return;
-
-		_context->PSSetConstantBuffers(slot, 1, &buffer);
-		_boundPSConstantBuffers[slot] = buffer;
-		_psConstantBufferBindingValid[slot] = true;
-	}
-
-	void ShaderManager::BindSamplerPS(UINT slot, ID3D11SamplerState* sampler)
-	{
-		if (slot >= _boundPSSamplers.size())
-		{
-			_context->PSSetSamplers(slot, 1, &sampler);
-			return;
-		}
-
-		if (_psSamplerBindingValid[slot] && _boundPSSamplers[slot] == sampler)
-			return;
-
-		_context->PSSetSamplers(slot, 1, &sampler);
-		_boundPSSamplers[slot] = sampler;
-		_psSamplerBindingValid[slot] = true;
-	}
-
-	void ShaderManager::InvalidateBindings() noexcept
-	{
-		_boundVertexShader = nullptr;
-		_boundPixelShader = nullptr;
-		_boundComputeShader = nullptr;
-		_vertexBindingValid = false;
-		_pixelBindingValid = false;
-		_computeBindingValid = false;
-		_boundVSConstantBuffers.fill(nullptr);
-		_boundPSConstantBuffers.fill(nullptr);
-		_vsConstantBufferBindingValid.fill(false);
-		_psConstantBufferBindingValid.fill(false);
-		_boundPSSamplers.fill(nullptr);
-		_psSamplerBindingValid.fill(false);
 	}
 
 	RendererShader ShaderManager::LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile)
