@@ -349,12 +349,12 @@ namespace TEN::Renderer
 
 	void Renderer::BindConstantBufferVS(ConstantBufferRegister constantBufferType, ID3D11Buffer** buffer)
 	{
-		_context->VSSetConstantBuffers(static_cast<UINT>(constantBufferType), 1, buffer);
+		_shaders.BindConstantBufferVS(static_cast<UINT>(constantBufferType), (buffer != nullptr) ? *buffer : nullptr);
 	}
 
 	void Renderer::BindConstantBufferPS(ConstantBufferRegister constantBufferType, ID3D11Buffer** buffer)
 	{
-		_context->PSSetConstantBuffers(static_cast<UINT>(constantBufferType), 1, buffer);
+		_shaders.BindConstantBufferPS(static_cast<UINT>(constantBufferType), (buffer != nullptr) ? *buffer : nullptr);
 	}
 
 	void Renderer::BindMaterial(int materialIndex, bool force)
