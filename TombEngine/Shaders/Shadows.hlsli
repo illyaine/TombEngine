@@ -95,6 +95,27 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
     float3 lightVec = Light.Position - worldPos;
     float lightDistance = length(lightVec);
     float3 dir = normalize(lightVec);
+    float distanceAttenuation = saturate((Light.Out - lightDistance) / (Light.Out - Light.In));
+
+    // Outside the light radius, the final shadow multiplier is exactly one.
+    if (distanceAttenuation <= 0.0f)
+        return lighting;
+
+    float angleAttenuation = 1.0f;
+    if (Light.Type == LT_SPOT)
+    {
+        float cosine = dot(-dir, Light.Direction.xyz);
+        angleAttenuation = saturate((cosine - Light.OutRange) / (Light.InRange - Light.OutRange));
+
+        // Outside the spotlight cone, the final shadow multiplier is exactly one.
+        if (angleAttenuation <= 0.0f)
+            return lighting;
+    }
+    else if (Light.Type != LT_POINT)
+    {
+        return lighting;
+    }
+
     float ndot = dot(normal, dir);
     float facingFactor = saturate((ndot - bias) / (1.0f - bias + EPSILON));
 
@@ -136,7 +157,6 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
     }
 
     float shadowFactor = lerp(1.0f, sum / SHADOW_SAMPLE_COUNT, facingFactor);
-    float distanceAttenuation = saturate((Light.Out - lightDistance) / (Light.Out - Light.In));
     float diffuse = saturate(ndot);
 
     if (Light.Type == LT_POINT)
@@ -145,13 +165,6 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
         return lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * pointFactor);
     }
 
-    if (Light.Type == LT_SPOT)
-    {
-        float cosine = dot(-dir, Light.Direction.xyz);
-        float angleAttenuation = saturate((cosine - Light.OutRange) / (Light.InRange - Light.OutRange));
-        float spotFactor = Luma(saturate(Light.Color.xyz * Light.Intensity * angleAttenuation * distanceAttenuation * diffuse));
-        return lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * spotFactor);
-    }
-
-    return lighting;
+    float spotFactor = Luma(saturate(Light.Color.xyz * Light.Intensity * angleAttenuation * distanceAttenuation * diffuse));
+    return lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * spotFactor);
 }
