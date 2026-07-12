@@ -7,8 +7,6 @@
 struct PixelShaderInput
 {
 	float4 Position: SV_POSITION;
-	float4 PositionCopy : TEXCOORD1;
-	float Depth: TEXCOORD2;
 };
 
 Texture2D Texture : register(t0);
@@ -23,13 +21,11 @@ PixelShaderInput VS(VertexShaderInput input)
 	float4x4 world = mul(blended, World);
 
 	output.Position = mul(mul(float4(input.Position, 1.0f), world), ViewProjection);
-	output.Depth = output.Position.z / output.Position.w;
-	output.PositionCopy = output.Position;
 
 	return output;
 }
 
 float4 PS(PixelShaderInput input) : SV_TARGET
 {
-	return float4(input.PositionCopy.z / input.PositionCopy.w, 0, 0, 0);
+	return float4(input.Position.z, 0, 0, 0);
 }
