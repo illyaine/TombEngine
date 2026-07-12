@@ -2,8 +2,9 @@
 #include "./Math.hlsli"
 #include "./ShaderLight.hlsli"
 
-#define SHADOW_INTENSITY (0.6f)
-#define SHADOW_BLUR      (2.0f)
+#define SHADOW_INTENSITY    (0.6f)
+#define SHADOW_BLUR         (2)
+#define SHADOW_SAMPLE_COUNT (25.0f)
 
 struct Sphere
 {
@@ -24,11 +25,6 @@ cbuffer ShadowLightBuffer : register(b4)
 
 Texture2DArray ShadowMap : register(t3);
 SamplerComparisonState ShadowMapSampler : register(s3);
-
-float2 TexOffset(int u, int v) 
-{
-    return float2(u * 1.0f / ShadowMapSize, v * 1.0f / ShadowMapSize);
-}
 
 int GetCubeFaceIndex(float3 dir)
 {
@@ -122,23 +118,22 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
         lightClipSpace.x = lightClipSpace.x / 2 + 0.5;
         lightClipSpace.y = lightClipSpace.y / -2 + 0.5;
 
-        float sum = 0;
-        float samples = 0;
+        float sum = 0.0f;
+        float texelSize = rcp((float)ShadowMapSize);
 
-        // Perform basic PCF filtering.
-        for (float y = -SHADOW_BLUR; y <= SHADOW_BLUR; y += 1.0)
+        // Perform the same 5x5 PCF filtering with one shared texel-size calculation.
+        for (int y = -SHADOW_BLUR; y <= SHADOW_BLUR; y++)
         {
-            for (float x = -SHADOW_BLUR; x <= SHADOW_BLUR; x += 1.0)
+            for (int x = -SHADOW_BLUR; x <= SHADOW_BLUR; x++)
             {
                 sum += ShadowMap.SampleCmpLevelZero(
                     ShadowMapSampler,
-                    float3(lightClipSpace.xy + TexOffset(x, y), faceIndex),
+                    float3(lightClipSpace.xy + float2(x, y) * texelSize, faceIndex),
                     lightClipSpace.z);
-                samples += 1.0;
             }
         }
 
-        shadowFactor = lerp(shadowFactor, sum / samples, facingFactor);
+        shadowFactor = lerp(shadowFactor, sum / SHADOW_SAMPLE_COUNT, facingFactor);
     }
 
     float distanceAttenuation = saturate((Light.Out - lightDistance) / (Light.Out - Light.In));
