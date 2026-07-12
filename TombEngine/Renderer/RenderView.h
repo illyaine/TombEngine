@@ -27,8 +27,6 @@ namespace TEN::Renderer
 		Matrix ViewProjection;
 		Matrix View;
 		Matrix Projection;
-		Matrix InverseView;
-		Matrix InverseProjection;
 		Vector3 WorldPosition;
 		Vector3 WorldDirection;
 		Vector2 ViewSize;
