@@ -21,7 +21,7 @@ namespace TEN::Renderer
 
 	Renderer::Renderer() :
 		_gameCamera({0, 0, 0}, {0, 0, 1}, {0, 1, 0}, 1, 1, 0, 1, 10, 90),
-		_oldGameCamera({ 0, 0, 0}, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90),
+		_oldGameCamera({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90),
 		_currentGameCamera({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90)
 	{
 	}
@@ -242,7 +242,7 @@ namespace TEN::Renderer
 		// If light has hash, interpolate its position with previous position.
 		if (light.Hash != 0)
 		{
-			lights[index].Position = Vector3::Lerp(light.PrevPosition, light.Position, GetInterpolationFactor());
+			lights[index].Position  = Vector3::Lerp(light.PrevPosition, light.Position, GetInterpolationFactor());
 			if (usesDirection)
 				lights[index].Direction = Vector3::Lerp(light.PrevDirection, light.Direction, GetInterpolationFactor());
 		}
@@ -463,6 +463,7 @@ namespace TEN::Renderer
 			case DepthState::None:
 				_context->OMSetDepthStencilState(_renderStates->DepthNone(), 0xFFFFFFFF);
 				break;
+
 			}
 
 			_lastDepthState = depthState;
