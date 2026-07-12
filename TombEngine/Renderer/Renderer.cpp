@@ -291,12 +291,68 @@ namespace TEN::Renderer
 
 	void Renderer::BindInstancedStaticLights(std::vector<RendererLight*>& lights, int instanceID)
 	{
+		struct StaticLightBindingCache
+		{
+			std::array<RendererLight*, MAX_LIGHTS_PER_ITEM> Sources = {};
+			std::array<ShaderLight, MAX_LIGHTS_PER_ITEM> Lights = {};
+			int Count = -1;
+			int NumLights = 0;
+			int Frame = -1;
+			int DynamicLightList = -1;
+			float InterpolationFactor = -1.0f;
+		};
+
+		static thread_local StaticLightBindingCache cache;
+
+		const int lightCount = std::min((int)lights.size(), MAX_LIGHTS_PER_ITEM);
+		const float interpolationFactor = GetInterpolationFactor();
+		bool cacheHit =
+			_currentMirror == nullptr &&
+			cache.Count == lightCount &&
+			cache.Frame == GlobalCounter &&
+			cache.DynamicLightList == _dynamicLightList &&
+			cache.InterpolationFactor == interpolationFactor;
+
+		if (cacheHit)
+		{
+			for (int i = 0; i < lightCount; i++)
+			{
+				if (cache.Sources[i] != lights[i])
+				{
+					cacheHit = false;
+					break;
+				}
+			}
+		}
+
+		auto& staticMesh = _stInstancedStaticMeshBuffer.StaticMeshes[instanceID];
+		if (cacheHit)
+		{
+			if (lightCount > 0)
+				memcpy(staticMesh.Lights, cache.Lights.data(), lightCount * sizeof(ShaderLight));
+			staticMesh.NumLights = cache.NumLights;
+			return;
+		}
+
 		int lightTypeMask = 0;
+		for (int i = 0; i < lightCount; i++)
+			lightTypeMask |= BindLight(*lights[i], staticMesh.Lights, i);
 
-		for (int i = 0; i < lights.size(); i++)
-			lightTypeMask = lightTypeMask | BindLight(*lights[i], _stInstancedStaticMeshBuffer.StaticMeshes[instanceID].Lights, i);
+		staticMesh.NumLights = lightCount | lightTypeMask;
 
-		_stInstancedStaticMeshBuffer.StaticMeshes[instanceID].NumLights = (int)lights.size() | lightTypeMask;
+		if (_currentMirror == nullptr)
+		{
+			cache.Count = lightCount;
+			cache.NumLights = staticMesh.NumLights;
+			cache.Frame = GlobalCounter;
+			cache.DynamicLightList = _dynamicLightList;
+			cache.InterpolationFactor = interpolationFactor;
+
+			for (int i = 0; i < lightCount; i++)
+				cache.Sources[i] = lights[i];
+			if (lightCount > 0)
+				memcpy(cache.Lights.data(), staticMesh.Lights, lightCount * sizeof(ShaderLight));
+		}
 	}
 
 	void Renderer::BindMoveableLights(std::vector<RendererLight*>& lights, int roomNumber, int prevRoomNumber, float fade, bool shadow)
