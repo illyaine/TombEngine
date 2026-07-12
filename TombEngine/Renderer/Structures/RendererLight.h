@@ -30,6 +30,12 @@ namespace TEN::Renderer::Structures
 		Vector3 PrevDirection;
 
 		int Hash = 0;
+
+		float CachedSpotInRange = 0.0f;
+		float CachedSpotOutRange = 0.0f;
+		float CachedSpotInRangeCos = 0.0f;
+		float CachedSpotOutRangeCos = 0.0f;
+		bool SpotRangeCacheValid = false;
 	};
 
 	struct RendererLightNode
