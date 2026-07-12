@@ -99,6 +99,7 @@ namespace TEN::Renderer::Utils
 		void LoadShaders(int width, int height, bool recompileAAShaders = false);
 		void Bind(Shader shader, bool forceNull = false);
 		void InvalidateBindings() noexcept;
+		bool IsPixelShaderBound(Shader shader) const noexcept;
 
 	private:
 		void LoadCommonShaders();
