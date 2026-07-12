@@ -31,8 +31,8 @@ namespace TEN::Renderer
 		bufferToFill.Projection = Camera.Projection;
 		bufferToFill.View = Camera.View;
 		bufferToFill.ViewProjection = Camera.ViewProjection;
-		bufferToFill.InverseView = Camera.InverseView;
-		bufferToFill.InverseProjection = Camera.InverseProjection;
+		bufferToFill.InverseView = Camera.View.Invert();
+		bufferToFill.InverseProjection = Camera.Projection.Invert();
 		bufferToFill.CamDirectionWS = Vector4(Camera.WorldDirection);
 		bufferToFill.CamPositionWS = Vector4(Camera.WorldPosition);
 		bufferToFill.ViewSize = Camera.ViewSize;
@@ -84,8 +84,6 @@ namespace TEN::Renderer
 		View = Matrix::CreateLookAt(WorldPosition, target, up);
 		Projection = Matrix::CreatePerspectiveFieldOfView(fov, w / (float)h, n, f);
 		ViewProjection = View * Projection;
-		InverseView = View.Invert();
-		InverseProjection = Projection.Invert();
 		ViewSize = { (float)w, (float)h };
 		InvViewSize = { 1.0f / w, 1.0f / h };
 		Frustum.Update(View, Projection);
@@ -103,8 +101,6 @@ namespace TEN::Renderer
 		float aspect = (float)width / (float)height;
 		Projection = Matrix::CreatePerspectiveFieldOfView(fov, aspect, n, f);
 		ViewProjection = View * Projection;
-		InverseView = View.Invert();
-		InverseProjection = Projection.Invert();
 		ViewSize = { (float)width, (float)height };
 		InvViewSize = { 1.0f / width, 1.0f / height };
 		Frustum.Update(View, Projection);
