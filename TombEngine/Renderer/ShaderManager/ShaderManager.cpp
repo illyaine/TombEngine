@@ -147,7 +147,6 @@ namespace TEN::Renderer::Utils
 
 		// LoadAAShaders should always be the first in the list, so that when AA settings are changed,
 		// they recompile with the same index as before.
-
 		LoadAAShaders(width, height, recompileAAShaders); 
 		LoadCommonShaders();
 		LoadPostprocessShaders();
@@ -199,10 +198,7 @@ namespace TEN::Renderer::Utils
 		}
 
 		if (shader == Shader::GpuEnvironment && _gpuEnvironmentSampler != nullptr)
-		{
-			auto* sampler = _gpuEnvironmentSampler.Get();
-			_context->PSSetSamplers(0, 1, &sampler);
-		}
+			BindSamplerPS(0, _gpuEnvironmentSampler.Get());
 	}
 
 	void ShaderManager::BindConstantBufferVS(UINT slot, ID3D11Buffer* buffer)
@@ -237,6 +233,22 @@ namespace TEN::Renderer::Utils
 		_psConstantBufferBindingValid[slot] = true;
 	}
 
+	void ShaderManager::BindSamplerPS(UINT slot, ID3D11SamplerState* sampler)
+	{
+		if (slot >= _boundPSSamplers.size())
+		{
+			_context->PSSetSamplers(slot, 1, &sampler);
+			return;
+		}
+
+		if (_psSamplerBindingValid[slot] && _boundPSSamplers[slot] == sampler)
+			return;
+
+		_context->PSSetSamplers(slot, 1, &sampler);
+		_boundPSSamplers[slot] = sampler;
+		_psSamplerBindingValid[slot] = true;
+	}
+
 	void ShaderManager::InvalidateBindings() noexcept
 	{
 		_boundVertexShader = nullptr;
@@ -249,6 +261,8 @@ namespace TEN::Renderer::Utils
 		_boundPSConstantBuffers.fill(nullptr);
 		_vsConstantBufferBindingValid.fill(false);
 		_psConstantBufferBindingValid.fill(false);
+		_boundPSSamplers.fill(nullptr);
+		_psSamplerBindingValid.fill(false);
 	}
 
 	RendererShader ShaderManager::LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile)
