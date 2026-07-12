@@ -82,6 +82,13 @@ namespace TEN::Renderer::Utils
 		int											   _compileCounter = 0;
 		std::array<RendererShader, (int)Shader::Count> _shaders		   = {};
 
+		ID3D11VertexShader* _boundVertexShader = nullptr;
+		ID3D11PixelShader* _boundPixelShader = nullptr;
+		ID3D11ComputeShader* _boundComputeShader = nullptr;
+		bool _vertexBindingValid = false;
+		bool _pixelBindingValid = false;
+		bool _computeBindingValid = false;
+
 	public:
 		ShaderManager() = default;
 		~ShaderManager();
@@ -91,6 +98,7 @@ namespace TEN::Renderer::Utils
 		void Initialize(ComPtr<ID3D11Device>& device, ComPtr<ID3D11DeviceContext>& context);
 		void LoadShaders(int width, int height, bool recompileAAShaders = false);
 		void Bind(Shader shader, bool forceNull = false);
+		void InvalidateBindings() noexcept;
 
 	private:
 		void LoadCommonShaders();
