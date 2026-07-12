@@ -89,12 +89,18 @@ using namespace TEN::Animation;
 
 	Vector3 GameBoundingBox::GetCenter() const
 	{
-		return ((Vector3(X1, Y1, Z1) + Vector3(X2, Y2, Z2)) / 2);
+		return Vector3(
+			(X1 + X2) * 0.5f,
+			(Y1 + Y2) * 0.5f,
+			(Z1 + Z2) * 0.5f);
 	}
 
 	Vector3 GameBoundingBox::GetExtents() const
 	{
-		return ((Vector3(X2, Y2, Z2) - Vector3(X1, Y1, Z1)) / 2);
+		return Vector3(
+			(X2 - X1) * 0.5f,
+			(Y2 - Y1) * 0.5f,
+			(Z2 - Z1) * 0.5f);
 	}
 
 	void GameBoundingBox::Rotate(const EulerAngles& rot)
@@ -146,7 +152,17 @@ using namespace TEN::Animation;
 
 	BoundingSphere GameBoundingBox::ToLocalBoundingSphere() const
 	{
-		return BoundingSphere(GetCenter(), GetExtents().Length());
+		const float halfX = (X2 - X1) * 0.5f;
+		const float halfY = (Y2 - Y1) * 0.5f;
+		const float halfZ = (Z2 - Z1) * 0.5f;
+		const float radius = sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ);
+
+		return BoundingSphere(
+			Vector3(
+				(X1 + X2) * 0.5f,
+				(Y1 + Y2) * 0.5f,
+				(Z1 + Z2) * 0.5f),
+			radius);
 	}
 
 	BoundingBox GameBoundingBox::ToConservativeBoundingBox(const Pose& pose) const
