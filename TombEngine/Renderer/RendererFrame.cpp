@@ -2,6 +2,7 @@
 #include "Renderer/Renderer.h"
 
 #include <array>
+#include <cstring>
 
 #include "Game/Animation/Animation.h"
 #include "Game/camera.h"
@@ -438,7 +439,6 @@ namespace TEN::Renderer
 					Camera.pos.x - (door->AbsoluteVertices[0].x),
 					Camera.pos.y - (door->AbsoluteVertices[0].y),
 					Camera.pos.z - (door->AbsoluteVertices[0].z));
-				door->CameraToDoor.Normalize();
 			}
 
 			// IMPORTANT: dot = 0 would generate ambiguity becase door could be traversed in both directions, potentially 
@@ -533,6 +533,10 @@ namespace TEN::Renderer
 
 			if (obj.Hidden)
 				continue;
+
+			const size_t transformCount = std::min(
+				(size_t)MAX_BONES,
+				std::max(obj.AnimationTransforms.size(), obj.ObjectMeshes.size()));
 
 			bool inFrustum = true;
 			if (!isRoomReflected)
@@ -643,9 +647,7 @@ namespace TEN::Renderer
 
 				// Otherwise all frames until next ControlPhase will not be interpolated.
 				newItem.DisableInterpolation = false;
-				
-				for (int j = 0; j < MAX_BONES; j++)
-					newItem.PrevAnimTransforms[j] = newItem.AnimTransforms[j];
+				std::memcpy(newItem.PrevAnimTransforms, newItem.AnimTransforms, transformCount * sizeof(Matrix));
 			}
 
 			// Force interpolation only for player in player freeze mode.
@@ -658,7 +660,7 @@ namespace TEN::Renderer
 			newItem.InterpolatedScale = Matrix::Lerp(newItem.InterpolatedScale, newItem.Scale, interpFactor);
 			newItem.InterpolatedWorld = Matrix::Lerp(newItem.PrevWorld, newItem.World, interpFactor);
 			
-			for (int j = 0; j < MAX_BONES; j++)
+			for (size_t j = 0; j < transformCount; j++)
 				newItem.InterpolatedAnimTransforms[j] = Matrix::Lerp(newItem.PrevAnimTransforms[j], newItem.AnimTransforms[j], interpFactor);
 
 			CalculateLightFades(&newItem);
