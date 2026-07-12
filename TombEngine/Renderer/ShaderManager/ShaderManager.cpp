@@ -215,6 +215,16 @@ namespace TEN::Renderer::Utils
 		_computeBindingValid = false;
 	}
 
+	bool ShaderManager::IsPixelShaderBound(Shader shader) const noexcept
+	{
+		const int shaderIndex = (int)shader;
+		if (!_pixelBindingValid || shaderIndex < 0 || shaderIndex >= _shaders.size())
+			return false;
+
+		auto* pixelShader = _shaders[shaderIndex].Pixel.Shader.Get();
+		return pixelShader != nullptr && _boundPixelShader == pixelShader;
+	}
+
 	RendererShader ShaderManager::LoadOrCompile(const std::string& fileName, const std::string& funcName, ShaderType type, const D3D_SHADER_MACRO* defines, bool forceRecompile)
 	{
 		auto rendererShader = RendererShader{};
@@ -227,7 +237,7 @@ namespace TEN::Renderer::Utils
 		// Ensure the /Bin subdirectory exists.
 		std::filesystem::create_directories(compiledShaderPath);
 
-		// Helper function to load or compile shader.
+		// Helper function to load or compile a shader.
 		auto loadOrCompileShader = [this, type, defines, forceRecompile, shaderPath, compiledShaderPath]
 			(const std::wstring& baseFileName, const std::string& shaderType, const std::string& functionName, const char* model, ComPtr<ID3D10Blob>& bytecode)
 		{
@@ -307,7 +317,7 @@ namespace TEN::Renderer::Utils
 				}
 				else
 				{
-					TENLog("Error while compiling shader: " + ToString(srcFileNameWithExtension), LogLevel::Error);
+					TENLog("Error while compiling shader: " + trimmedFileName, LogLevel::Error);
 					throwIfFailed(res);
 				}
 			}
@@ -326,7 +336,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "PS", funcName, "ps_5_0", rendererShader.Pixel.Blob);
 			throwIfFailed(_device->CreatePixelShader(rendererShader.Pixel.Blob->GetBufferPointer(), rendererShader.Pixel.Blob->GetBufferSize(),
-											 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
+												 nullptr, rendererShader.Pixel.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create vertex shader.
@@ -334,7 +344,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "VS", funcName, "vs_5_0", rendererShader.Vertex.Blob);
 			throwIfFailed(_device->CreateVertexShader(rendererShader.Vertex.Blob->GetBufferPointer(), rendererShader.Vertex.Blob->GetBufferSize(),
-											  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
+												  nullptr, rendererShader.Vertex.Shader.GetAddressOf()));
 		}
 
 		// Load or compile and create compute shader.
@@ -342,7 +352,7 @@ namespace TEN::Renderer::Utils
 		{
 			loadOrCompileShader(wideFileName, "CS", funcName, "cs_5_0", rendererShader.Compute.Blob);
 			throwIfFailed(_device->CreateComputeShader(rendererShader.Compute.Blob->GetBufferPointer(), rendererShader.Compute.Blob->GetBufferSize(),
-											   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
+												   nullptr, rendererShader.Compute.Shader.GetAddressOf()));
 		}
 
 		// Increment compile counter.
