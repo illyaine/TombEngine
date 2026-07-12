@@ -287,13 +287,13 @@ namespace TEN::Renderer
 		std::vector<std::optional<RendererObject>> 			   _moveableObjects;
 		std::vector<std::optional<RendererObject>> 			   _staticObjects; // Key = static ID, value = renderer object.
 		std::vector<RendererSprite> 							   _sprites;
-		std::vector<RendererSpriteSequence> 					   _spriteSequences;
-		std::vector<RendererAnimatedTextureSet> 				   _animatedTextureSets;
+		std::vector<RendererSpriteSequence> 				   _spriteSequences;
+		std::vector<RendererAnimatedTextureSet> 			   _animatedTextureSets;
 		std::vector<RendererMesh*> 							   _meshes;
-		std::vector<AtlasTexturesSet> 							   _roomTextures;
-		std::vector<AtlasTexturesSet> 							   _animatedTextures;
-		std::vector<AtlasTexturesSet> 							   _moveablesTextures;
-		std::vector<AtlasTexturesSet> 							   _staticTextures;
+		std::vector<AtlasTexturesSet> 						   _roomTextures;
+		std::vector<AtlasTexturesSet> 						   _animatedTextures;
+		std::vector<AtlasTexturesSet> 						   _moveablesTextures;
+		std::vector<AtlasTexturesSet> 						   _staticTextures;
 		std::vector<Texture2D> 								   _spritesTextures;
 		RendererSprite										   _videoSprite; // Video texture is an unique case
 
@@ -309,44 +309,25 @@ namespace TEN::Renderer
 		// Debug variables
 
 		int _numDrawCalls = 0;
-
-		int _numRoomsDrawCalls = 0;
-		int _numSortedRoomsDrawCalls = 0;
-		int _numMoveablesDrawCalls = 0;
-		int _numSortedMoveablesDrawCalls = 0;
-		int _numStaticsDrawCalls = 0;
-		int _numInstancedStaticsDrawCalls = 0;
-		int _numSortedStaticsDrawCalls = 0;
-		int _numSpritesDrawCalls = 0;
-		int _numInstancedSpritesDrawCalls = 0;
-		int _numSortedSpritesDrawCalls = 0;
-
-		int _numLinesDrawCalls = 0;
-
-		int _numTriangles = 0;
-		int _numSortedTriangles = 0;
-
+		int _numRoomDrawCalls = 0;
+		int _numMoveableDrawCalls = 0;
+		int _numStaticDrawCalls = 0;
+		int _numSpriteDrawCalls = 0;
 		int _numShadowMapDrawCalls = 0;
-		int _numDebrisDrawCalls = 0;
-		int _numEffectsDrawCalls = 0;
-
-		int _numDotProducts = 0;
-		int _numCheckPortalCalls = 0;
+		int _numSortedRoomDrawCalls = 0;
+		int _numSortedMoveablesDrawCalls = 0;
+		int _numSortedStaticsDrawCalls = 0;
+		int _numSortedSpriteDrawCalls = 0;
+		int _numSortedTriangles = 0;
+		int _numTriangles = 0;
 		int _numGetVisibleRoomsCalls = 0;
-
+		int _numCheckPortalCalls = 0;
+		int _numDotProducts = 0;
 		int _numConstantBufferUpdates = 0;
-
-		int _numExecutedMaterialsUpdates = 0;
 		int _numRequestedMaterialsUpdates = 0;
+		int _numExecutedMaterialsUpdates = 0;
 
-		float _currentLineHeight = 0.0f;
-
-		RendererDebugPage _debugPage = RendererDebugPage::None;
-
-		// Times for debug
-
-		int _timeUpdate;
-		int _timeRoomsCollector;
+		int _timePrepare;
 		int _timeDraw;
 		int _timeFrame;
 		float _fps;
@@ -449,7 +430,7 @@ namespace TEN::Renderer
 		void CollectLightsForCamera();
 		void CalculateLightFades(RendererItem* item);
 		void CollectDecalsForRoom(short roomNumber, RenderView& renderView);
-		void CollectEffects(short roomNumber);
+		void CollectEffects(short roomNumber, RenderView& renderView);
 		void ClearShadowMap();
 		void CalculateSSAO(RenderView& view);
 		void UpdateItemAnimations(RenderView& view);
@@ -588,265 +569,72 @@ namespace TEN::Renderer
 		RendererObject& GetRendererObject(GAME_OBJECT_ID id);
 		RendererMesh* GetMesh(int meshIndex);
 		Vector4 GetPortalRect(Vector4 v, Vector4 vp);
-		bool SphereBoxIntersection(BoundingBox box, Vector3 sphereCentre, float sphereRadius);
-		void InitializeSpriteQuad();
-		void InitializePostProcess();
-		void CreateSSAONoiseTexture();
-		void InitializeSMAA();
-		void SetupAnimatedTextures(const RendererBucket& bucket);
-		Texture2D CreateDefaultTexture(std::vector<unsigned char> color);
-		std::optional<Vector2> ProjectDisplayItemPointToScreen(const Vector3& worldPos) const;
+		float GetFramerateMultiplier() const;
+		float GetInterpolationFactor(bool forceRawValue = false) const;
+		std::optional<Vector2> Get2DPosition(const Vector3& pos) const;
+		std::pair<Vector3, Vector3> GetRay(const Vector2& pos) const;
+		Vector3 GetMoveableBonePosition(int itemNumber, int boneID, const Vector3& relOffset);
+		Quaternion GetMoveableBoneOrientation(int itemNumber, int boneID);
 		bool IsRoomReflected(RenderView& renderView, int roomNumber);
-
-		inline bool IgnoreReflectionPassForRoom(int roomNumber)
-		{
-			return (_currentMirror != nullptr && roomNumber != _currentMirror->RoomNumber);
-		}
-
-		inline void ReflectVectorOptionally(Vector3& vector)
-		{
-			if (_currentMirror == nullptr)
-				return;
-
-			vector = Vector3::Transform(vector, _currentMirror->ReflectionMatrix);
-		}
-
-		inline void ReflectMatrixOptionally(Matrix& matrix)
-		{
-			if (_currentMirror == nullptr)
-				return;
-
-			matrix = matrix * _currentMirror->ReflectionMatrix;
-		}
-
-		inline void DrawIndexedTriangles(int count, int baseIndex, int baseVertex)
-		{
-			_context->DrawIndexed(count, baseIndex, baseVertex);
-			_numTriangles += count / 3;
-			_numDrawCalls++;
-		}
-
-		inline void DrawIndexedInstancedTriangles(int count, int instances, int baseIndex, int baseVertex)
-		{
-			_context->DrawIndexedInstanced(count, instances, baseIndex, baseVertex, 0);
-			_numTriangles += (count / 3 * instances) * (count % 4 == 0 ? 2 : 1);
-			_numDrawCalls++;
-		}
-
-		inline void DrawInstancedTriangles(int count, int instances, int baseVertex)
-		{
-			_context->DrawInstanced(count, instances, baseVertex, 0);
-			_numTriangles += (count / 3 * instances) * (count % 4 == 0 ? 2 : 1);
-			_numDrawCalls++;
-		}
-
-		inline void DrawTriangles(int count, int baseVertex)
-		{
-			_context->Draw(count, baseVertex);
-			_numTriangles += count / 3;
-			_numDrawCalls++;
-		}
-
-		template <typename C>
-		inline void UpdateConstantBuffer(C& data, ConstantBuffer<C>& cb) noexcept
-		{
-			cb.UpdateData(data, _context.Get());
-			_numConstantBufferUpdates++;
-		}
-
-		template <typename C>
-		ConstantBuffer<C> CreateConstantBuffer()
-		{
-			return ConstantBuffer<C>(_device.Get());
-		}
-
-		static inline bool IsSortedBlendMode(BlendMode blendMode)
-		{
-			return !(blendMode == BlendMode::Opaque ||
-				blendMode == BlendMode::AlphaTest ||
-				blendMode == BlendMode::Additive ||
-				blendMode == BlendMode::FastAlphaBlend);
-		}
-
-		static inline BlendMode GetBlendModeFromAlpha(BlendMode blendMode, float alpha)
-		{
-			if (alpha < ALPHA_BLEND_THRESHOLD &&
-				(blendMode == BlendMode::Opaque || blendMode == BlendMode::AlphaTest || blendMode == BlendMode::FastAlphaBlend))
-			{
-				return BlendMode::AlphaBlend;
-			}
-
-			return blendMode;
-		}
-
-		inline RendererObject& GetStaticRendererObject(short objectNumber)
-		{
-			return _staticObjects[Statics.GetIndex(objectNumber)].value();
-		}
-
-		inline void TexturesAreNotAnimated()
-		{
-			if (_stAnimated.Animated == 0)
-				return;
-			_stAnimated.Animated = 0;
-			UpdateConstantBuffer(_stAnimated, _cbAnimated);
-		}
-
-		static inline bool IsWaterfall(short objectNumber)
-		{
-			return (objectNumber >= ID_WATERFALL1 && objectNumber <= ID_WATERFALLSS2);
-		}
-
-		static inline unsigned int PackEffectsAndIndexInPoly(Vector3 effects, float sheen, int indexInPoly)
-		{
-			// Clamp values to 254 (UCHAR_MAX - 1) to avoid overflow during back conversion in shaders.
-
-			int packed =
-				((int)floor(effects.x * (UCHAR_MAX - 1)) << GLOW_VERTEX_SHIFT) |
-				((int)floor(effects.y * (UCHAR_MAX - 1)) << MOVE_VERTEX_SHIFT) |
-				((int)floor(sheen     * (UCHAR_MAX - 1)) << SHININESS_VERTEX_SHIFT) |
-				((int)effects.z << LOCKED_VERTEX_SHIFT) |
-				(indexInPoly << INDEX_IN_POLY_VERTEX_SHIFT);
-
-			return packed;
-		}
-
-		static inline unsigned int PackVector3(Vector3 n)
-		{
-			if (n.Length() > EPSILON)
-				n.Normalize();
-
-			auto ToS8 = [](float v) -> unsigned int
-			{
-				float x = std::clamp(v, -1.0f, 1.0f) * CHAR_MAX;
-				return (char)(std::lround(x));
-			};
-
-			const unsigned char X = (unsigned char)(ToS8(n.x));
-			const unsigned char Y = (unsigned char)(ToS8(n.y));
-			const unsigned char Z = (unsigned char)(ToS8(n.z));
-			const unsigned char W = (unsigned char)(ToS8(0.0f));
-
-			// Little-endian: memoria [R][G][B][A], come DXGI_FORMAT_R8G8B8A8_SNORM
-			return (unsigned int)X | ((unsigned int)Y << 8) | ((unsigned int)Z << 16) | ((unsigned int)W << 24);
-		}
-
-		static inline unsigned int PackAnimationFrameOffsetIndexHash(int frameOffset, int meshIndex, int hash)
-		{
-			int packed =
-				((hash & 0xFF) << 0) |
-				((meshIndex & 0xFFFF) << 8) | 
-				((frameOffset & 0xFF) << 24);
-			return packed;
-		}
-
-		static inline int GetOriginalIndex(unsigned int v)
-		{
-			return ((v >> 8) & 0xFFFF);
-		}
+		void SaveScreenshot();
+		void SortTransparentPolygons(RenderView& view, int indexCount, int index, RendererObjectType objectType,
+			RendererRoom* room = nullptr, RendererItem* item = nullptr, RendererStatic* staticMesh = nullptr, RendererEffect* effect = nullptr,
+			int boneIndex = 0, int indexInPolyList = 0, Matrix world = Matrix::Identity, float depth = 0, int materialIndex = 0,
+			LightMode lightMode = LightMode::Dynamic, bool animated = false, bool skinned = false);
+		void SwapDynamicLightBuffer();
+		std::optional<Vector2> ProjectDisplayItemPointToScreen(const Vector3& worldPos) const;
+		std::optional<std::pair<Vector2, Vector2>> GetDisplayItemBounds(const DisplayItem& item) const;
 
 	public:
 		Renderer();
 		~Renderer();
 
-		RendererMesh* GetRendererMeshFromTrMesh(RendererObject* obj, MESH* meshPtr, short boneIndex, int isJoints, int isHairs, int* lastVertex, int* lastIndex);
-		void DrawBar(float percent, const RendererHudBar& bar, GAME_OBJECT_ID textureSlot, int frame, bool poison);
-		void Create();
-		void Initialize(const std::string& gameDir, int w, int h, bool windowed, HWND handle);
-		void ReloadShaders(bool recompileAAShaders = false);
-		void Render(float interpFactor);
-		void RenderTitle(float interpFactor);
-		void Lock();
-		bool PrepareDataForTheRenderer();
-		void UpdateCameraMatrices(CAMERA_INFO* cam, float farView);
-		void RenderSimpleSceneToParaboloid(RenderTarget2D* renderTarget, Vector3 position, int hemisphere);
-		void DumpGameScene(SceneRenderMode renderMode = SceneRenderMode::Full);
-		void RenderInventory();
-		void RenderScene(RenderTarget2D* renderTarget, RenderView& view, SceneRenderMode renderMode = SceneRenderMode::Full);
-		void PrepareScene();
-		void ClearScene();
-		void SaveScreenshot();
-		void DrawDisplayPickup(const DisplayPickup& pickup);
-		int  Synchronize();
-		void AddString(int x, int y, const std::string& string, D3DCOLOR color, int flags);
-		void AddString(const std::string& string, const Vector2& pos, const Color& color, float scale, int flags);
-		void AddString(const std::string& string, const Vector2& pos, const Vector2& area, const Color& color, float scale, int flags);
-		void AddString(const std::string& string, const Vector2& currentPos, const Vector2& prevPos, const Vector2& area, const Color& color, float scale, int flags);
-		void AddDebugString(const std::string& string, const Vector2& pos, const Color& color, float scale, RendererDebugPage page = RendererDebugPage::None);
-		void FreeRendererData();
-		void AddDynamicPointLight(const Vector3& pos, float radius, const Color& color, bool castShadows, int hash = 0);
-		void AddDynamicFogBulb(const Vector3& pos, float radius, float density, const Color& color, int hash = 0);
-		void AddDynamicSpotLight(const Vector3& pos, const Vector3& dir, float radius, float falloff, float distance, const Color& color, bool castShadows, int hash = 0);
-		void RenderLoadingScreen(float percentage);
-		void RenderFreezeMode(float interpFactor, bool staticBackground);
-		void RenderFullScreenTexture(ID3D11ShaderResourceView* texture, float aspect);
-		void UpdateVideoTexture(Texture2D* texture);
+		void Initialize();
+		void Render();
+		void RenderLoadingScreen(float value);
 		void UpdateProgress(float value);
-		void ToggleFullScreen(bool force = false);
-		void SetFullScreen();
-		bool IsFullsScreen();
-		void RenderTitleImage();
-
-		void AddLine2D(const Vector2& origin, const Vector2& target, const Color& color, RendererDebugPage page = RendererDebugPage::None);
-
-		void AddDebugLine(const Vector3& origin, const Vector3& target, const Color& color, RendererDebugPage page = RendererDebugPage::None);
-		void AddDebugTriangle(const Vector3& vertex0, const Vector3& vertex1, const Vector3& vertex2, const Color& color, RendererDebugPage page = RendererDebugPage::None);
-		void AddDebugTarget(const Vector3& center, const Quaternion& orient, float radius, const Color& color, RendererDebugPage page = RendererDebugPage::None);
-		void AddDebugBox(const std::array<Vector3, BOX_VERTEX_COUNT>& corners, const Color& color, RendererDebugPage page = RendererDebugPage::None, bool isWireframe = true);
-		void AddDebugBox(const Vector3& min, const Vector3& max, const Color& color, RendererDebugPage page = RendererDebugPage::None, bool isWireframe = true);
-		void AddDebugBox(const BoundingOrientedBox& box, const Color& color, RendererDebugPage page = RendererDebugPage::None, bool isWireframe = true);
-		void AddDebugBox(const BoundingBox& box, const Color& color, RendererDebugPage page = RendererDebugPage::None, bool isWireframe = true);
-		void AddDebugCone(const Vector3& center, const Quaternion& orient, float radius, float length, const Vector4& color, RendererDebugPage page, bool isWireframe = true);
-		void AddDebugCylinder(const Vector3& center, const Quaternion& orient, float radius, float length, const Color& color, RendererDebugPage page = RendererDebugPage::None, bool isWireframe = true);
-		void AddDebugSphere(const Vector3& center, float radius, const Color& color, RendererDebugPage page = RendererDebugPage::None, bool isWireframe = true);
-		void AddDebugSphere(const BoundingSphere& sphere, const Color& color, RendererDebugPage page = RendererDebugPage::None, bool isWireframe = true);
-
-		void PrintDebugMessage(LPCSTR msg, va_list args);
-		void PrintDebugMessage(LPCSTR msg, ...);
-		void DrawDebugInfo(RenderView& view);
-		void DrawDebugRenderTargets(RenderView& view);
-		void SwitchDebugPage(bool goBack);
-		RendererDebugPage GetCurrentDebugPage();
-
-		void ChangeScreenResolution(int width, int height, bool windowed);
-		void FlipRooms(short roomNumber1, short roomNumber2);
-		void UpdateLaraAnimations(bool force);
+		void Lock();
+		void UpdateVideoTexture(Texture2D* texture);
+		void UpdateCameraMatrices(CAMERA_INFO* cam, float farView);
 		void UpdateItemAnimations(int itemNumber, bool force);
-		RendererSphereView GetSpheres(int itemNumber);
+		void UpdateLaraAnimations(bool force);
 		void GetBoneMatrix(short itemNumber, int jointIndex, Matrix* outMatrix);
 		SkinningMode GetSkinningMode(const RendererObject& obj, int skinIndex);
-		void DrawObjectIn2DSpace(int objectNumber, Vector2 pos2D, EulerAngles orient, float scale1, float opacity = 1.0f, int meshBits = NO_JOINT_BITS);
-		void DrawObjectIn3DSpace(const DisplayItem& item);
-		void SetLoadingScreen(std::wstring& fileName);
-		void SetTextureOrDefault(Texture2D& texture, std::wstring path);
-		std::string GetDefaultAdapterName();
-		const AdapterInfo& GetAdapterInfo() const;
+		void CollectRendererDataForLevel(int numItems, int numEffects);
+		void FreeRendererData();
+		void FreeLevelResources();
+		void PrepareDataForTheRenderer();
+		void SwapAnimatedTextures();
+		void UpdateRendererRoom(int roomNumber, bool updateFliprooms);
+		void FlipRooms(short roomNumber1, short roomNumber2);
 		void SaveOldState();
-
-		float						GetFramerateMultiplier() const;
-		float						GetInterpolationFactor(bool forceRawValue = false) const;
-		Vector2i					GetScreenResolution() const;
-		int							GetScreenRefreshRate() const;
-		std::optional<Vector2>		Get2DPosition(const Vector3& pos) const;
-		std::pair<Vector3, Vector3> GetRay(const Vector2& pos) const;
-		std::optional<std::pair<Vector2, Vector2>> GetDisplayItemBounds(const DisplayItem& item) const;
-		Vector3	   GetMoveableBonePosition(int itemNumber, int boneID, const Vector3& relOffset = Vector3::Zero);
-		Quaternion GetMoveableBoneOrientation(int itemNumber, int boneID);
-
-		void AddDisplaySprite(const RendererSprite& sprite, const Vector2& pos2D, short orient, const Vector2& size, const Vector4& color,
-			int priority, BlendMode blendMode, const Vector2& aspectCorrection, RenderView& renderView);
-		void CollectDisplaySprites(RenderView& renderView);
-
-		PostProcessMode	GetPostProcessMode();
-		void			SetPostProcessMode(PostProcessMode mode);
-		float			GetPostProcessStrength();
-		void			SetPostProcessStrength(float strength);
-		Vector3			GetPostProcessTint();
-		void			SetPostProcessTint(Vector3 color);
-
 		void SetGraphicsSettingsChanged();
+		void AddDynamicPointLight(const Vector3& position, const Vector3& color, float radius, float intensity, bool castShadows, int hash);
+		void AddDynamicSpotLight(const Vector3& position, const Vector3& direction, const Vector3& color, float radius, float falloff, float distance, float intensity, bool castShadows, int hash);
+		void AddDynamicFogBulb(const Vector3& position, const Vector3& color, float radius, float density);
+		void AddDisplaySprite(const std::shared_ptr<DisplaySprite> sprite);
+		bool SphereBoxIntersection(BoundingBox box, Vector3 sphereCentre, float sphereRadius);
+		RendererSphereView GetSpheres(int itemNumber);
+		void RenderBar(int x, int y, int width, int height, int barHeight, int value, int maxValue, Vector4 color1, Vector4 color2, Vector4 color3, HudBarMode mode, HudBarType type, BarConfiguration config, long timer = 0);
+		void AddString(StringToDraw* stringToDraw);
+		void AddLine2D(Line2D line);
+		void AddLine3D(Line3D line);
+		void AddTriangle3D(Triangle3D triangle);
+		void ReloadShaders(bool recompileAAShaders = false);
+		void DrawDebugPage();
+		void TakeScreenshot();
 
 		RendererDebugPage GetDebugPage() const;
+		int GetScreenWidth() const { return _screenWidth; };
+		int GetScreenHeight() const { return _screenHeight; };
+		int GetScreenRefreshRate();
+		const AdapterInfo& GetAdapterInfo() const { return _adapterInfo; }
+		int GetCurrentCausticsFrame() const { return _currentCausticsFrame; };
+		int GetCausticsTextureCount() const { return _animatedTextures.empty() ? 0 : (int)std::get<0>(_animatedTextures[0]).NumTextures; };
+		ID3D11Device* GetDevice() { return _device.Get(); };
+		ID3D11DeviceContext* GetContext() { return _context.Get(); };
+		RenderTarget2D& GetBackBuffer() { return _backBuffer; };
+		Viewport* GetViewport() { return &_viewportToolkit; };
 	};
 
 	extern Renderer g_Renderer;
