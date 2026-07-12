@@ -80,26 +80,23 @@ namespace TEN::Renderer
 			if (calculateMatrix)
 			{
 				auto offset0 = interpData.Keyframe0.RootOffset;
-				auto rotMatrix = Matrix::CreateFromQuaternion(interpData.Keyframe0.BoneOrientations[bonePtr->Index]);
-				
+				auto rotation = interpData.Keyframe0.BoneOrientations[bonePtr->Index];
+
 				if (interpData.Alpha != 0.0f)
 				{
 					auto offset1 = interpData.Keyframe1.RootOffset;
 					offset0 = Vector3::Lerp(offset0, offset1, interpData.Alpha);
-
-					auto rotMatrix2 = Matrix::CreateFromQuaternion(interpData.Keyframe1.BoneOrientations[bonePtr->Index]);
-
-					auto quat1 = Quaternion::CreateFromRotationMatrix(rotMatrix);
-					auto quat2 = Quaternion::CreateFromRotationMatrix(rotMatrix2);
-					auto quat3 = Quaternion::Slerp(quat1, quat2, interpData.Alpha);
-
-					rotMatrix = Matrix::CreateFromQuaternion(quat3);
+					rotation = Quaternion::Slerp(
+						rotation,
+						interpData.Keyframe1.BoneOrientations[bonePtr->Index],
+						interpData.Alpha);
 				}
 
 				// Store bone orientation on current frame.
 				if (rItem != nullptr)
-					rItem->BoneOrientations[bonePtr->Index] = Quaternion::CreateFromRotationMatrix(rotMatrix);
+					rItem->BoneOrientations[bonePtr->Index] = rotation;
 
+				auto rotMatrix = Matrix::CreateFromQuaternion(rotation);
 				auto tMatrix = (bonePtr == rObject.Skeleton) ? Matrix::CreateTranslation(offset0) : Matrix::Identity;
 
 				auto extraRotMatrix = Matrix::CreateFromQuaternion(bonePtr->ExtraRotation);
