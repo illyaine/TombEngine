@@ -70,19 +70,17 @@ float2 GetCubeUVFromDir(int faceIndex, float3 dir)
 
 float3 DoBlobShadows(float3 worldPos, float3 lighting)
 {
+    if (NumSpheres <= 0)
+        return lighting;
+
     float shadowFactor = 1.0f;
 
     for (int i = 0; i < NumSpheres; i++)
     {
         Sphere s = Spheres[i];
-        float dist = distance(worldPos, s.position);
-        float insideSphere = saturate(1.0f - step(s.radius, dist));
-        float radiusFactor = dist / s.radius;
-        float factor = (1.0f - saturate(radiusFactor)) * insideSphere;
-        shadowFactor -= factor * shadowFactor;
+        shadowFactor *= saturate(distance(worldPos, s.position) / s.radius);
     }
 
-    shadowFactor = saturate(shadowFactor);
     return lighting * saturate(1.0f - (1.0f - shadowFactor) * (SHADOW_INTENSITY * 0.5f));
 }
 
