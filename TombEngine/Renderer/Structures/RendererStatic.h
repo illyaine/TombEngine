@@ -45,9 +45,10 @@ namespace TEN::Renderer::Structures
 			World = worldMatrix;
 			Sphere = BoundingSphere(sphereCenter, sphereRadius);
 			
-			if (!CachedLightPositionValid || CachedLightPosition != pos)
+			const auto lightPosition = Pose.Position.ToVector3();
+			if (!CachedLightPositionValid || CachedLightPosition != lightPosition)
 			{
-				CachedLightPosition = pos;
+				CachedLightPosition = lightPosition;
 				CachedLightPositionValid = true;
 				CacheLights = true;
 			}
