@@ -9,9 +9,6 @@ struct PixelShaderInput
 	float4 Position: SV_POSITION;
 };
 
-Texture2D Texture : register(t0);
-SamplerState Sampler : register(s0);
-
 PixelShaderInput VS(VertexShaderInput input)
 {
 	PixelShaderInput output;
@@ -25,7 +22,7 @@ PixelShaderInput VS(VertexShaderInput input)
 	return output;
 }
 
-float4 PS(PixelShaderInput input) : SV_TARGET
+float PS(PixelShaderInput input) : SV_TARGET
 {
-	return float4(input.Position.z, 0, 0, 0);
+	return input.Position.z;
 }
