@@ -119,7 +119,6 @@ namespace TEN::Renderer
 			                             90 * RADIAN);  
 			//RenderSimpleScene(dest.RenderTargetView[i].Get(), dest.DepthStencilView[i].Get(), renderView);
 			_context->ClearState();
-			_shaders.InvalidateBindings();
 		}
 	}
 
@@ -186,7 +185,7 @@ namespace TEN::Renderer
 			return;
 		}
 
-		_shaders.BindSamplerPS((UINT)registerType, samplerState);
+		_context->PSSetSamplers((UINT)registerType, 1, &samplerState);
 	}
 
 	void Renderer::BindRenderTargetAsTexture(TextureRegister registerType, RenderTarget2D* target, SamplerStateRegister samplerType)
@@ -224,7 +223,7 @@ namespace TEN::Renderer
 			return;
 		}
 
-		_shaders.BindSamplerPS((UINT)registerType, samplerState);
+		_context->PSSetSamplers((UINT)registerType, 1, &samplerState);
 	}
 
 	int Renderer::BindLight(RendererLight& light, ShaderLight* lights, int index)
@@ -349,12 +348,12 @@ namespace TEN::Renderer
 
 	void Renderer::BindConstantBufferVS(ConstantBufferRegister constantBufferType, ID3D11Buffer** buffer)
 	{
-		_shaders.BindConstantBufferVS(static_cast<UINT>(constantBufferType), (buffer != nullptr) ? *buffer : nullptr);
+		_context->VSSetConstantBuffers(static_cast<UINT>(constantBufferType), 1, buffer);
 	}
 
 	void Renderer::BindConstantBufferPS(ConstantBufferRegister constantBufferType, ID3D11Buffer** buffer)
 	{
-		_shaders.BindConstantBufferPS(static_cast<UINT>(constantBufferType), (buffer != nullptr) ? *buffer : nullptr);
+		_context->PSSetConstantBuffers(static_cast<UINT>(constantBufferType), 1, buffer);
 	}
 
 	void Renderer::BindMaterial(int materialIndex, bool force)
@@ -475,6 +474,7 @@ namespace TEN::Renderer
 			case DepthState::None:
 				_context->OMSetDepthStencilState(_renderStates->DepthNone(), 0xFFFFFFFF);
 				break;
+
 			}
 
 			_lastDepthState = depthState;
