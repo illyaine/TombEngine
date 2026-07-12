@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <unordered_map>
 #include <vector>
 
 #include "Game/camera.h"
@@ -30,7 +31,19 @@ namespace TEN::Renderer
 	{
 	private:
 		using GroupMap = std::map<int, std::vector<RendererStatic*>>;
+		using GroupLookup = std::unordered_map<int, GroupMap::iterator>;
+
 		GroupMap _groups;
+		GroupLookup _lookup;
+
+		void RebuildLookup()
+		{
+			_lookup.clear();
+			_lookup.reserve(_groups.size());
+
+			for (auto it = _groups.begin(); it != _groups.end(); ++it)
+				_lookup.emplace(it->first, it);
+		}
 
 		template <typename TIterator>
 		class BasicIterator
@@ -69,9 +82,38 @@ namespace TEN::Renderer
 		using iterator = BasicIterator<GroupMap::iterator>;
 		using const_iterator = BasicIterator<GroupMap::const_iterator>;
 
+		ReusableStaticDrawGroups() = default;
+
+		ReusableStaticDrawGroups(const ReusableStaticDrawGroups& other) :
+			_groups(other._groups)
+		{
+			RebuildLookup();
+		}
+
+		ReusableStaticDrawGroups& operator=(const ReusableStaticDrawGroups& other)
+		{
+			if (this != &other)
+			{
+				_groups = other._groups;
+				RebuildLookup();
+			}
+
+			return *this;
+		}
+
+		ReusableStaticDrawGroups(ReusableStaticDrawGroups&&) noexcept = default;
+		ReusableStaticDrawGroups& operator=(ReusableStaticDrawGroups&&) noexcept = default;
+
 		std::vector<RendererStatic*>& operator[](int objectNumber)
 		{
-			return _groups[objectNumber];
+			auto lookupIt = _lookup.find(objectNumber);
+			if (lookupIt != _lookup.end())
+				return lookupIt->second->second;
+
+			// Preserve sorted iteration while avoiding a tree lookup for every visible static.
+			auto groupIt = _groups.try_emplace(objectNumber).first;
+			_lookup.emplace(objectNumber, groupIt);
+			return groupIt->second;
 		}
 
 		void clear()
