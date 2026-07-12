@@ -21,7 +21,7 @@ namespace TEN::Renderer
 
 	Renderer::Renderer() :
 		_gameCamera({0, 0, 0}, {0, 0, 1}, {0, 1, 0}, 1, 1, 0, 1, 10, 90),
-		_oldGameCamera({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90),
+		_oldGameCamera({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0}, 1, 1, 0, 1, 10, 90),
 		_currentGameCamera({ 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 0 }, 1, 1, 0, 1, 10, 90)
 	{
 	}
@@ -148,6 +148,10 @@ namespace TEN::Renderer
 
 	void Renderer::BindTexture(TextureRegister registerType, TextureBase* texture, SamplerStateRegister samplerType)
 	{
+		// The shadow-map pixel shader does not sample textures.
+		if (_shaders.IsPixelShaderBound(Shader::ShadowMap))
+			return;
+
 		_context->PSSetShaderResources((UINT)registerType, 1, texture->ShaderResourceView.GetAddressOf());
 
 		if (g_GameFlow->IsPointFilterEnabled() && registerType == TextureRegister::ColorMap)
@@ -354,6 +358,10 @@ namespace TEN::Renderer
 
 	void Renderer::BindConstantBufferPS(ConstantBufferRegister constantBufferType, ID3D11Buffer** buffer)
 	{
+		// The shadow-map pixel shader has no constant-buffer dependencies.
+		if (_shaders.IsPixelShaderBound(Shader::ShadowMap))
+			return;
+
 		_context->PSSetConstantBuffers(static_cast<UINT>(constantBufferType), 1, buffer);
 	}
 
@@ -475,6 +483,7 @@ namespace TEN::Renderer
 			case DepthState::None:
 				_context->OMSetDepthStencilState(_renderStates->DepthNone(), 0xFFFFFFFF);
 				break;
+
 			}
 
 			_lastDepthState = depthState;
@@ -519,6 +528,10 @@ namespace TEN::Renderer
 
 	void Renderer::SetAlphaTest(AlphaTestMode mode, float threshold, bool force)
 	{
+		// The shadow-map pixel shader writes depth directly and does not evaluate alpha testing.
+		if (_shaders.IsPixelShaderBound(Shader::ShadowMap))
+			return;
+
 		if (_stBlending.AlphaTest != (int)mode ||
 			_stBlending.AlphaThreshold != threshold ||
 			force)
