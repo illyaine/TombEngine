@@ -36,6 +36,11 @@ namespace TEN::Renderer::Structures
 		float CachedSpotInRangeCos = 0.0f;
 		float CachedSpotOutRangeCos = 0.0f;
 		bool SpotRangeCacheValid = false;
+
+		Vector3 CachedInterpolatedPosition = Vector3::Zero;
+		Vector3 CachedInterpolatedDirection = Vector3::Zero;
+		float CachedInterpolationFactor = 0.0f;
+		bool InterpolationCacheValid = false;
 	};
 
 	struct RendererLightNode
