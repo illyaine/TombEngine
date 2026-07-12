@@ -93,6 +93,8 @@ namespace TEN::Renderer::Utils
 		std::array<ID3D11Buffer*, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> _boundPSConstantBuffers = {};
 		std::array<bool, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> _vsConstantBufferBindingValid = {};
 		std::array<bool, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> _psConstantBufferBindingValid = {};
+		std::array<ID3D11SamplerState*, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT> _boundPSSamplers = {};
+		std::array<bool, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT> _psSamplerBindingValid = {};
 
 	public:
 		ShaderManager() = default;
@@ -105,6 +107,7 @@ namespace TEN::Renderer::Utils
 		void Bind(Shader shader, bool forceNull = false);
 		void BindConstantBufferVS(UINT slot, ID3D11Buffer* buffer);
 		void BindConstantBufferPS(UINT slot, ID3D11Buffer* buffer);
+		void BindSamplerPS(UINT slot, ID3D11SamplerState* sampler);
 		void InvalidateBindings() noexcept;
 
 	private:
