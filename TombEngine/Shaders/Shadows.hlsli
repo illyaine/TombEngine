@@ -139,15 +139,17 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
         shadowFactor = lerp(shadowFactor, sum / samples, facingFactor);
     }
 
-    float isPoint = step(0.5f, Light.Type == LT_POINT); // 1.0 if LT_POINT, 0.0 otherwise
-    float isSpot  = step(0.5f, Light.Type == LT_SPOT);  // 1.0 if LT_SPOT,  0.0 otherwise
-    float isOther = 1.0 - (isPoint + isSpot); // 1.0 if neither LT_POINT nor LT_SPOT
+    if (Light.Type == LT_POINT)
+    {
+        float pointFactor = Luma(DoPointLight(worldPos, normal, Light));
+        return lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * pointFactor);
+    }
 
-    float pointFactor = Luma(DoPointLight(worldPos, normal, Light));
-    float spotFactor  = Luma(DoSpotLight(worldPos, normal, Light));
+    if (Light.Type == LT_SPOT)
+    {
+        float spotFactor = Luma(DoSpotLight(worldPos, normal, Light));
+        return lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * spotFactor);
+    }
 
-    float3 pointShadow = lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * pointFactor);
-    float3 spotShadow  = lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * spotFactor );
-
-    return pointShadow * isPoint + spotShadow * isSpot + lighting * isOther;
+    return lighting;
 }
