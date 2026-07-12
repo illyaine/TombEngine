@@ -922,30 +922,67 @@ namespace TEN::Renderer
 			return;
 
 		ShadowLightSelectionGeneration = RoomVisibilityGeneration;
+		_shadowLight = nullptr;
 
-		if (Camera.pos.RoomNumber < 0 || Camera.pos.RoomNumber >= _rooms.size())
+		if (g_Configuration.ShadowType == ShadowMode::None ||
+			Camera.pos.RoomNumber < 0 || Camera.pos.RoomNumber >= _rooms.size())
 		{
-			_shadowLight = nullptr;
 			return;
 		}
 
-		// This can run before room collection. Do not reuse dynamic candidates from the previous frame.
-		_rooms[Camera.pos.RoomNumber].DynamicLightCandidatesReady = false;
+		const auto cameraPosition = Vector3(Camera.pos.x, Camera.pos.y, Camera.pos.z);
+		const auto& cameraRoom = _rooms[Camera.pos.RoomNumber];
+		float brightest = 0.0f;
 
-		static thread_local auto lightsToDraw = std::vector<RendererLight*>{};
-		lightsToDraw.clear();
-		if (lightsToDraw.capacity() < MAX_LIGHTS_PER_ITEM)
-			lightsToDraw.reserve(MAX_LIGHTS_PER_ITEM);
-
-		CollectLights(Vector3(Camera.pos.x, Camera.pos.y, Camera.pos.z), CAMERA_LIGHT_COLLECTION_RADIUS, Camera.pos.RoomNumber, NO_VALUE, true, false, nullptr, &lightsToDraw);
-
-		if (g_Configuration.ShadowType != ShadowMode::None && !lightsToDraw.empty() && lightsToDraw.front()->CastShadows)
+		auto considerLight = [&](RendererLight& light)
 		{
-			_shadowLight = lightsToDraw.front();
+			if (!light.CastShadows ||
+				(light.Type != LightType::Point && light.Type != LightType::Spot) ||
+				light.Out <= EPSILON)
+			{
+				return;
+			}
+
+			const float distSqr = Vector3::DistanceSquared(cameraPosition, light.Position);
+			if (distSqr >= SQUARE(BLOCK(20)) || distSqr > SQUARE(light.Out + CAMERA_LIGHT_COLLECTION_RADIUS))
+				return;
+
+			const float distance = sqrt(distSqr);
+			const float attenuation = 1.0f - distance / light.Out;
+			const float intensity = attenuation * light.Intensity * light.Luma;
+
+			if (intensity >= brightest)
+			{
+				brightest = intensity;
+				_shadowLight = &light;
+			}
+		};
+
+		for (auto& light : _dynamicLights[_dynamicLightList])
+			considerLight(light);
+
+		if (!cameraRoom.StaticLightCandidatesValid || _invalidateCache)
+		{
+			auto& mutableRoom = _rooms[Camera.pos.RoomNumber];
+			mutableRoom.StaticLightCandidates.clear();
+			for (int roomToCheck : mutableRoom.Neighbors)
+			{
+				if (roomToCheck < 0 || roomToCheck >= _rooms.size())
+					continue;
+
+				for (auto& light : _rooms[roomToCheck].Lights)
+				{
+					if (light.Type != LightType::FogBulb)
+						mutableRoom.StaticLightCandidates.push_back({ &light, roomToCheck });
+				}
+			}
+			mutableRoom.StaticLightCandidatesValid = true;
 		}
-		else
+
+		for (const auto& candidate : _rooms[Camera.pos.RoomNumber].StaticLightCandidates)
 		{
-			_shadowLight = nullptr;
+			if (candidate.Light != nullptr)
+				considerLight(*candidate.Light);
 		}
 	}	
 	
