@@ -135,6 +135,57 @@ float3 DoSpotLight(float3 pos, float3 normal, ShaderLight light)
     return saturate(light.Color.xyz * light.Intensity * angleAttenuation * distanceAttenuation * d);
 }
 
+void DoPointLightAndSpecular(float3 pos, float3 normal, ShaderLight light, float strength, float specularIntensity, float roughness,
+    out float3 diffuseOutput, out float3 specularOutput)
+{
+    float3 lightVec = light.Position.xyz - pos;
+    float distance = length(lightVec);
+    float3 lightDir = normalize(lightVec);
+
+    float distanceAttenuation = saturate((light.Out - distance) / (light.Out - light.In));
+    float d = saturate(dot(normal, lightDir));
+    diffuseOutput = saturate(light.Color.xyz * light.Intensity * distanceAttenuation * d);
+
+    float m = saturate(sign(strength));
+    float3 reflectDir = reflect(lightDir, normal);
+    float intenSpec = lerp(saturate(specularIntensity), 1.0, m) * light.Intensity;
+    float expBase = RoughnessToExpMul(roughness);
+    float expMul = lerp(expBase, 1.0, m);
+    float strengthUsed = lerp(1.0, strength, m);
+    float expVal = max((strengthUsed * SPEC_FACTOR) * expMul, 1.0);
+    float vr = saturate(dot(CamDirectionWS.xyz, reflectDir));
+    float spec = pow(vr, max(expVal, 1.0));
+    float specularAttenuation = saturate((light.Out - distance) / max(light.Out, EPSILON));
+
+    specularOutput = specularAttenuation * spec * light.Color.xyz * intenSpec;
+}
+
+void DoSpotLightAndSpecular(float3 pos, float3 normal, ShaderLight light, float strength, float specularIntensity, float roughness,
+    out float3 diffuseOutput, out float3 specularOutput)
+{
+    float3 lightVec = light.Position.xyz - pos;
+    float distance = length(lightVec);
+    float3 lightDir = normalize(lightVec);
+
+    float cosine = dot(-lightDir, light.Direction.xyz);
+    float angleAttenuation = saturate((cosine - light.OutRange) / (light.InRange - light.OutRange));
+    float distanceAttenuation = saturate((light.Out - distance) / (light.Out - light.In));
+    float d = saturate(dot(normal, lightDir));
+    diffuseOutput = saturate(light.Color.xyz * light.Intensity * angleAttenuation * distanceAttenuation * d);
+
+    float m = saturate(sign(strength));
+    float3 reflectDir = reflect(lightDir, normal);
+    float intenSpec = lerp(saturate(specularIntensity), 1.0, m) * light.Intensity;
+    float expBase = RoughnessToExpMul(roughness);
+    float expMul = lerp(expBase, 1.0, m);
+    float strengthUsed = lerp(1.0, strength, m);
+    float expVal = max((strengthUsed * SPEC_FACTOR) * expMul, 1.0);
+    float vr = saturate(dot(CamDirectionWS.xyz, reflectDir));
+    float spec = pow(vr, max(expVal, 1.0));
+
+    specularOutput = angleAttenuation * distanceAttenuation * spec * light.Color.xyz * intenSpec;
+}
+
 void DoPointAndSpotLight(float3 pos, float3 normal, ShaderLight light, float specularIntensity, float roughness, out float3 pointOutput, out float3 spotOutput)
 {
     float3 lightVec = light.Position.xyz - pos;
@@ -391,13 +442,19 @@ float3 CombineLights(float3 ambient, float3 vertex, float3 tex, float3 pos, floa
         }
         else if (lights[i].Type == LT_POINT)
         {
-            diffuse += DoPointLight(pos, normal, lights[i]);
-            spec += DoSpecularPoint(pos, normal, lights[i], sheen, specular, roughness);
+            float3 pointDiffuse;
+            float3 pointSpecular;
+            DoPointLightAndSpecular(pos, normal, lights[i], sheen, specular, roughness, pointDiffuse, pointSpecular);
+            diffuse += pointDiffuse;
+            spec += pointSpecular;
         }
         else if (lights[i].Type == LT_SPOT)
         {
-            diffuse += DoSpotLight(pos, normal, lights[i]);
-            spec += DoSpecularSpot(pos, normal, lights[i], sheen, specular, roughness);
+            float3 spotDiffuse;
+            float3 spotSpecular;
+            DoSpotLightAndSpecular(pos, normal, lights[i], sheen, specular, roughness, spotDiffuse, spotSpecular);
+            diffuse += spotDiffuse;
+            spec += spotSpecular;
         }
         else if (lights[i].Type == LT_SHADOW)
         {
