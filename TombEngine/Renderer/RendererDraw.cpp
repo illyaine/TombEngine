@@ -4,6 +4,7 @@
 #include <chrono>
 #include <execution>
 #include <filesystem>
+#include <unordered_map>
 
 #include "ConstantBuffers/CameraMatrixBuffer.h"
 #include "Game/Animation/Animation.h"
@@ -1775,26 +1776,34 @@ namespace TEN::Renderer
 
 	void Renderer::PrepareDynamicLight(RendererLight& light)
 	{
-		// If hash is provided, search for same light in previous buffer.
+		// Build the previous-frame hash lookup once per dynamic-light buffer swap.
+		static thread_local std::unordered_map<int, const RendererLight*> previousLightsByHash;
+		static thread_local int cachedPreviousListIndex = NO_VALUE;
+
+		const int previousListIndex = 1 - _dynamicLightList;
+		if (cachedPreviousListIndex != previousListIndex)
+		{
+			const auto& previousLights = _dynamicLights[previousListIndex];
+			previousLightsByHash.clear();
+			previousLightsByHash.reserve(previousLights.size());
+
+			for (const auto& previousLight : previousLights)
+			{
+				if (previousLight.Hash != 0)
+					previousLightsByHash.try_emplace(previousLight.Hash, &previousLight);
+			}
+
+			cachedPreviousListIndex = previousListIndex;
+		}
+
 		if (light.Hash != 0)
 		{
-			// Determine previous buffer index.
-			const auto& prevList = _dynamicLights[1 - _dynamicLightList];
-
-			// Find light in previous buffer with same hash.
-			auto it = std::find_if(
-				prevList.begin(), prevList.end(),
-				[&light](const auto& prevLight)
-				{
-					return (prevLight.Hash == light.Hash);
-				});
-
-			if (it != prevList.end())
+			auto it = previousLightsByHash.find(light.Hash);
+			if (it != previousLightsByHash.end())
 			{
-				// If matching light is found, copy it.
-				const auto& prevLight = *it;
-				light.PrevPosition = prevLight.Position;
-				light.PrevDirection = prevLight.Direction;
+				const auto& previousLight = *it->second;
+				light.PrevPosition = previousLight.Position;
+				light.PrevDirection = previousLight.Direction;
 			}
 		}
 
@@ -2670,6 +2679,8 @@ namespace TEN::Renderer
 	{
 		if (_staticTextures.size() == 0 || view.SortedStaticsToDraw.size() == 0)
 			return;
+
+		const bool trackStats = (_debugPage == RendererDebugPage::RendererStats);
 		 
 		if (rendererPass != RendererPass::CollectTransparentFaces)
 		{
@@ -2830,6 +2841,8 @@ namespace TEN::Renderer
 
 					if (instancesCount > 0)
 					{
+						if (trackStats)
+							_numStaticInstanceBatches++;
 						UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
 						bool bindTextureAndMaterialsRequired = true;
 
@@ -2896,6 +2909,12 @@ namespace TEN::Renderer
 
 						if (IsSortedBlendMode(blendMode) || statics[i]->Color.w < ALPHA_BLEND_THRESHOLD)
 						{
+							if (trackStats)
+							{
+								_numTransparentStaticBuckets++;
+								_numTransparentStaticPolygons += (int)bucket.Polygons.size();
+							}
+
 							for (int p = 0; p < bucket.Polygons.size(); p++)
 							{
 								auto object = RendererSortableObject{};

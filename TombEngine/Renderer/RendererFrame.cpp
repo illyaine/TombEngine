@@ -684,9 +684,13 @@ namespace TEN::Renderer
 			return;
 
 		bool isRoomReflected = IsRoomReflected(renderView, roomNumber);
+		const bool trackStats = (_debugPage == RendererDebugPage::RendererStats);
 
 		for (int i = 0; i < rendererRoom.Statics.size(); i++)
 		{
+			if (trackStats)
+				_numTestedStatics++;
+
 			auto& rendererStatic = rendererRoom.Statics[i];
 			auto& nativeStatic = nativeRoom.mesh[i];
 
@@ -717,10 +721,17 @@ namespace TEN::Renderer
 			if (!isRoomReflected && !renderView.Camera.Frustum.SphereInFrustum(rendererStatic.Sphere.Center, rendererStatic.Sphere.Radius))
 				continue;
 
+			if (trackStats)
+				_numVisibleStatics++;
+
 			if (rendererObj.ObjectMeshes.front()->LightMode != LightMode::Static)
 			{
+				if (trackStats)
+					_numDynamicLitStatics++;
 				if (rendererStatic.CacheLights || _invalidateCache)
 				{
+					if (trackStats)
+						_numStaticLightCacheMisses++;
 					rendererStatic.CachedRoomLights.clear();
 					CollectLights(
 						rendererStatic.Pose.Position.ToVector3(), ITEM_LIGHT_COLLECTION_RADIUS,
@@ -730,6 +741,8 @@ namespace TEN::Renderer
 				}
 				else
 				{
+					if (trackStats)
+						_numStaticLightCacheHits++;
 					CollectLights(
 						rendererStatic.Pose.Position.ToVector3(), ITEM_LIGHT_COLLECTION_RADIUS,
 						rendererRoom.RoomNumber, NO_VALUE, false, true,
@@ -751,6 +764,7 @@ namespace TEN::Renderer
 		if (_rooms.size() <= roomNumber || outputLights == nullptr)
 			return;
 
+		const bool trackStaticStats = (_debugPage == RendererDebugPage::RendererStats && roomsLights != nullptr);
 		auto& room = _rooms[roomNumber];
 		if (!room.StaticLightCandidatesValid || _invalidateCache)
 		{
@@ -772,6 +786,8 @@ namespace TEN::Renderer
 		constexpr size_t CANDIDATE_CAPACITY = MAX_LIGHTS_PER_ITEM + 1;
 		std::array<RendererLightNode, CANDIDATE_CAPACITY> bestLights = {};
 		size_t bestLightCount = 0;
+		std::array<RendererLightNode, CANDIDATE_CAPACITY> bestRoomLights = {};
+		size_t bestRoomLightCount = 0;
 
 		auto isBetterLight = [](const RendererLightNode& a, const RendererLightNode& b)
 		{
@@ -796,11 +812,32 @@ namespace TEN::Renderer
 			bestLights[insertIndex] = node;
 		};
 
+		auto addBestRoomLight = [&](const RendererLightNode& node)
+		{
+			size_t insertIndex = 0;
+			while (insertIndex < bestRoomLightCount && !isBetterLight(node, bestRoomLights[insertIndex]))
+				insertIndex++;
+
+			if (insertIndex >= CANDIDATE_CAPACITY)
+				return;
+
+			if (bestRoomLightCount < CANDIDATE_CAPACITY)
+				bestRoomLightCount++;
+
+			for (size_t i = bestRoomLightCount - 1; i > insertIndex; i--)
+				bestRoomLights[i] = bestRoomLights[i - 1];
+
+			bestRoomLights[insertIndex] = node;
+		};
+
 		RendererLight* brightestLight = nullptr;
 		float brightest = 0.0f;
 
 		auto processDynamicLight = [&](RendererLight& light)
 		{
+			if (trackStaticStats)
+				_numStaticLightCandidateChecks++;
+
 			if (light.Out <= EPSILON)
 				return;
 
@@ -840,12 +877,14 @@ namespace TEN::Renderer
 			if (roomsLights != nullptr)
 			{
 				roomsLights->clear();
-				if (roomsLights->capacity() < room.StaticLightCandidates.size())
-					roomsLights->reserve(room.StaticLightCandidates.size());
+				if (roomsLights->capacity() < CANDIDATE_CAPACITY)
+					roomsLights->reserve(CANDIDATE_CAPACITY);
 			}
 
 			for (const auto& candidate : room.StaticLightCandidates)
 			{
+				if (trackStaticStats)
+					_numStaticLightCandidateChecks++;
 				auto* lightPtr = candidate.Light;
 				if (lightPtr == nullptr)
 					continue;
@@ -890,8 +929,14 @@ namespace TEN::Renderer
 
 				RendererLightNode node = { &light, intensity, distance, 0 };
 				if (roomsLights != nullptr)
-					roomsLights->push_back(node);
+					addBestRoomLight(node);
 				addBestLight(node);
+			}
+
+			if (roomsLights != nullptr)
+			{
+				for (size_t i = 0; i < bestRoomLightCount; i++)
+					roomsLights->push_back(bestRoomLights[i]);
 			}
 		}
 		else if (roomsLights != nullptr)
