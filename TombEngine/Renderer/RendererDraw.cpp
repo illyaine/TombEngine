@@ -1882,6 +1882,15 @@ namespace TEN::Renderer
 		using get_time = std::chrono::steady_clock;
 
 		ResetDebugVariables();
+		_numTestedStatics = 0;
+		_numVisibleStatics = 0;
+		_numDynamicLitStatics = 0;
+		_numStaticInstanceBatches = 0;
+		_numStaticLightCandidateChecks = 0;
+		_numStaticLightCacheHits = 0;
+		_numStaticLightCacheMisses = 0;
+		_numTransparentStaticBuckets = 0;
+		_numTransparentStaticPolygons = 0;
 
 		auto& level = *g_GameFlow->GetLevel(CurrentLevel);
 
@@ -2708,9 +2717,9 @@ namespace TEN::Renderer
 			
 			BindRenderTargetAsTexture(TextureRegister::LegacyEnvironmentReflections, &_skyboxRenderTarget, SamplerStateRegister::AnisotropicClamp);
 
-			for (auto it = view.SortedStaticsToDraw.begin(); it != view.SortedStaticsToDraw.end(); it++)
+			for (const auto& group : view.SortedStaticsToDraw)
 			{
-				const auto& statics = it->second;
+				const auto& statics = group.second;
 
 				RendererStatic* refStatic = statics[0];
 				RendererObject& refStaticObj = GetStaticRendererObject(refStatic->ObjectNumber);
@@ -2792,9 +2801,9 @@ namespace TEN::Renderer
 				BindRenderTargetAsTexture(TextureRegister::SSAO, &_SSAOBlurredRenderTarget, SamplerStateRegister::PointWrap);
 			}
 
-			for (auto it = view.SortedStaticsToDraw.begin(); it != view.SortedStaticsToDraw.end(); it++)
+			for (const auto& group : view.SortedStaticsToDraw)
 			{
-				const auto& statics = it->second;
+				const auto& statics = group.second;
 
 				auto* refStatic = statics[0];
 				auto& refStaticObj = GetStaticRendererObject(refStatic->ObjectNumber);
@@ -2885,9 +2894,9 @@ namespace TEN::Renderer
 		else
 		{
 			// Collect sorted blend modes faces ordered by room if doing transparent pass.
-			for (auto it = view.SortedStaticsToDraw.begin(); it != view.SortedStaticsToDraw.end(); it++)
+			for (const auto& group : view.SortedStaticsToDraw)
 			{
-				const auto& statics = it->second;
+				const auto& statics = group.second;
 
 				auto* refStatic = statics[0];
 				auto& refStaticObj = GetStaticRendererObject(refStatic->ObjectNumber);

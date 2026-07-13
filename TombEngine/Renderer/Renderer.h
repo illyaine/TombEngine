@@ -330,6 +330,16 @@ namespace TEN::Renderer
 		int _numDebrisDrawCalls = 0;
 		int _numEffectsDrawCalls = 0;
 
+		int _numTestedStatics = 0;
+		int _numVisibleStatics = 0;
+		int _numDynamicLitStatics = 0;
+		int _numStaticInstanceBatches = 0;
+		int _numStaticLightCandidateChecks = 0;
+		int _numStaticLightCacheHits = 0;
+		int _numStaticLightCacheMisses = 0;
+		int _numTransparentStaticBuckets = 0;
+		int _numTransparentStaticPolygons = 0;
+
 		int _numDotProducts = 0;
 		int _numCheckPortalCalls = 0;
 		int _numGetVisibleRoomsCalls = 0;
