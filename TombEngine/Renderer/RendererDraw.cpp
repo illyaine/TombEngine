@@ -2584,8 +2584,23 @@ namespace TEN::Renderer
 
 	void Renderer::DrawStatics(RenderView& view, RendererPass rendererPass)
 	{
+		constexpr auto BUFFERED_FRAME_COUNT = 3;
+
+		static thread_local std::array<
+			std::vector<std::unique_ptr<ConstantBuffer<CInstancedStaticMeshBuffer>>>,
+			BUFFERED_FRAME_COUNT> staticBufferPools;
+		static thread_local std::array<size_t, BUFFERED_FRAME_COUNT> staticBufferPoolIndices = {};
+		static thread_local int staticBufferPoolFrame = -1;
+
 		if (_staticTextures.size() == 0 || view.SortedStaticsToDraw.size() == 0)
 			return;
+
+		const auto frameSlot = (size_t)GlobalCounter % BUFFERED_FRAME_COUNT;
+		if (staticBufferPoolFrame != GlobalCounter)
+		{
+			staticBufferPoolFrame = GlobalCounter;
+			staticBufferPoolIndices[frameSlot] = 0;
+		}
 		 
 		if (rendererPass != RendererPass::CollectTransparentFaces)
 		{
@@ -2746,7 +2761,21 @@ namespace TEN::Renderer
 
 					if (instancesCount > 0)
 					{
-						UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+						auto& staticBufferPool = staticBufferPools[frameSlot];
+						auto& staticBufferPoolIndex = staticBufferPoolIndices[frameSlot];
+
+						if (staticBufferPoolIndex >= staticBufferPool.size())
+						{
+							staticBufferPool.emplace_back(
+								std::make_unique<ConstantBuffer<CInstancedStaticMeshBuffer>>(_device.Get()));
+						}
+
+						auto* staticInstanceBuffer = staticBufferPool[staticBufferPoolIndex++].get();
+						staticInstanceBuffer->UpdateData(_stInstancedStaticMeshBuffer, _context.Get());
+						_numConstantBufferUpdates++;
+
+						BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, staticInstanceBuffer->get());
+						BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, staticInstanceBuffer->get());
 
 						bool bindTextureAndMaterialsRequired = true;
 
@@ -3891,6 +3920,18 @@ namespace TEN::Renderer
 
 	void Renderer::DrawStaticSorted(RendererSortableObject* objectInfo, RendererObjectType lastObjectType, RenderView& view)
 	{
+		constexpr auto BUFFERED_FRAME_COUNT = 3;
+
+		struct PooledIndexBuffer
+		{
+			std::unique_ptr<IndexBuffer> Buffer;
+			size_t Capacity = 0;
+		};
+
+		static thread_local std::array<std::vector<PooledIndexBuffer>, BUFFERED_FRAME_COUNT> indexBufferPools;
+		static thread_local std::array<size_t, BUFFERED_FRAME_COUNT> indexBufferPoolIndices = {};
+		static thread_local int indexBufferPoolFrame = -1;
+
 		if (lastObjectType != objectInfo->ObjectType)
 		{
 			unsigned int stride = sizeof(Vertex);
@@ -3904,9 +3945,33 @@ namespace TEN::Renderer
 
 			_shaders.Bind(Shader::InstancedStatics);
 		}
-		
-		_sortedPolygonsIndexBuffer.Update(_context.Get(), _sortedPolygonsIndices, 0, (int)_sortedPolygonsIndices.size());
-		_context->IASetIndexBuffer(_sortedPolygonsIndexBuffer.Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+
+		const auto frameSlot = (size_t)GlobalCounter % BUFFERED_FRAME_COUNT;
+		if (indexBufferPoolFrame != GlobalCounter)
+		{
+			indexBufferPoolFrame = GlobalCounter;
+			indexBufferPoolIndices[frameSlot] = 0;
+		}
+
+		auto& indexBufferPool = indexBufferPools[frameSlot];
+		auto& indexBufferPoolIndex = indexBufferPoolIndices[frameSlot];
+		const auto indexCount = _sortedPolygonsIndices.size();
+
+		if (indexBufferPoolIndex >= indexBufferPool.size())
+			indexBufferPool.emplace_back();
+
+		auto& pooledIndexBuffer = indexBufferPool[indexBufferPoolIndex++];
+		if (pooledIndexBuffer.Buffer == nullptr || pooledIndexBuffer.Capacity < indexCount)
+		{
+			const auto newCapacity = std::max<size_t>(indexCount, 1);
+			auto initialIndices = std::vector<int>(newCapacity);
+			pooledIndexBuffer.Buffer = std::make_unique<IndexBuffer>(
+				_device.Get(), (int)newCapacity, initialIndices.data());
+			pooledIndexBuffer.Capacity = newCapacity;
+		}
+
+		pooledIndexBuffer.Buffer->Update(_context.Get(), _sortedPolygonsIndices, 0, (int)indexCount);
+		_context->IASetIndexBuffer(pooledIndexBuffer.Buffer->Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 
 		auto world = objectInfo->Static->World;
 		_stInstancedStaticMeshBuffer.StaticMeshes[0].World = world;
@@ -3916,6 +3981,8 @@ namespace TEN::Renderer
 		_stInstancedStaticMeshBuffer.StaticMeshes[0].LightMode = (int)GetStaticRendererObject(objectInfo->Static->ObjectNumber).ObjectMeshes[0]->LightMode;
 		BindInstancedStaticLights(objectInfo->Static->LightsToDraw, 0);
 		UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+		BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+		BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
 
 		SetBlendMode(objectInfo->BlendMode);
 		SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
@@ -3923,10 +3990,10 @@ namespace TEN::Renderer
 		BindBucketTextures(*objectInfo->Bucket, TextureSource::Statics, objectInfo->Bucket->Animated);
 		BindMaterial(objectInfo->Bucket->MaterialIndex, false);
 
-		DrawIndexedInstancedTriangles((int)_sortedPolygonsIndices.size(), 1, 0, 0);
+		DrawIndexedInstancedTriangles((int)indexCount, 1, 0, 0);
 
 		_numSortedStaticsDrawCalls++;
-		_numSortedTriangles += (int)_sortedPolygonsIndices.size() / 3;
+		_numSortedTriangles += (int)indexCount / 3;
 	}
 
 	void Renderer::DrawMoveableAsStaticSorted(RendererSortableObject* objectInfo, RendererObjectType lastObjectType, RenderView& view)
@@ -3956,6 +4023,8 @@ namespace TEN::Renderer
 		_stInstancedStaticMeshBuffer.StaticMeshes[0].LightMode = (int)objectInfo->LightMode;
 		BindInstancedStaticLights(objectInfo->Room->LightsToDraw, 0);
 		UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+		BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+		BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
 
 		SetBlendMode(objectInfo->BlendMode);
 		SetAlphaTest(AlphaTestMode::GreatherThan, ALPHA_TEST_THRESHOLD);

@@ -507,19 +507,56 @@ namespace TEN::Renderer
 
 	void Renderer::DrawSpriteSorted(RendererSortableObject* objectInfo, RendererObjectType lastObjectType, RenderView& view)
 	{
+		constexpr auto BUFFERED_FRAME_COUNT = 3;
+
+		struct PooledVertexBuffer
+		{
+			std::unique_ptr<VertexBuffer<Vertex>> Buffer;
+			size_t Capacity = 0;
+		};
+
+		static thread_local std::array<std::vector<PooledVertexBuffer>, BUFFERED_FRAME_COUNT> vertexBufferPools;
+		static thread_local std::array<size_t, BUFFERED_FRAME_COUNT> vertexBufferPoolIndices = {};
+		static thread_local int vertexBufferPoolFrame = -1;
+
 		if (lastObjectType != objectInfo->ObjectType)
 		{
-			unsigned int stride = sizeof(Vertex);
-			unsigned int offset = 0;
-
 			_shaders.Bind(Shader::InstancedSprites);
 
-			_context->IASetVertexBuffers(0, 1, _sortedPolygonsVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
 			_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			_context->IASetInputLayout(_inputLayout.Get());
 		}
 
-		_sortedPolygonsVertexBuffer.Update(_context.Get(), _sortedPolygonsVertices.data(), 0, (int)_sortedPolygonsVertices.size());
+		const auto frameSlot = (size_t)GlobalCounter % BUFFERED_FRAME_COUNT;
+		if (vertexBufferPoolFrame != GlobalCounter)
+		{
+			vertexBufferPoolFrame = GlobalCounter;
+			vertexBufferPoolIndices[frameSlot] = 0;
+		}
+
+		auto& vertexBufferPool = vertexBufferPools[frameSlot];
+		auto& vertexBufferPoolIndex = vertexBufferPoolIndices[frameSlot];
+		const auto vertexCount = _sortedPolygonsVertices.size();
+
+		if (vertexBufferPoolIndex >= vertexBufferPool.size())
+			vertexBufferPool.emplace_back();
+
+		auto& pooledVertexBuffer = vertexBufferPool[vertexBufferPoolIndex++];
+		if (pooledVertexBuffer.Buffer == nullptr || pooledVertexBuffer.Capacity < vertexCount)
+		{
+			const auto newCapacity = std::max<size_t>(vertexCount, 1);
+			pooledVertexBuffer.Buffer = std::make_unique<VertexBuffer<Vertex>>(
+				_device.Get(), (int)newCapacity, std::vector<Vertex>{});
+			pooledVertexBuffer.Capacity = newCapacity;
+		}
+
+		pooledVertexBuffer.Buffer->Update(
+			_context.Get(), _sortedPolygonsVertices.data(), 0, (int)vertexCount);
+
+		unsigned int stride = sizeof(Vertex);
+		unsigned int offset = 0;
+		_context->IASetVertexBuffers(
+			0, 1, pooledVertexBuffer.Buffer->Buffer.GetAddressOf(), &stride, &offset);
 
 		_stInstancedSpriteBuffer.Sprites[0].World = Matrix::Identity;
 		_stInstancedSpriteBuffer.Sprites[0].PerVertexColor = 1;
@@ -538,10 +575,10 @@ namespace TEN::Renderer
 		BindTexture(TextureRegister::ColorMap, objectInfo->Sprite->Sprite->Texture, SamplerStateRegister::LinearClamp);
 		BindRenderTargetAsTexture(TextureRegister::GBufferDepthMap, &_depthRenderTarget, SamplerStateRegister::PointWrap);
 
-		DrawInstancedTriangles((int)_sortedPolygonsVertices.size(), 1, 0);
+		DrawInstancedTriangles((int)vertexCount, 1, 0);
 
 		_numSortedSpritesDrawCalls++;
-		_numSortedTriangles += (int)_sortedPolygonsVertices.size() / 3;
+		_numSortedTriangles += (int)vertexCount / 3;
 	}
 
 	void Renderer::PackSpriteTextureCoordinates(int instanceId, RendererSprite* sprite)
