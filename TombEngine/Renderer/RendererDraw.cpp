@@ -2907,6 +2907,9 @@ namespace TEN::Renderer
 
 				for (int i = 0; i < statics.size(); i++)
 				{
+					auto* currentStatic = statics[i];
+					auto* currentRoom = &_rooms[currentStatic->RoomNumber];
+
 					for (int j = 0; j < refMesh->Buckets.size(); j++)
 					{
 						auto& bucket = refMesh->Buckets[j];
@@ -2914,9 +2917,9 @@ namespace TEN::Renderer
 						if (bucket.NumVertices == 0)
 							continue;
 
-						auto blendMode = GetBlendModeFromAlpha(bucket.BlendMode, statics[i]->Color.w);
+						auto blendMode = GetBlendModeFromAlpha(bucket.BlendMode, currentStatic->Color.w);
 
-						if (IsSortedBlendMode(blendMode) || statics[i]->Color.w < ALPHA_BLEND_THRESHOLD)
+						if (IsSortedBlendMode(blendMode) || currentStatic->Color.w < ALPHA_BLEND_THRESHOLD)
 						{
 							if (trackStats)
 							{
@@ -2926,19 +2929,17 @@ namespace TEN::Renderer
 
 							for (int p = 0; p < bucket.Polygons.size(); p++)
 							{
-								auto object = RendererSortableObject{};
+								auto& object = view.TransparentObjectsToDraw.emplace_back();
 
 								object.ObjectType = RendererObjectType::Static;
 								object.Bucket = &bucket;
-								object.Static = statics[i];
-								object.Centre = Vector3::Transform(bucket.Polygons[p].Centre, statics[i]->World);
+								object.Static = currentStatic;
+								object.Centre = Vector3::Transform(bucket.Polygons[p].Centre, currentStatic->World);
 								object.Distance = Vector3::Distance(object.Centre, view.Camera.WorldPosition);
 								object.BlendMode = blendMode;
 								object.LightMode = refMesh->LightMode;
 								object.Polygon = &bucket.Polygons[p];
-								object.Room = &_rooms[object.Static->RoomNumber];
-
-								view.TransparentObjectsToDraw.push_back(object);
+								object.Room = currentRoom;
 							}
 						}
 					}
@@ -3604,9 +3605,32 @@ namespace TEN::Renderer
 		std::sort(
 			view.TransparentObjectsToDraw.begin(),
 			view.TransparentObjectsToDraw.end(),
-			[](RendererSortableObject& a, RendererSortableObject& b)
+			[](const RendererSortableObject& a, const RendererSortableObject& b)
 			{
-				return (a.Distance > b.Distance);
+				if (a.Distance != b.Distance)
+					return a.Distance > b.Distance;
+
+				// The legacy sorter treats equal integer distances as equivalent. Keep those ties
+				// deterministic and group static faces to improve the existing sorted draw batching
+				// without changing the primary back-to-front order.
+				if (a.ObjectType != b.ObjectType)
+					return static_cast<int>(a.ObjectType) < static_cast<int>(b.ObjectType);
+
+				if (a.ObjectType == RendererObjectType::Static)
+				{
+					if (a.Static->RoomNumber != b.Static->RoomNumber)
+						return a.Static->RoomNumber < b.Static->RoomNumber;
+					if (a.Static->IndexInRoom != b.Static->IndexInRoom)
+						return a.Static->IndexInRoom < b.Static->IndexInRoom;
+					if (a.Bucket->Texture != b.Bucket->Texture)
+						return a.Bucket->Texture < b.Bucket->Texture;
+					if (a.Bucket->Animated != b.Bucket->Animated)
+						return a.Bucket->Animated < b.Bucket->Animated;
+					if (a.BlendMode != b.BlendMode)
+						return static_cast<int>(a.BlendMode) < static_cast<int>(b.BlendMode);
+				}
+
+				return false;
 			}
 		);
 	}
