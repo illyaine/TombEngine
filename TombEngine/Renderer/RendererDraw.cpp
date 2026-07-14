@@ -91,6 +91,11 @@ namespace TEN::Renderer
 			long long ItemsUs = 0;
 			long long HairUs = 0;
 			long long StaticsUs = 0;
+			long long StaticIndexUploadUs = 0;
+			long long StaticInstanceSetupUs = 0;
+			long long StaticStateMaterialUs = 0;
+			long long StaticDrawSubmitUs = 0;
+			unsigned long long StaticIndices = 0;
 			long long MoveablesAsStaticsUs = 0;
 			long long SpritesUs = 0;
 			unsigned long long RoomBatches = 0;
@@ -104,6 +109,8 @@ namespace TEN::Renderer
 			{
 				Active = active;
 				RoomsUs = ItemsUs = HairUs = StaticsUs = MoveablesAsStaticsUs = SpritesUs = 0;
+				StaticIndexUploadUs = StaticInstanceSetupUs = StaticStateMaterialUs = StaticDrawSubmitUs = 0;
+				StaticIndices = 0;
 				RoomBatches = ItemBatches = HairBatches = StaticBatches = MoveableAsStaticBatches = SpriteBatches = 0;
 			}
 		};
@@ -1966,7 +1973,7 @@ namespace TEN::Renderer
 			performanceCaptureFile.open("RendererPerformance.csv", std::ios::out | std::ios::app);
 			if (performanceCaptureFile && performanceCaptureFile.tellp() == 0)
 			{
-				performanceCaptureFile << "frame,fps,total_us,room_collect_us,update_us,shadow_us,gbuffer_us,opaque_us,additive_us,additive_rooms_us,additive_items_us,additive_effects_us,additive_statics_us,additive_static_group_prepare_us,additive_static_instance_build_us,additive_static_constant_buffer_us,additive_static_bucket_setup_us,additive_static_draw_submit_us,additive_debris_us,additive_sprites_us,transparent_collect_us,transparent_sort_us,transparent_draw_us,transparent_rooms_us,transparent_items_us,transparent_hair_us,transparent_statics_us,transparent_moveables_as_statics_us,transparent_sprites_us,transparent_room_batches,transparent_item_batches,transparent_hair_batches,transparent_static_batches,transparent_moveable_as_static_batches,transparent_sprite_batches,visible_rooms,tested_statics,visible_statics,dynamic_lit_statics,static_batches,static_light_candidate_checks,static_light_cache_hits,static_light_cache_misses,transparent_static_buckets,transparent_static_polygons,transparent_objects,total_draw_calls,static_draw_calls,instanced_static_draw_calls,sorted_static_draw_calls,shadow_draw_calls,triangles,constant_buffer_updates\n";
+				performanceCaptureFile << "frame,fps,total_us,room_collect_us,update_us,shadow_us,gbuffer_us,opaque_us,additive_us,additive_rooms_us,additive_items_us,additive_effects_us,additive_statics_us,additive_static_group_prepare_us,additive_static_instance_build_us,additive_static_constant_buffer_us,additive_static_bucket_setup_us,additive_static_draw_submit_us,additive_debris_us,additive_sprites_us,transparent_collect_us,transparent_sort_us,transparent_draw_us,transparent_rooms_us,transparent_items_us,transparent_hair_us,transparent_statics_us,transparent_static_index_upload_us,transparent_static_instance_setup_us,transparent_static_state_material_us,transparent_static_draw_submit_us,transparent_static_indices,transparent_moveables_as_statics_us,transparent_sprites_us,transparent_room_batches,transparent_item_batches,transparent_hair_batches,transparent_static_batches,transparent_moveable_as_static_batches,transparent_sprite_batches,visible_rooms,tested_statics,visible_statics,dynamic_lit_statics,static_batches,static_light_candidate_checks,static_light_cache_hits,static_light_cache_misses,transparent_static_buckets,transparent_static_polygons,transparent_objects,total_draw_calls,static_draw_calls,instanced_static_draw_calls,sorted_static_draw_calls,shadow_draw_calls,triangles,constant_buffer_updates\n";
 			}
 		}
 		else if (!captureRendererPerformance && performanceCaptureWasActive && performanceCaptureFile.is_open())
@@ -2220,7 +2227,10 @@ namespace TEN::Renderer
 				<< AdditivePerformance.DebrisUs << ',' << AdditivePerformance.SpritesUs << ','
 				<< performanceTransparentCollectUs << ',' << performanceTransparentSortUs << ',' << performanceTransparentDrawUs << ','
 				<< TransparentPerformance.RoomsUs << ',' << TransparentPerformance.ItemsUs << ',' << TransparentPerformance.HairUs << ','
-				<< TransparentPerformance.StaticsUs << ',' << TransparentPerformance.MoveablesAsStaticsUs << ',' << TransparentPerformance.SpritesUs << ','
+				<< TransparentPerformance.StaticsUs << ',' << TransparentPerformance.StaticIndexUploadUs << ','
+				<< TransparentPerformance.StaticInstanceSetupUs << ',' << TransparentPerformance.StaticStateMaterialUs << ','
+				<< TransparentPerformance.StaticDrawSubmitUs << ',' << TransparentPerformance.StaticIndices << ','
+				<< TransparentPerformance.MoveablesAsStaticsUs << ',' << TransparentPerformance.SpritesUs << ','
 				<< TransparentPerformance.RoomBatches << ',' << TransparentPerformance.ItemBatches << ',' << TransparentPerformance.HairBatches << ','
 				<< TransparentPerformance.StaticBatches << ',' << TransparentPerformance.MoveableAsStaticBatches << ',' << TransparentPerformance.SpriteBatches << ','
 				<< view.RoomsToDraw.size() << ',' << _numTestedStatics << ',' << _numVisibleStatics << ','
@@ -4318,28 +4328,83 @@ namespace TEN::Renderer
 
 			_shaders.Bind(Shader::InstancedStatics);
 		}
-		
-		_sortedPolygonsIndexBuffer.Update(_context.Get(), _sortedPolygonsIndices, 0, (int)_sortedPolygonsIndices.size());
-		_context->IASetIndexBuffer(_sortedPolygonsIndexBuffer.Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 
-		auto world = objectInfo->Static->World;
-		_stInstancedStaticMeshBuffer.StaticMeshes[0].World = world;
+		if (TransparentPerformance.Active)
+		{
+			const auto start = std::chrono::high_resolution_clock::now();
+			_sortedPolygonsIndexBuffer.Update(_context.Get(), _sortedPolygonsIndices, 0, (int)_sortedPolygonsIndices.size());
+			_context->IASetIndexBuffer(_sortedPolygonsIndexBuffer.Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+			TransparentPerformance.StaticIndexUploadUs += std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::high_resolution_clock::now() - start).count();
+			TransparentPerformance.StaticIndices += _sortedPolygonsIndices.size();
+		}
+		else
+		{
+			_sortedPolygonsIndexBuffer.Update(_context.Get(), _sortedPolygonsIndices, 0, (int)_sortedPolygonsIndices.size());
+			_context->IASetIndexBuffer(_sortedPolygonsIndexBuffer.Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+		}
 
-		_stInstancedStaticMeshBuffer.StaticMeshes[0].Color = objectInfo->Static->Color;
-		_stInstancedStaticMeshBuffer.StaticMeshes[0].Ambient = objectInfo->Room->AmbientLight;
-		_stInstancedStaticMeshBuffer.StaticMeshes[0].LightMode = (int)GetStaticRendererObject(objectInfo->Static->ObjectNumber).ObjectMeshes[0]->LightMode;
-		BindInstancedStaticLights(objectInfo->Static->LightsToDraw, 0);
-		UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
-		BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
-		BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+		if (TransparentPerformance.Active)
+		{
+			const auto start = std::chrono::high_resolution_clock::now();
 
-		SetBlendMode(objectInfo->BlendMode);
-		SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
+			auto world = objectInfo->Static->World;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].World = world;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].Color = objectInfo->Static->Color;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].Ambient = objectInfo->Room->AmbientLight;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].LightMode =
+				(int)GetStaticRendererObject(objectInfo->Static->ObjectNumber).ObjectMeshes[0]->LightMode;
+			BindInstancedStaticLights(objectInfo->Static->LightsToDraw, 0);
+			UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+			BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+			BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
 
-		BindBucketTextures(*objectInfo->Bucket, TextureSource::Statics, objectInfo->Bucket->Animated);
-		BindMaterial(objectInfo->Bucket->MaterialIndex, false);
+			TransparentPerformance.StaticInstanceSetupUs += std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::high_resolution_clock::now() - start).count();
+		}
+		else
+		{
+			auto world = objectInfo->Static->World;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].World = world;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].Color = objectInfo->Static->Color;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].Ambient = objectInfo->Room->AmbientLight;
+			_stInstancedStaticMeshBuffer.StaticMeshes[0].LightMode =
+				(int)GetStaticRendererObject(objectInfo->Static->ObjectNumber).ObjectMeshes[0]->LightMode;
+			BindInstancedStaticLights(objectInfo->Static->LightsToDraw, 0);
+			UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+			BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+			BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+		}
 
-		DrawIndexedInstancedTriangles((int)_sortedPolygonsIndices.size(), 1, 0, 0);
+		if (TransparentPerformance.Active)
+		{
+			const auto start = std::chrono::high_resolution_clock::now();
+			SetBlendMode(objectInfo->BlendMode);
+			SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
+			BindBucketTextures(*objectInfo->Bucket, TextureSource::Statics, objectInfo->Bucket->Animated);
+			BindMaterial(objectInfo->Bucket->MaterialIndex, false);
+			TransparentPerformance.StaticStateMaterialUs += std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::high_resolution_clock::now() - start).count();
+		}
+		else
+		{
+			SetBlendMode(objectInfo->BlendMode);
+			SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
+			BindBucketTextures(*objectInfo->Bucket, TextureSource::Statics, objectInfo->Bucket->Animated);
+			BindMaterial(objectInfo->Bucket->MaterialIndex, false);
+		}
+
+		if (TransparentPerformance.Active)
+		{
+			const auto start = std::chrono::high_resolution_clock::now();
+			DrawIndexedInstancedTriangles((int)_sortedPolygonsIndices.size(), 1, 0, 0);
+			TransparentPerformance.StaticDrawSubmitUs += std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::high_resolution_clock::now() - start).count();
+		}
+		else
+		{
+			DrawIndexedInstancedTriangles((int)_sortedPolygonsIndices.size(), 1, 0, 0);
+		}
 
 		_numSortedStaticsDrawCalls++;
 		_numSortedTriangles += (int)_sortedPolygonsIndices.size() / 3;
