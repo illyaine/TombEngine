@@ -4,6 +4,7 @@
 #include <chrono>
 #include <execution>
 #include <filesystem>
+#include <fstream>
 #include <unordered_map>
 
 #include "ConstantBuffers/CameraMatrixBuffer.h"
@@ -47,6 +48,43 @@ extern GUNSHELL_STRUCT Gunshells[MAX_GUNSHELL];
 
 namespace TEN::Renderer
 {
+	namespace
+	{
+		struct AdditivePerformanceBreakdown
+		{
+			bool Active = false;
+			long long RoomsUs = 0;
+			long long ItemsUs = 0;
+			long long EffectsUs = 0;
+			long long StaticsUs = 0;
+			long long StaticGroupPrepareUs = 0;
+			long long StaticInstanceBuildUs = 0;
+			long long StaticConstantBufferUs = 0;
+			long long StaticBucketSetupUs = 0;
+			long long StaticDrawSubmitUs = 0;
+			long long DebrisUs = 0;
+			long long SpritesUs = 0;
+
+			void Reset(bool active)
+			{
+				Active = active;
+				RoomsUs = 0;
+				ItemsUs = 0;
+				EffectsUs = 0;
+				StaticsUs = 0;
+				StaticGroupPrepareUs = 0;
+				StaticInstanceBuildUs = 0;
+				StaticConstantBufferUs = 0;
+				StaticBucketSetupUs = 0;
+				StaticDrawSubmitUs = 0;
+				DebrisUs = 0;
+				SpritesUs = 0;
+			}
+		};
+
+		thread_local AdditivePerformanceBreakdown AdditivePerformance;
+	}
+
 	namespace
 	{
 		struct ShadowMapFrameCache
@@ -1882,6 +1920,45 @@ namespace TEN::Renderer
 		using get_time = std::chrono::steady_clock;
 
 		ResetDebugVariables();
+
+		if (_cbInstancedStaticMeshBufferPoolFrame != GlobalCounter)
+		{
+			_cbInstancedStaticMeshBufferPoolFrame = GlobalCounter;
+			_cbInstancedStaticMeshBufferPoolIndex = 0;
+		}
+
+		const bool captureRendererPerformance = (_debugPage == RendererDebugPage::RendererStats);
+		const auto performanceFrameStart = std::chrono::high_resolution_clock::now();
+		static std::ofstream performanceCaptureFile;
+		static bool performanceCaptureWasActive = false;
+		static unsigned long long performanceCaptureFrame = 0;
+
+		if (captureRendererPerformance && !performanceCaptureWasActive)
+		{
+			performanceCaptureFile.open("RendererPerformance.csv", std::ios::out | std::ios::app);
+			if (performanceCaptureFile && performanceCaptureFile.tellp() == 0)
+			{
+				performanceCaptureFile << "frame,fps,total_us,room_collect_us,update_us,shadow_us,gbuffer_us,opaque_us,additive_us,additive_rooms_us,additive_items_us,additive_effects_us,additive_statics_us,additive_static_group_prepare_us,additive_static_instance_build_us,additive_static_constant_buffer_us,additive_static_bucket_setup_us,additive_static_draw_submit_us,additive_debris_us,additive_sprites_us,transparent_collect_us,transparent_sort_us,transparent_draw_us,visible_rooms,tested_statics,visible_statics,dynamic_lit_statics,static_batches,static_light_candidate_checks,static_light_cache_hits,static_light_cache_misses,transparent_static_buckets,transparent_static_polygons,transparent_objects,total_draw_calls,static_draw_calls,instanced_static_draw_calls,sorted_static_draw_calls,shadow_draw_calls,triangles,constant_buffer_updates\n";
+			}
+		}
+		else if (!captureRendererPerformance && performanceCaptureWasActive && performanceCaptureFile.is_open())
+		{
+			performanceCaptureFile.flush();
+			performanceCaptureFile.close();
+		}
+
+		performanceCaptureWasActive = captureRendererPerformance;
+
+		long long performanceRoomCollectUs = 0;
+		long long performanceUpdateUs = 0;
+		long long performanceShadowUs = 0;
+		long long performanceGBufferUs = 0;
+		long long performanceOpaqueUs = 0;
+		long long performanceAdditiveUs = 0;
+		long long performanceTransparentCollectUs = 0;
+		long long performanceTransparentSortUs = 0;
+		long long performanceTransparentDrawUs = 0;
+
 		_numTestedStatics = 0;
 		_numVisibleStatics = 0;
 		_numDynamicLitStatics = 0;
@@ -1900,6 +1977,7 @@ namespace TEN::Renderer
 		CollectRooms(view, false);
 		auto time = std::chrono::high_resolution_clock::now();
 		_timeRoomsCollector = (std::chrono::duration_cast<ns>(time - time1)).count() / 1000000;
+		performanceRoomCollectUs = std::chrono::duration_cast<std::chrono::microseconds>(time - time1).count();
 		time1 = time;
 
 		UpdateLaraAnimations(false);
@@ -1909,7 +1987,9 @@ namespace TEN::Renderer
 		_stBlending.AlphaThreshold = NO_VALUE;
 
 		CollectLightsForCamera();
+		const auto performanceShadowStart = std::chrono::high_resolution_clock::now();
 		RenderItemShadows(view);
+		performanceShadowUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceShadowStart).count();
 
 		// Prepare all sprites for later.
 		PrepareFires(view);
@@ -1941,6 +2021,7 @@ namespace TEN::Renderer
 
 		auto time2 = std::chrono::high_resolution_clock::now();
 		_timeUpdate = (std::chrono::duration_cast<ns>(time2 - time1)).count() / 1000000;
+		performanceUpdateUs = std::chrono::duration_cast<std::chrono::microseconds>(time2 - time1).count();
 		time1 = time2;
 
 		// Bind constant buffers.
@@ -2055,7 +2136,9 @@ namespace TEN::Renderer
 		_context->OMSetRenderTargets(3, &pRenderViewPtrs[0], _renderTarget.DepthStencilView.Get());
 
 		// Render G-Buffer pass.
+		auto performanceStageStart = std::chrono::high_resolution_clock::now();
 		DoRenderPass(RendererPass::GBuffer, view, true);
+		performanceGBufferUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
 
 		// Calculate ambient occlusion.
 		if (g_GameFlow->GetSettings()->Graphics.AmbientOcclusion && g_Configuration.EnableAmbientOcclusion)
@@ -2070,13 +2153,52 @@ namespace TEN::Renderer
 		// Bind main render target again. Main depth buffer is already filled and avoids overdraw in following steps.
 		_context->OMSetRenderTargets(1, _renderTarget.RenderTargetView.GetAddressOf(), _renderTarget.DepthStencilView.Get());
 
+		performanceStageStart = std::chrono::high_resolution_clock::now();
 		DoRenderPass(RendererPass::Opaque, view, true);
-		DoRenderPass(RendererPass::Additive, view, true);
-		DoRenderPass(RendererPass::CollectTransparentFaces, view, false);
-		SortTransparentFaces(view);
+		performanceOpaqueUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
 
+		AdditivePerformance.Reset(captureRendererPerformance);
+		performanceStageStart = std::chrono::high_resolution_clock::now();
+		DoRenderPass(RendererPass::Additive, view, true);
+		performanceAdditiveUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
+		AdditivePerformance.Active = false;
+
+		performanceStageStart = std::chrono::high_resolution_clock::now();
+		DoRenderPass(RendererPass::CollectTransparentFaces, view, false);
+		performanceTransparentCollectUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
+
+		performanceStageStart = std::chrono::high_resolution_clock::now();
+		SortTransparentFaces(view);
+		performanceTransparentSortUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
+
+		performanceStageStart = std::chrono::high_resolution_clock::now();
 		DoRenderPass(RendererPass::Transparent, view, true);
+		performanceTransparentDrawUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
 		DoRenderPass(RendererPass::GunFlashes, view, true); // HACK: Gunflashes are drawn after everything because they are near camera.
+
+		if (captureRendererPerformance && performanceCaptureFile.is_open())
+		{
+			const auto performanceTotalUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceFrameStart).count();
+			performanceCaptureFile
+				<< performanceCaptureFrame++ << ',' << _fps << ',' << performanceTotalUs << ','
+				<< performanceRoomCollectUs << ',' << performanceUpdateUs << ',' << performanceShadowUs << ','
+				<< performanceGBufferUs << ',' << performanceOpaqueUs << ',' << performanceAdditiveUs << ','
+				<< AdditivePerformance.RoomsUs << ',' << AdditivePerformance.ItemsUs << ',' << AdditivePerformance.EffectsUs << ','
+				<< AdditivePerformance.StaticsUs << ',' << AdditivePerformance.StaticGroupPrepareUs << ','
+				<< AdditivePerformance.StaticInstanceBuildUs << ',' << AdditivePerformance.StaticConstantBufferUs << ','
+				<< AdditivePerformance.StaticBucketSetupUs << ',' << AdditivePerformance.StaticDrawSubmitUs << ','
+				<< AdditivePerformance.DebrisUs << ',' << AdditivePerformance.SpritesUs << ','
+				<< performanceTransparentCollectUs << ',' << performanceTransparentSortUs << ',' << performanceTransparentDrawUs << ','
+				<< view.RoomsToDraw.size() << ',' << _numTestedStatics << ',' << _numVisibleStatics << ','
+				<< _numDynamicLitStatics << ',' << _numStaticInstanceBatches << ',' << _numStaticLightCandidateChecks << ','
+				<< _numStaticLightCacheHits << ',' << _numStaticLightCacheMisses << ',' << _numTransparentStaticBuckets << ','
+				<< _numTransparentStaticPolygons << ',' << view.TransparentObjectsToDraw.size() << ',' << _numDrawCalls << ','
+				<< _numStaticsDrawCalls << ',' << _numInstancedStaticsDrawCalls << ',' << _numSortedStaticsDrawCalls << ','
+				<< _numShadowMapDrawCalls << ',' << _numTriangles << ',' << _numConstantBufferUpdates << '\n';
+
+			if ((performanceCaptureFrame % 60) == 0)
+				performanceCaptureFile.flush();
+		}
 
 		// Draw 3D debug lines and triangles.
 		DrawLines3D(view);
@@ -2439,7 +2561,19 @@ namespace TEN::Renderer
 
 		// Draw room geometry first if applicable for a given pass.
 		if (pass != RendererPass::Transparent && pass != RendererPass::GunFlashes)
-			DrawRooms(view, pass);
+		{
+			if (AdditivePerformance.Active && pass == RendererPass::Additive)
+			{
+				const auto start = std::chrono::high_resolution_clock::now();
+				DrawRooms(view, pass);
+				AdditivePerformance.RoomsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+					std::chrono::high_resolution_clock::now() - start).count();
+			}
+			else
+			{
+				DrawRooms(view, pass);
+			}
+		}
 
 		// Draw all objects.
 		DrawObjects(pass, view, true, true, true, true);
@@ -2473,35 +2607,103 @@ namespace TEN::Renderer
 			break;
 
 		default:
+		{
+			const bool captureAdditive = AdditivePerformance.Active && pass == RendererPass::Additive;
+
 			if (moveables)
 			{
-				DrawItems(view, pass);
-				DrawEffects(view, pass);
-				DrawGunShells(view, pass);
-				DrawSpiders(view, pass);
-				DrawScarabs(view, pass);
-				DrawBats(view, pass);
-				DrawRats(view, pass);
-				DrawLocusts(view, pass);
-				DrawFishSwarm(view, pass);
+				if (captureAdditive)
+				{
+					auto start = std::chrono::high_resolution_clock::now();
+					DrawItems(view, pass);
+					AdditivePerformance.ItemsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - start).count();
+
+					start = std::chrono::high_resolution_clock::now();
+					DrawEffects(view, pass);
+					DrawGunShells(view, pass);
+					DrawSpiders(view, pass);
+					DrawScarabs(view, pass);
+					DrawBats(view, pass);
+					DrawRats(view, pass);
+					DrawLocusts(view, pass);
+					DrawFishSwarm(view, pass);
+					AdditivePerformance.EffectsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - start).count();
+				}
+				else
+				{
+					DrawItems(view, pass);
+					DrawEffects(view, pass);
+					DrawGunShells(view, pass);
+					DrawSpiders(view, pass);
+					DrawScarabs(view, pass);
+					DrawBats(view, pass);
+					DrawRats(view, pass);
+					DrawLocusts(view, pass);
+					DrawFishSwarm(view, pass);
+				}
 			}
 			else if (player)
 			{
-				DrawItems(view, pass, true);
-				DrawGunShells(view, pass);
+				if (captureAdditive)
+				{
+					auto start = std::chrono::high_resolution_clock::now();
+					DrawItems(view, pass, true);
+					AdditivePerformance.ItemsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - start).count();
+
+					start = std::chrono::high_resolution_clock::now();
+					DrawGunShells(view, pass);
+					AdditivePerformance.EffectsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - start).count();
+				}
+				else
+				{
+					DrawItems(view, pass, true);
+					DrawGunShells(view, pass);
+				}
 			}
 
 			if (statics)
 			{
-				DrawStatics(view, pass);
-				DrawDebris(view, pass); // Debris mostly originate from shatter statics.
+				if (captureAdditive)
+				{
+					auto start = std::chrono::high_resolution_clock::now();
+					DrawStatics(view, pass);
+					AdditivePerformance.StaticsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - start).count();
+
+					start = std::chrono::high_resolution_clock::now();
+					DrawDebris(view, pass); // Debris mostly originate from shatter statics.
+					AdditivePerformance.DebrisUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - start).count();
+				}
+				else
+				{
+					DrawStatics(view, pass);
+					DrawDebris(view, pass); // Debris mostly originate from shatter statics.
+				}
 			}
 
 			// Sorted sprites already collected at beginning of frame.
 			if (sprites && pass != RendererPass::CollectTransparentFaces)
-				DrawSprites(view, pass);
+			{
+				if (captureAdditive)
+				{
+					const auto start = std::chrono::high_resolution_clock::now();
+					DrawSprites(view, pass);
+					AdditivePerformance.SpritesUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - start).count();
+				}
+				else
+				{
+					DrawSprites(view, pass);
+				}
+			}
 
 			break;
+		}
 		}
 	}
 
@@ -2803,6 +3005,9 @@ namespace TEN::Renderer
 
 			for (const auto& group : view.SortedStaticsToDraw)
 			{
+				const auto groupPrepareStart = (AdditivePerformance.Active && rendererPass == RendererPass::Additive) ?
+					std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
+
 				const auto& statics = group.second;
 
 				auto* refStatic = statics[0];
@@ -2816,10 +3021,18 @@ namespace TEN::Renderer
 				int bucketSize = INSTANCED_STATIC_MESH_BUCKET_SIZE;
 				int baseStaticIndex = 0;
 
+				if (AdditivePerformance.Active && rendererPass == RendererPass::Additive)
+				{
+					AdditivePerformance.StaticGroupPrepareUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - groupPrepareStart).count();
+				}
+
 				while (baseStaticIndex < staticsCount)
 				{
 					int instancesCount = 0;
 					int max = std::min(baseStaticIndex + bucketSize, staticsCount);
+					const auto instanceBuildStart = (AdditivePerformance.Active && rendererPass == RendererPass::Additive) ?
+						std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
 
 					for (int s = baseStaticIndex; s < max; s++)
 					{
@@ -2846,13 +3059,46 @@ namespace TEN::Renderer
 						instancesCount++;
 					}
 
+					if (AdditivePerformance.Active && rendererPass == RendererPass::Additive)
+					{
+						AdditivePerformance.StaticInstanceBuildUs += std::chrono::duration_cast<std::chrono::microseconds>(
+							std::chrono::high_resolution_clock::now() - instanceBuildStart).count();
+					}
+
 					baseStaticIndex += bucketSize;
 
 					if (instancesCount > 0)
 					{
 						if (trackStats)
 							_numStaticInstanceBatches++;
-						UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+
+						if (_cbInstancedStaticMeshBufferPoolIndex >= _cbInstancedStaticMeshBufferPool.size())
+						{
+							_cbInstancedStaticMeshBufferPool.emplace_back(
+								std::make_unique<ConstantBuffer<CInstancedStaticMeshBuffer>>(_device.Get()));
+						}
+
+						auto* staticInstanceBuffer =
+							_cbInstancedStaticMeshBufferPool[_cbInstancedStaticMeshBufferPoolIndex++].get();
+
+						if (AdditivePerformance.Active && rendererPass == RendererPass::Additive)
+						{
+							const auto start = std::chrono::high_resolution_clock::now();
+							staticInstanceBuffer->UpdateData(_stInstancedStaticMeshBuffer, _context.Get());
+							_numConstantBufferUpdates++;
+							BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, staticInstanceBuffer->get());
+							BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, staticInstanceBuffer->get());
+							AdditivePerformance.StaticConstantBufferUs += std::chrono::duration_cast<std::chrono::microseconds>(
+								std::chrono::high_resolution_clock::now() - start).count();
+						}
+						else
+						{
+							staticInstanceBuffer->UpdateData(_stInstancedStaticMeshBuffer, _context.Get());
+							_numConstantBufferUpdates++;
+							BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, staticInstanceBuffer->get());
+							BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, staticInstanceBuffer->get());
+						}
+
 						bool bindTextureAndMaterialsRequired = true;
 
 						for (int animated = 0; animated < 2; animated++)
@@ -2867,18 +3113,45 @@ namespace TEN::Renderer
 								int passes = rendererPass == RendererPass::Opaque && bucket.BlendMode == BlendMode::AlphaTest ? 2 : 1;
 								for (int p = 0; p < passes; p++)
 								{
-									if (!SetupBlendModeAndAlphaTest(bucket.BlendMode, rendererPass, p))
-										continue;
-
-									if (bindTextureAndMaterialsRequired)
+									if (AdditivePerformance.Active && rendererPass == RendererPass::Additive)
 									{
-										BindBucketTextures(bucket, TextureSource::Statics, animated);
-										BindMaterial(bucket.MaterialIndex, false);
+										const auto setupStart = std::chrono::high_resolution_clock::now();
+										if (!SetupBlendModeAndAlphaTest(bucket.BlendMode, rendererPass, p))
+										{
+											AdditivePerformance.StaticBucketSetupUs += std::chrono::duration_cast<std::chrono::microseconds>(
+												std::chrono::high_resolution_clock::now() - setupStart).count();
+											continue;
+										}
 
-										bindTextureAndMaterialsRequired = false;
+										if (bindTextureAndMaterialsRequired)
+										{
+											BindBucketTextures(bucket, TextureSource::Statics, animated);
+											BindMaterial(bucket.MaterialIndex, false);
+											bindTextureAndMaterialsRequired = false;
+										}
+
+										AdditivePerformance.StaticBucketSetupUs += std::chrono::duration_cast<std::chrono::microseconds>(
+											std::chrono::high_resolution_clock::now() - setupStart).count();
+
+										const auto drawStart = std::chrono::high_resolution_clock::now();
+										DrawIndexedInstancedTriangles(bucket.NumIndices, instancesCount, bucket.StartIndex, 0);
+										AdditivePerformance.StaticDrawSubmitUs += std::chrono::duration_cast<std::chrono::microseconds>(
+											std::chrono::high_resolution_clock::now() - drawStart).count();
 									}
-																		
-									DrawIndexedInstancedTriangles(bucket.NumIndices, instancesCount, bucket.StartIndex, 0);
+									else
+									{
+										if (!SetupBlendModeAndAlphaTest(bucket.BlendMode, rendererPass, p))
+											continue;
+
+										if (bindTextureAndMaterialsRequired)
+										{
+											BindBucketTextures(bucket, TextureSource::Statics, animated);
+											BindMaterial(bucket.MaterialIndex, false);
+											bindTextureAndMaterialsRequired = false;
+										}
+
+										DrawIndexedInstancedTriangles(bucket.NumIndices, instancesCount, bucket.StartIndex, 0);
+									}
 
 									_numInstancedStaticsDrawCalls++;
 								}
