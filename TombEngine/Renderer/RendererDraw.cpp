@@ -1960,6 +1960,7 @@ namespace TEN::Renderer
 			_cbInstancedStaticMeshBufferPoolFrameSlot =
 				static_cast<size_t>(GlobalCounter) % INSTANCED_STATIC_BUFFER_FRAME_COUNT;
 			_cbInstancedStaticMeshBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot] = 0;
+			_sortedStaticIndexBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot] = 0;
 		}
 
 		const bool captureRendererPerformance = (_debugPage == RendererDebugPage::RendererStats);
@@ -4329,19 +4330,41 @@ namespace TEN::Renderer
 			_shaders.Bind(Shader::InstancedStatics);
 		}
 
+		auto& sortedStaticIndexBufferPool =
+			_sortedStaticIndexBufferPools[_cbInstancedStaticMeshBufferPoolFrameSlot];
+		auto& sortedStaticIndexBufferPoolIndex =
+			_sortedStaticIndexBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot];
+		const int sortedStaticIndexCount = (int)_sortedPolygonsIndices.size();
+
+		if (sortedStaticIndexBufferPoolIndex >= sortedStaticIndexBufferPool.size())
+		{
+			sortedStaticIndexBufferPool.emplace_back(
+				std::make_unique<IndexBuffer>(_device.Get(), sortedStaticIndexCount, _sortedPolygonsIndices.data()));
+		}
+		else if (!sortedStaticIndexBufferPool[sortedStaticIndexBufferPoolIndex]->CanFit(sortedStaticIndexCount))
+		{
+			sortedStaticIndexBufferPool[sortedStaticIndexBufferPoolIndex] =
+				std::make_unique<IndexBuffer>(_device.Get(), sortedStaticIndexCount, _sortedPolygonsIndices.data());
+		}
+
+		auto* sortedStaticIndexBuffer =
+			sortedStaticIndexBufferPool[sortedStaticIndexBufferPoolIndex++].get();
+
 		if (TransparentPerformance.Active)
 		{
 			const auto start = std::chrono::high_resolution_clock::now();
-			_sortedPolygonsIndexBuffer.Update(_context.Get(), _sortedPolygonsIndices, 0, (int)_sortedPolygonsIndices.size());
-			_context->IASetIndexBuffer(_sortedPolygonsIndexBuffer.Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+			sortedStaticIndexBuffer->Update(
+				_context.Get(), _sortedPolygonsIndices, 0, sortedStaticIndexCount);
+			_context->IASetIndexBuffer(sortedStaticIndexBuffer->Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 			TransparentPerformance.StaticIndexUploadUs += std::chrono::duration_cast<std::chrono::microseconds>(
 				std::chrono::high_resolution_clock::now() - start).count();
 			TransparentPerformance.StaticIndices += _sortedPolygonsIndices.size();
 		}
 		else
 		{
-			_sortedPolygonsIndexBuffer.Update(_context.Get(), _sortedPolygonsIndices, 0, (int)_sortedPolygonsIndices.size());
-			_context->IASetIndexBuffer(_sortedPolygonsIndexBuffer.Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+			sortedStaticIndexBuffer->Update(
+				_context.Get(), _sortedPolygonsIndices, 0, sortedStaticIndexCount);
+			_context->IASetIndexBuffer(sortedStaticIndexBuffer->Buffer.Get(), DXGI_FORMAT_R32_UINT, 0);
 		}
 
 		if (TransparentPerformance.Active)

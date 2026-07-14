@@ -424,6 +424,9 @@ namespace TEN::Renderer
 		fast_vector<int> _sortedPolygonsIndices;
 		VertexBuffer<Vertex> _sortedPolygonsVertexBuffer;
 		IndexBuffer _sortedPolygonsIndexBuffer;
+		std::array<std::vector<std::unique_ptr<IndexBuffer>>, INSTANCED_STATIC_BUFFER_FRAME_COUNT>
+			_sortedStaticIndexBufferPools;
+		std::array<size_t, INSTANCED_STATIC_BUFFER_FRAME_COUNT> _sortedStaticIndexBufferPoolIndices = {};
 
 		// High framerate
 

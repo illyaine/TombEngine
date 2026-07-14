@@ -104,10 +104,13 @@ namespace TEN::Renderer::Graphics
 			VRAMTracker::Get().Add(VRAMCategory::IndexBuffer, _vramSize);
 		}
 
+		bool CanFit(int count) const
+		{
+			return count <= _numIndices;
+		}
+
 		bool Update(ID3D11DeviceContext* context, std::vector<int>& data, int startIndex, int count)
 		{
-			//TENLog("VertexBuffer::Update NumVertices: " + std::to_string(data.size()));
-
 			D3D11_MAPPED_SUBRESOURCE mappedResource;
 			HRESULT res = context->Map(Buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 			if (SUCCEEDED(res)) {
@@ -125,8 +128,6 @@ namespace TEN::Renderer::Graphics
 
 		bool Update(ID3D11DeviceContext* context, fast_vector<int>& data, int startIndex, int count)
 		{
-			//TENLog("VertexBuffer::Update NumVertices: " + std::to_string(data.size()));
-
 			D3D11_MAPPED_SUBRESOURCE mappedResource;
 			HRESULT res = context->Map(Buffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
 			if (SUCCEEDED(res)) {
