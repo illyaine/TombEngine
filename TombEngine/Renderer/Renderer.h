@@ -206,8 +206,11 @@ namespace TEN::Renderer
 		ConstantBuffer<CBlendingBuffer> _cbBlending;
 		CInstancedStaticMeshBuffer _stInstancedStaticMeshBuffer;
 		ConstantBuffer<CInstancedStaticMeshBuffer> _cbInstancedStaticMeshBuffer;
-		std::vector<std::unique_ptr<ConstantBuffer<CInstancedStaticMeshBuffer>>> _cbInstancedStaticMeshBufferPool;
-		size_t _cbInstancedStaticMeshBufferPoolIndex = 0;
+		static constexpr size_t INSTANCED_STATIC_BUFFER_FRAME_COUNT = 3;
+		std::array<std::vector<std::unique_ptr<ConstantBuffer<CInstancedStaticMeshBuffer>>>, INSTANCED_STATIC_BUFFER_FRAME_COUNT>
+			_cbInstancedStaticMeshBufferPools;
+		std::array<size_t, INSTANCED_STATIC_BUFFER_FRAME_COUNT> _cbInstancedStaticMeshBufferPoolIndices = {};
+		size_t _cbInstancedStaticMeshBufferPoolFrameSlot = 0;
 		int _cbInstancedStaticMeshBufferPoolFrame = -1;
 		CSMAABuffer _stSMAABuffer;
 		ConstantBuffer<CSMAABuffer> _cbSMAABuffer;

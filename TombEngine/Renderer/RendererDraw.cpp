@@ -1924,7 +1924,9 @@ namespace TEN::Renderer
 		if (_cbInstancedStaticMeshBufferPoolFrame != GlobalCounter)
 		{
 			_cbInstancedStaticMeshBufferPoolFrame = GlobalCounter;
-			_cbInstancedStaticMeshBufferPoolIndex = 0;
+			_cbInstancedStaticMeshBufferPoolFrameSlot =
+				static_cast<size_t>(GlobalCounter) % INSTANCED_STATIC_BUFFER_FRAME_COUNT;
+			_cbInstancedStaticMeshBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot] = 0;
 		}
 
 		const bool captureRendererPerformance = (_debugPage == RendererDebugPage::RendererStats);
@@ -3072,14 +3074,18 @@ namespace TEN::Renderer
 						if (trackStats)
 							_numStaticInstanceBatches++;
 
-						if (_cbInstancedStaticMeshBufferPoolIndex >= _cbInstancedStaticMeshBufferPool.size())
+						auto& staticBufferPool =
+							_cbInstancedStaticMeshBufferPools[_cbInstancedStaticMeshBufferPoolFrameSlot];
+						auto& staticBufferPoolIndex =
+							_cbInstancedStaticMeshBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot];
+
+						if (staticBufferPoolIndex >= staticBufferPool.size())
 						{
-							_cbInstancedStaticMeshBufferPool.emplace_back(
+							staticBufferPool.emplace_back(
 								std::make_unique<ConstantBuffer<CInstancedStaticMeshBuffer>>(_device.Get()));
 						}
 
-						auto* staticInstanceBuffer =
-							_cbInstancedStaticMeshBufferPool[_cbInstancedStaticMeshBufferPoolIndex++].get();
+						auto* staticInstanceBuffer = staticBufferPool[staticBufferPoolIndex++].get();
 
 						if (AdditivePerformance.Active && rendererPass == RendererPass::Additive)
 						{
@@ -4250,6 +4256,8 @@ namespace TEN::Renderer
 		_stInstancedStaticMeshBuffer.StaticMeshes[0].LightMode = (int)GetStaticRendererObject(objectInfo->Static->ObjectNumber).ObjectMeshes[0]->LightMode;
 		BindInstancedStaticLights(objectInfo->Static->LightsToDraw, 0);
 		UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+		BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+		BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
 
 		SetBlendMode(objectInfo->BlendMode);
 		SetAlphaTest(AlphaTestMode::None, ALPHA_TEST_THRESHOLD);
@@ -4290,6 +4298,8 @@ namespace TEN::Renderer
 		_stInstancedStaticMeshBuffer.StaticMeshes[0].LightMode = (int)objectInfo->LightMode;
 		BindInstancedStaticLights(objectInfo->Room->LightsToDraw, 0);
 		UpdateConstantBuffer(_stInstancedStaticMeshBuffer, _cbInstancedStaticMeshBuffer);
+		BindConstantBufferVS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
+		BindConstantBufferPS(ConstantBufferRegister::InstancedStatics, _cbInstancedStaticMeshBuffer.get());
 
 		SetBlendMode(objectInfo->BlendMode);
 		SetAlphaTest(AlphaTestMode::GreatherThan, ALPHA_TEST_THRESHOLD);
