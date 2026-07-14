@@ -1961,6 +1961,7 @@ namespace TEN::Renderer
 				static_cast<size_t>(GlobalCounter) % INSTANCED_STATIC_BUFFER_FRAME_COUNT;
 			_cbInstancedStaticMeshBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot] = 0;
 			_sortedStaticIndexBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot] = 0;
+			_sortedSpriteVertexBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot] = 0;
 		}
 
 		const bool captureRendererPerformance = (_debugPage == RendererDebugPage::RendererStats);

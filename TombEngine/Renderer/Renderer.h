@@ -428,6 +428,16 @@ namespace TEN::Renderer
 			_sortedStaticIndexBufferPools;
 		std::array<size_t, INSTANCED_STATIC_BUFFER_FRAME_COUNT> _sortedStaticIndexBufferPoolIndices = {};
 
+		struct PooledSortedSpriteVertexBuffer
+		{
+			std::unique_ptr<VertexBuffer<Vertex>> Buffer;
+			size_t Capacity = 0;
+		};
+
+		std::array<std::vector<PooledSortedSpriteVertexBuffer>, INSTANCED_STATIC_BUFFER_FRAME_COUNT>
+			_sortedSpriteVertexBufferPools;
+		std::array<size_t, INSTANCED_STATIC_BUFFER_FRAME_COUNT> _sortedSpriteVertexBufferPoolIndices = {};
+
 		// High framerate
 
 		float _interpolationFactor = 0.0f;

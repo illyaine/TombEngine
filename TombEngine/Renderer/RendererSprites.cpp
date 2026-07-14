@@ -982,17 +982,37 @@ namespace TEN::Renderer
 	{
 		if (lastObjectType != objectInfo->ObjectType)
 		{
-			unsigned int stride = sizeof(Vertex);
-			unsigned int offset = 0;
-
 			_shaders.Bind(Shader::InstancedSprites);
 
-			_context->IASetVertexBuffers(0, 1, _sortedPolygonsVertexBuffer.Buffer.GetAddressOf(), &stride, &offset);
 			_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 			_context->IASetInputLayout(_inputLayout.Get());
 		}
 
-		_sortedPolygonsVertexBuffer.Update(_context.Get(), _sortedPolygonsVertices.data(), 0, (int)_sortedPolygonsVertices.size());
+		auto& spriteVertexPool =
+			_sortedSpriteVertexBufferPools[_cbInstancedStaticMeshBufferPoolFrameSlot];
+		auto& spriteVertexPoolIndex =
+			_sortedSpriteVertexBufferPoolIndices[_cbInstancedStaticMeshBufferPoolFrameSlot];
+
+		const size_t vertexCount = _sortedPolygonsVertices.size();
+		if (spriteVertexPoolIndex >= spriteVertexPool.size())
+			spriteVertexPool.emplace_back();
+
+		auto& pooledVertexBuffer = spriteVertexPool[spriteVertexPoolIndex++];
+		if (pooledVertexBuffer.Buffer == nullptr || pooledVertexBuffer.Capacity < vertexCount)
+		{
+			const size_t newCapacity = std::max<size_t>(vertexCount, 1);
+			pooledVertexBuffer.Buffer = std::make_unique<VertexBuffer<Vertex>>(
+				_device.Get(), static_cast<int>(newCapacity), std::vector<Vertex>{});
+			pooledVertexBuffer.Capacity = newCapacity;
+		}
+
+		pooledVertexBuffer.Buffer->Update(
+			_context.Get(), _sortedPolygonsVertices.data(), 0, static_cast<int>(vertexCount));
+
+		unsigned int stride = sizeof(Vertex);
+		unsigned int offset = 0;
+		_context->IASetVertexBuffers(
+			0, 1, pooledVertexBuffer.Buffer->Buffer.GetAddressOf(), &stride, &offset);
 
 		_stInstancedSpriteBuffer.Sprites[0].World = Matrix::Identity;
 		_stInstancedSpriteBuffer.Sprites[0].PerVertexColor = 1;
@@ -1001,7 +1021,7 @@ namespace TEN::Renderer
 
 		PackSpriteTextureCoordinates(0, objectInfo->Sprite->Sprite);
 
-		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
+		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);
 
 		SetDepthState(DepthState::Read);
 		SetCullMode(CullMode::None);
@@ -1011,10 +1031,10 @@ namespace TEN::Renderer
 		BindTexture(TextureRegister::ColorMap, objectInfo->Sprite->Sprite->Texture, SamplerStateRegister::LinearClamp);
 		BindRenderTargetAsTexture(TextureRegister::GBufferDepthMap, &_depthRenderTarget, SamplerStateRegister::PointWrap);
 
-		DrawInstancedTriangles((int)_sortedPolygonsVertices.size(), 1, 0);
+		DrawInstancedTriangles(static_cast<int>(vertexCount), 1, 0);
 
 		_numSortedSpritesDrawCalls++;
-		_numSortedTriangles += (int)_sortedPolygonsVertices.size() / 3;
+		_numSortedTriangles += static_cast<int>(vertexCount) / 3;
 	}
 
 	void Renderer::PackSpriteTextureCoordinates(int instanceId, RendererSprite* sprite)
