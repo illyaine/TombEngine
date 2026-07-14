@@ -83,6 +83,32 @@ namespace TEN::Renderer
 		};
 
 		thread_local AdditivePerformanceBreakdown AdditivePerformance;
+
+		struct TransparentPerformanceBreakdown
+		{
+			bool Active = false;
+			long long RoomsUs = 0;
+			long long ItemsUs = 0;
+			long long HairUs = 0;
+			long long StaticsUs = 0;
+			long long MoveablesAsStaticsUs = 0;
+			long long SpritesUs = 0;
+			unsigned long long RoomBatches = 0;
+			unsigned long long ItemBatches = 0;
+			unsigned long long HairBatches = 0;
+			unsigned long long StaticBatches = 0;
+			unsigned long long MoveableAsStaticBatches = 0;
+			unsigned long long SpriteBatches = 0;
+
+			void Reset(bool active)
+			{
+				Active = active;
+				RoomsUs = ItemsUs = HairUs = StaticsUs = MoveablesAsStaticsUs = SpritesUs = 0;
+				RoomBatches = ItemBatches = HairBatches = StaticBatches = MoveableAsStaticBatches = SpriteBatches = 0;
+			}
+		};
+
+		thread_local TransparentPerformanceBreakdown TransparentPerformance;
 	}
 
 	namespace
@@ -1940,7 +1966,7 @@ namespace TEN::Renderer
 			performanceCaptureFile.open("RendererPerformance.csv", std::ios::out | std::ios::app);
 			if (performanceCaptureFile && performanceCaptureFile.tellp() == 0)
 			{
-				performanceCaptureFile << "frame,fps,total_us,room_collect_us,update_us,shadow_us,gbuffer_us,opaque_us,additive_us,additive_rooms_us,additive_items_us,additive_effects_us,additive_statics_us,additive_static_group_prepare_us,additive_static_instance_build_us,additive_static_constant_buffer_us,additive_static_bucket_setup_us,additive_static_draw_submit_us,additive_debris_us,additive_sprites_us,transparent_collect_us,transparent_sort_us,transparent_draw_us,visible_rooms,tested_statics,visible_statics,dynamic_lit_statics,static_batches,static_light_candidate_checks,static_light_cache_hits,static_light_cache_misses,transparent_static_buckets,transparent_static_polygons,transparent_objects,total_draw_calls,static_draw_calls,instanced_static_draw_calls,sorted_static_draw_calls,shadow_draw_calls,triangles,constant_buffer_updates\n";
+				performanceCaptureFile << "frame,fps,total_us,room_collect_us,update_us,shadow_us,gbuffer_us,opaque_us,additive_us,additive_rooms_us,additive_items_us,additive_effects_us,additive_statics_us,additive_static_group_prepare_us,additive_static_instance_build_us,additive_static_constant_buffer_us,additive_static_bucket_setup_us,additive_static_draw_submit_us,additive_debris_us,additive_sprites_us,transparent_collect_us,transparent_sort_us,transparent_draw_us,transparent_rooms_us,transparent_items_us,transparent_hair_us,transparent_statics_us,transparent_moveables_as_statics_us,transparent_sprites_us,transparent_room_batches,transparent_item_batches,transparent_hair_batches,transparent_static_batches,transparent_moveable_as_static_batches,transparent_sprite_batches,visible_rooms,tested_statics,visible_statics,dynamic_lit_statics,static_batches,static_light_candidate_checks,static_light_cache_hits,static_light_cache_misses,transparent_static_buckets,transparent_static_polygons,transparent_objects,total_draw_calls,static_draw_calls,instanced_static_draw_calls,sorted_static_draw_calls,shadow_draw_calls,triangles,constant_buffer_updates\n";
 			}
 		}
 		else if (!captureRendererPerformance && performanceCaptureWasActive && performanceCaptureFile.is_open())
@@ -2173,9 +2199,11 @@ namespace TEN::Renderer
 		SortTransparentFaces(view);
 		performanceTransparentSortUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
 
+		TransparentPerformance.Reset(captureRendererPerformance);
 		performanceStageStart = std::chrono::high_resolution_clock::now();
 		DoRenderPass(RendererPass::Transparent, view, true);
 		performanceTransparentDrawUs = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - performanceStageStart).count();
+		TransparentPerformance.Active = false;
 		DoRenderPass(RendererPass::GunFlashes, view, true); // HACK: Gunflashes are drawn after everything because they are near camera.
 
 		if (captureRendererPerformance && performanceCaptureFile.is_open())
@@ -2191,6 +2219,10 @@ namespace TEN::Renderer
 				<< AdditivePerformance.StaticBucketSetupUs << ',' << AdditivePerformance.StaticDrawSubmitUs << ','
 				<< AdditivePerformance.DebrisUs << ',' << AdditivePerformance.SpritesUs << ','
 				<< performanceTransparentCollectUs << ',' << performanceTransparentSortUs << ',' << performanceTransparentDrawUs << ','
+				<< TransparentPerformance.RoomsUs << ',' << TransparentPerformance.ItemsUs << ',' << TransparentPerformance.HairUs << ','
+				<< TransparentPerformance.StaticsUs << ',' << TransparentPerformance.MoveablesAsStaticsUs << ',' << TransparentPerformance.SpritesUs << ','
+				<< TransparentPerformance.RoomBatches << ',' << TransparentPerformance.ItemBatches << ',' << TransparentPerformance.HairBatches << ','
+				<< TransparentPerformance.StaticBatches << ',' << TransparentPerformance.MoveableAsStaticBatches << ',' << TransparentPerformance.SpriteBatches << ','
 				<< view.RoomsToDraw.size() << ',' << _numTestedStatics << ',' << _numVisibleStatics << ','
 				<< _numDynamicLitStatics << ',' << _numStaticInstanceBatches << ',' << _numStaticLightCandidateChecks << ','
 				<< _numStaticLightCacheHits << ',' << _numStaticLightCacheMisses << ',' << _numTransparentStaticBuckets << ','
@@ -3921,7 +3953,14 @@ namespace TEN::Renderer
 					i++;
 				}
 
+				const auto transparentBatchStart = TransparentPerformance.Active ? std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
 				DrawRoomSorted(object, lastObjectType, view);
+				if (TransparentPerformance.Active)
+				{
+					TransparentPerformance.RoomsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - transparentBatchStart).count();
+					TransparentPerformance.RoomBatches++;
+				}
 
 				if (i == view.TransparentObjectsToDraw.size())
 					return;
@@ -3947,7 +3986,14 @@ namespace TEN::Renderer
 					i++;
 				}
 
+				const auto transparentBatchStart = TransparentPerformance.Active ? std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
 				DrawItemSorted(object, lastObjectType, view);
+				if (TransparentPerformance.Active)
+				{
+					TransparentPerformance.ItemsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - transparentBatchStart).count();
+					TransparentPerformance.ItemBatches++;
+				}
 
 				if (i == view.TransparentObjectsToDraw.size())
 					return;
@@ -3974,7 +4020,14 @@ namespace TEN::Renderer
 					i++;
 				}
 
+				const auto transparentBatchStart = TransparentPerformance.Active ? std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
 				DrawHairSorted(object, lastObjectType, view, object->ObjectType == RendererObjectType::HairPrimary ? 0 : 1);
+				if (TransparentPerformance.Active)
+				{
+					TransparentPerformance.HairUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - transparentBatchStart).count();
+					TransparentPerformance.HairBatches++;
+				}
 
 				if (i == view.TransparentObjectsToDraw.size())
 					return;
@@ -4000,7 +4053,14 @@ namespace TEN::Renderer
 					i++;
 				}
 
+				const auto transparentBatchStart = TransparentPerformance.Active ? std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
 				DrawStaticSorted(object, lastObjectType, view);
+				if (TransparentPerformance.Active)
+				{
+					TransparentPerformance.StaticsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - transparentBatchStart).count();
+					TransparentPerformance.StaticBatches++;
+				}
 
 				if (i == view.TransparentObjectsToDraw.size())
 					return;
@@ -4025,7 +4085,14 @@ namespace TEN::Renderer
 					i++;
 				}
 
+				const auto transparentBatchStart = TransparentPerformance.Active ? std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
 				DrawMoveableAsStaticSorted(object, lastObjectType, view);
+				if (TransparentPerformance.Active)
+				{
+					TransparentPerformance.MoveablesAsStaticsUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - transparentBatchStart).count();
+					TransparentPerformance.MoveableAsStaticBatches++;
+				}
 
 				if (i == view.TransparentObjectsToDraw.size())
 					return;
@@ -4114,7 +4181,14 @@ namespace TEN::Renderer
 					i++;
 				}
 
+				const auto transparentBatchStart = TransparentPerformance.Active ? std::chrono::high_resolution_clock::now() : std::chrono::high_resolution_clock::time_point{};
 				DrawSpriteSorted(object, lastObjectType, view);
+				if (TransparentPerformance.Active)
+				{
+					TransparentPerformance.SpritesUs += std::chrono::duration_cast<std::chrono::microseconds>(
+						std::chrono::high_resolution_clock::now() - transparentBatchStart).count();
+					TransparentPerformance.SpriteBatches++;
+				}
 
 				if (i == view.TransparentObjectsToDraw.size())
 				{
