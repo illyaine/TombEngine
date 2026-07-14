@@ -206,6 +206,9 @@ namespace TEN::Renderer
 		ConstantBuffer<CBlendingBuffer> _cbBlending;
 		CInstancedStaticMeshBuffer _stInstancedStaticMeshBuffer;
 		ConstantBuffer<CInstancedStaticMeshBuffer> _cbInstancedStaticMeshBuffer;
+		std::vector<std::unique_ptr<ConstantBuffer<CInstancedStaticMeshBuffer>>> _cbInstancedStaticMeshBufferPool;
+		size_t _cbInstancedStaticMeshBufferPoolIndex = 0;
+		int _cbInstancedStaticMeshBufferPoolFrame = -1;
 		CSMAABuffer _stSMAABuffer;
 		ConstantBuffer<CSMAABuffer> _cbSMAABuffer;
 		CSkyBuffer _stSky;
