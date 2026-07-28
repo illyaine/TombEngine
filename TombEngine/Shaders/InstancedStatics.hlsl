@@ -2,6 +2,8 @@
 #include "./CBCamera.hlsli"
 #include "./CBInstancedStatics.hlsli"
 #include "./ShaderLight.hlsli"
+#include "./ObjectLighting.hlsli"
+#include "./ObjectTransforms.hlsli"
 #include "./VertexEffects.hlsli"
 #include "./VertexInput.hlsli"
 #include "./Blending.hlsli"
@@ -23,6 +25,7 @@ struct PixelShaderInput
 	float3 Tangent: TANGENT;
     float3 Binormal : BINORMAL;
     float3 FaceNormal : TEXCOORD3;
+    float3 DynamicTint : TEXCOORD4;
 	uint InstanceID : SV_InstanceID;
 };
 
@@ -44,22 +47,29 @@ PixelShaderInput VS(VertexShaderInput input, uint InstanceID : SV_InstanceID)
 	float wibble = Wibble(input.Effects, DecodeHash(input.AnimationFrameOffsetIndexHash));
 	float3 pos = Move(input.Position, input.Effects, wibble);
 	float3 col = Glow(input.Color.xyz, input.Effects, wibble);
+    float3 dynamicTint = Glow(float3(1.0f, 1.0f, 1.0f), input.Effects, wibble);
 
-	float4 worldPosition = (mul(float4(pos, 1.0f), StaticMeshes[InstanceID].World));
+	float4 worldPosition = mul(float4(pos, 1.0f), StaticMeshes[InstanceID].World);
 
     output.Position = mul(worldPosition, ViewProjection);
     output.UV = GetUVPossiblyAnimated(input.UV, DecodeIndexInPoly(input.Effects), DecodeAnimationFrameOffset(input.AnimationFrameOffsetIndexHash));
     output.WorldPosition = worldPosition;
 	output.Color = float4(col, input.Color.w);
 	output.Color *= StaticMeshes[InstanceID].Color;
+    output.DynamicTint = dynamicTint * StaticMeshes[InstanceID].Color.xyz;
 	output.PositionCopy = output.Position;
     output.Sheen = DecodeSheen(input.Effects);
 	output.InstanceID = InstanceID;
 
-    output.Normal = normalize(mul(input.Normal.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.Tangent = normalize(mul(input.Tangent.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.Binormal = SafeNormalize(mul(cross(input.Normal.xyz, input.Tangent.xyz), (float3x3) StaticMeshes[InstanceID].World).xyz);
-    output.FaceNormal = normalize(mul(input.FaceNormal.xyz, (float3x3) StaticMeshes[InstanceID].World).xyz);
+    float3x3 worldTransform = (float3x3)StaticMeshes[InstanceID].World;
+    TransformObjectTangentBasis(
+        input.Normal.xyz,
+        input.Tangent.xyz,
+        worldTransform,
+        output.Normal,
+        output.Tangent,
+        output.Binormal);
+    output.FaceNormal = TransformObjectNormal(input.FaceNormal.xyz, worldTransform);
    
 	output.FogBulbs = DoFogBulbsForVertex(worldPosition);
 	output.DistanceFog = DoDistanceFogForVertex(worldPosition);
@@ -73,7 +83,6 @@ PixelShaderOutput PS(PixelShaderInput input)
 	
     input.UV = ConvertAnimUV(input.UV);
 
-    // Apply parallax mapping
     float3x3 TBNf = float3x3(input.Tangent, input.Binormal, input.FaceNormal);
     input.UV = ParallaxOcclusionMapping(TBNf, input.WorldPosition, input.UV);
 
@@ -94,17 +103,16 @@ PixelShaderOutput PS(PixelShaderInput input)
 	uint mode = StaticMeshes[input.InstanceID].LightInfo.y;
 	uint numLights = StaticMeshes[input.InstanceID].LightInfo.x;
 	
-    // Material effects
-    tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal, specular);
+    tex.xyz = CalculateReflections(input.WorldPosition, tex.xyz, normal, specular, roughness);
 	
-    // Ambient occlusion
     float occlusion = CalculateOcclusion(GetSamplePosition(input.PositionCopy), tex.w);
     occlusion *= ambientOcclusion;
 
 	float3 color = (mode == 0) ?
-		CombineLights(
+		CombineObjectLights(
 			StaticMeshes[input.InstanceID].AmbientLight.xyz,
-			input.Color.xyz,
+            input.DynamicTint,
+			input.DynamicTint,
 			tex.xyz, 
 			input.WorldPosition, 
 			normal, 
@@ -112,15 +120,16 @@ PixelShaderOutput PS(PixelShaderInput input)
 			StaticMeshes[input.InstanceID].InstancedStaticLights,
 			numLights,
 			input.FogBulbs.w, 
-			emissive, 
 			specular, 
-			roughness) :
-		StaticLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, emissive);
+			roughness,
+            occlusion) :
+		StaticObjectLight(input.Color.xyz, tex.xyz, input.FogBulbs.w, occlusion);
 
 	color = DoShadow(input.WorldPosition, normal, color, -0.5f);
 	color = DoBlobShadows(input.WorldPosition, color);
+    color = max(color + emissive, float3(0.0f, 0.0f, 0.0f));
 
-	output.Color = float4(color * occlusion, tex.w);
+	output.Color = float4(color, saturate(tex.w));
 	output.Color = DoFogBulbsForPixel(output.Color, float4(input.FogBulbs.xyz, 1.0f));
 	output.Color = DoDistanceFogForPixel(output.Color, FogColor, input.DistanceFog);
 	output.Color.w *= input.Color.w;

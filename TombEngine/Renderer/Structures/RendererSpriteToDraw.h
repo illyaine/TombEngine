@@ -22,6 +22,7 @@ namespace TEN::Renderer::Structures
 		Vector4 c3;
 		Vector4 c4;
 		Vector4 color;
+		Vector4 EffectParams = Vector4::Zero;
 		float Rotation;
 		float Width;
 		float Height;

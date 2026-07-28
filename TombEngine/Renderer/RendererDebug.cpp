@@ -1,6 +1,8 @@
 #include "framework.h"
 #include "Renderer/Renderer.h"
 
+#include "Game/effects/HDRLight.h"
+
 namespace TEN::Renderer
 {
 	void Renderer::ResetDebugVariables()
@@ -41,6 +43,12 @@ namespace TEN::Renderer
 		_numExecutedMaterialsUpdates = 0;
 
 		_currentLineHeight;
+
+		// RenderScene invokes this immediately after PrepareScene has selected and
+		// cleared the current dynamic-light buffer, and before CollectRooms gathers
+		// lights. Submit persistent HDR-light physical components at that exact point.
+		TEN::Effects::HDRLight::RefreshLevelLights();
+		TEN::Effects::HDRLight::SubmitPhysicalLights(*this);
 	}
 
 	void Renderer::PrintDebugMessage(LPCSTR msg, va_list args)

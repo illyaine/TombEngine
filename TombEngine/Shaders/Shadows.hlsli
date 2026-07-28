@@ -1,9 +1,10 @@
 #include "./Blending.hlsli"
 #include "./Math.hlsli"
 #include "./ShaderLight.hlsli"
+#include "./ModernLighting.hlsli"
 
 #define SHADOW_INTENSITY (0.6f)
-#define SHADOW_BLUR      (2.0f)
+#define SHADOW_FILTER_TAPS 16
 
 struct Sphere
 {
@@ -25,12 +26,47 @@ cbuffer ShadowLightBuffer : register(b4)
 Texture2DArray ShadowMap : register(t3);
 SamplerComparisonState ShadowMapSampler : register(s3);
 
-float2 TexOffset(int u, int v) 
+static const float2 ShadowPoissonDisk[SHADOW_FILTER_TAPS] =
 {
-    return float2(u * 1.0f / ShadowMapSize, v * 1.0f / ShadowMapSize);
+    float2(-0.94201624f, -0.39906216f),
+    float2( 0.94558609f, -0.76890725f),
+    float2(-0.09418410f, -0.92938870f),
+    float2( 0.34495938f,  0.29387760f),
+    float2(-0.91588581f,  0.45771432f),
+    float2(-0.81544232f, -0.87912464f),
+    float2(-0.38277543f,  0.27676845f),
+    float2( 0.97484398f,  0.75648379f),
+    float2( 0.44323325f, -0.97511554f),
+    float2( 0.53742981f, -0.47373420f),
+    float2(-0.26496911f, -0.41893023f),
+    float2( 0.79197514f,  0.19090188f),
+    float2(-0.24188840f,  0.99706507f),
+    float2(-0.81409955f,  0.91437590f),
+    float2( 0.19984126f,  0.78641367f),
+    float2( 0.14383161f, -0.14100790f)
+};
+
+float2 TexOffset(float2 offset)
+{
+    return offset / max((float)ShadowMapSize, 1.0f);
 }
 
-//https://gist.github.com/JuanDiegoMontoya/d8788148dcb9780848ce8bf50f89b7bb
+float ShadowRotation(float3 worldPosition)
+{
+    float noise = frac(sin(dot(worldPosition, float3(0.06711056f, 0.00583715f, 0.75324531f))) * 52.9829189f);
+    return noise * PI2;
+}
+
+float2 RotateShadowOffset(float2 offset, float angle)
+{
+    float sine = sin(angle);
+    float cosine = cos(angle);
+    return float2(
+        offset.x * cosine - offset.y * sine,
+        offset.x * sine + offset.y * cosine);
+}
+
+// https://gist.github.com/JuanDiegoMontoya/d8788148dcb9780848ce8bf50f89b7bb
 int GetCubeFaceIndex(float3 dir)
 {
     float x = abs(dir.x);
@@ -50,24 +86,24 @@ float2 GetCubeUVFromDir(int faceIndex, float3 dir)
     {
     case 0:
         uv = float2(-dir.z, dir.y);
-        break; // +X
+        break;
     case 1:
         uv = float2(dir.z, dir.y);
-        break; // -X
+        break;
     case 2:
         uv = float2(dir.x, dir.z);
-        break; // +Y
+        break;
     case 3:
         uv = float2(dir.x, -dir.z);
-        break; // -Y
+        break;
     case 4:
         uv = float2(dir.x, dir.y);
-        break; // +Z
+        break;
     default:
         uv = float2(-dir.x, dir.y);
-        break; // -Z
+        break;
     }
-    return uv * .5 + .5;
+    return uv * 0.5f + 0.5f;
 }
 
 float3 DoBlobShadows(float3 worldPos, float3 lighting)
@@ -79,7 +115,7 @@ float3 DoBlobShadows(float3 worldPos, float3 lighting)
         Sphere s = Spheres[i];
         float dist = distance(worldPos, s.position);
         float insideSphere = saturate(1.0f - step(s.radius, dist));
-        float radiusFactor = dist / s.radius;
+        float radiusFactor = dist / max(s.radius, EPSILON);
         float factor = (1.0f - saturate(radiusFactor)) * insideSphere;
         shadowFactor -= factor * shadowFactor;
     }
@@ -93,20 +129,32 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
     if (!CastShadows)
         return lighting;
 
-    if (BlendMode != BLENDMODE_OPAQUE && BlendMode != BLENDMODE_ALPHATEST && BlendMode != BLENDMODE_ALPHABLEND)	
+    if (BlendMode != BLENDMODE_OPAQUE && BlendMode != BLENDMODE_ALPHATEST && BlendMode != BLENDMODE_ALPHABLEND)
         return lighting;
 
     float shadowFactor = 1.0f;
 
-    float3 dir = normalize(Light.Position - worldPos);
-    float ndot = dot(normal, dir);
-    float facingFactor = saturate((ndot - bias) / (1.0f - bias + EPSILON));
+    float3 directionToLight = SafeNormalizeLighting(Light.Position - worldPos, normal);
+    float normalLight = saturate(dot(normal, directionToLight));
+    float facingFactor = saturate((normalLight - bias) / (1.0f - bias + EPSILON));
+
+    float slope = 1.0f - normalLight;
+    float receiverBias = lerp(0.00015f, 0.0015f, slope * slope);
+    receiverBias += 0.5f / max((float)ShadowMapSize, 1.0f);
+
+    float lightDistance = distance(worldPos, Light.Position);
+    float distanceRatio = saturate(lightDistance / max(Light.Out, EPSILON));
+    float filterRadius = lerp(1.25f, 2.75f, distanceRatio);
+    float rotation = ShadowRotation(worldPos);
 
     [unroll]
     for (int i = 0; i < 6; i++)
     {
         float4 lightClipSpace = mul(float4(worldPos, 1.0f), LightViewProjections[i]);
-        lightClipSpace.xyz /= lightClipSpace.w;
+        float safeProjectionW = (abs(lightClipSpace.w) > EPSILON) ?
+            lightClipSpace.w :
+            ((lightClipSpace.w >= 0.0f) ? EPSILON : -EPSILON);
+        lightClipSpace.xyz /= safeProjectionW;
 
         float insideLightBounds =
             step(-1.0f, lightClipSpace.x) * step(lightClipSpace.x, 1.0f) *
@@ -115,35 +163,36 @@ float3 DoShadow(float3 worldPos, float3 normal, float3 lighting, float bias)
 
         if (insideLightBounds > 0.0f)
         {
-            lightClipSpace.x = lightClipSpace.x / 2 + 0.5;
-            lightClipSpace.y = lightClipSpace.y / -2 + 0.5;
+            lightClipSpace.x = lightClipSpace.x * 0.5f + 0.5f;
+            lightClipSpace.y = lightClipSpace.y * -0.5f + 0.5f;
 
-            float sum = 0;
-            float samples = 0;
+            float filteredShadow = 0.0f;
+            float comparisonDepth = lightClipSpace.z - receiverBias;
 
-            // Perform basic PCF filtering
-            for (float y = -SHADOW_BLUR; y <= SHADOW_BLUR; y += 1.0)
+            [unroll]
+            for (int tap = 0; tap < SHADOW_FILTER_TAPS; tap++)
             {
-                for (float x = -SHADOW_BLUR; x <= SHADOW_BLUR; x += 1.0)
-                {
-                    sum += ShadowMap.SampleCmpLevelZero(ShadowMapSampler, float3(lightClipSpace.xy + TexOffset(x, y), i), lightClipSpace.z);
-                    samples += 1.0;
-                }
+                float2 offset = RotateShadowOffset(ShadowPoissonDisk[tap], rotation) * filterRadius;
+                filteredShadow += ShadowMap.SampleCmpLevelZero(
+                    ShadowMapSampler,
+                    float3(lightClipSpace.xy + TexOffset(offset), i),
+                    comparisonDepth);
             }
 
-            shadowFactor = lerp(shadowFactor, sum / samples, facingFactor * insideLightBounds);
+            filteredShadow /= SHADOW_FILTER_TAPS;
+            shadowFactor = lerp(shadowFactor, filteredShadow, facingFactor * insideLightBounds);
         }
     }
 
-    float isPoint = step(0.5f, Light.Type == LT_POINT); // 1.0 if LT_POINT, 0.0 otherwise
-    float isSpot  = step(0.5f, Light.Type == LT_SPOT);  // 1.0 if LT_SPOT,  0.0 otherwise
-    float isOther = 1.0 - (isPoint + isSpot); // 1.0 if neither LT_POINT nor LT_SPOT
+    float isPoint = step(0.5f, float(Light.Type == LT_POINT));
+    float isSpot = step(0.5f, float(Light.Type == LT_SPOT));
+    float isOther = 1.0f - (isPoint + isSpot);
 
-    float pointFactor = Luma(DoPointLight(worldPos, normal, Light));
-    float spotFactor  = Luma(DoSpotLight(worldPos, normal, Light));
+    float pointFactor = saturate(Luma(DoModernPointLight(worldPos, normal, Light)));
+    float spotFactor = saturate(Luma(DoModernSpotLight(worldPos, normal, Light)));
 
     float3 pointShadow = lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * pointFactor);
-    float3 spotShadow  = lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * spotFactor );
+    float3 spotShadow = lighting * saturate(1.0f - (1.0f - shadowFactor) * SHADOW_INTENSITY * spotFactor);
 
     return pointShadow * isPoint + spotShadow * isSpot + lighting * isOther;
 }

@@ -26,11 +26,24 @@ cbuffer CBPostProcess : register(b7)
     float DownscaleFactor;
     float2 Padding3;
     //--
-    float2 TexelSize; 
-    float2 BlurDirection; 
+    float2 TexelSize;
+    float2 BlurDirection;
     //--
     float BlurSigma;
     int BlurRadius;
     float GlowIntensity;
     int GlowSoftAdd;
+    //--
+    float HDRExposure;
+    float HDRStrength;
+    float BloomThreshold;
+    float BloomStrength;
+    //--
+    float GlareStrength;
+    float GlareLength;
+    int EnableHDR;
+    int EnableBloom;
+    //--
+    float DisplayBrightness;
+    float3 Padding4;
 };

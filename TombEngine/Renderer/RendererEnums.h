@@ -87,7 +87,8 @@ enum class LightType
 	Point = 1,
 	Spot = 2,
 	Shadow = 3,
-	FogBulb = 4
+	FogBulb = 4,
+	HDR = 5
 };
 
 enum class BlendMode
@@ -270,7 +271,10 @@ enum class SpriteRenderType
 {
 	Default,
 	LaserBarrier,
-	LaserBeam
+	LaserBeam,
+	HDRSourceCore,
+	HDRHalo,
+	HDRGlare
 };
 
 enum class RendererObjectType

@@ -76,6 +76,7 @@ namespace TEN::Gui
 		LoadGame,
 		Options,
 		Display,
+		LightingHDR,
 		GeneralActions,
 		VehicleActions,
 		QuickActions,

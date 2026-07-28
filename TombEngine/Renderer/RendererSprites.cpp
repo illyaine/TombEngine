@@ -1,6 +1,7 @@
 #include "framework.h"
 #include "Renderer/Structures/RendererSprite.h"
 
+#include "Game/effects/HDRLight.h"
 #include "Renderer/Structures/RendererSpriteBucket.h"
 #include "Renderer/Renderer.h"
 #include "Specific/Parallel.h"
@@ -9,6 +10,35 @@ using namespace TEN::Renderer::Structures;
 
 namespace TEN::Renderer
 {
+	namespace
+	{
+		// b9 is intentionally unused by the existing renderer constant-buffer layout.
+		constexpr UINT HDR_SPRITE_EFFECT_CONSTANT_BUFFER_SLOT = 9;
+
+		struct alignas(16) HDRSpriteEffectBuffer
+		{
+			Vector4 EffectParams[INSTANCED_SPRITES_BUCKET_SIZE];
+		};
+
+		static_assert(sizeof(HDRSpriteEffectBuffer) == 8192,
+			"HDR sprite effect parameters must remain safely below the D3D11 64 KiB constant-buffer limit.");
+
+		HDRSpriteEffectBuffer HDRSpriteEffectData = {};
+		std::optional<ConstantBuffers::ConstantBuffer<HDRSpriteEffectBuffer>> HDRSpriteEffectConstantBuffer;
+		ID3D11Device* HDRSpriteEffectDevice = nullptr;
+
+		bool IsHDRLightSpriteRenderType(SpriteRenderType renderType)
+		{
+			return renderType >= SpriteRenderType::HDRSourceCore && renderType <= SpriteRenderType::HDRGlare;
+		}
+	}
+
+	static SpriteRenderType GetHDRLightSpriteRenderType(TEN::Effects::HDRLight::EffectType type)
+	{
+		// Values 0-2 are the existing default, laser-barrier and laser-beam modes.
+		return static_cast<SpriteRenderType>(3 + static_cast<int>(type));
+	}
+
 	void Renderer::AddSpriteBillboard(RendererSprite* sprite, const Vector3& pos, const Vector4& color, float orient2D, float scale,
 									  Vector2 size, BlendMode blendMode, bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
 	{
@@ -40,8 +70,8 @@ namespace TEN::Renderer
 	}
 
 	void Renderer::AddSpriteBillboardConstrained(RendererSprite* sprite, const Vector3& pos, const Vector4& color, float orient2D,
-												 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
-												 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
+											 float scale, Vector2 size, BlendMode blendMode, const Vector3& constrainAxis,
+											 bool isSoftParticle, RenderView& view, SpriteRenderType renderType)
 	{
 		if (scale <= 0.0f)
 			scale = 1.0f;
@@ -176,6 +206,84 @@ namespace TEN::Renderer
 
 	void Renderer::SortAndPrepareSprites(RenderView& view)
 	{
+		int visibleEffectCount = 0;
+		TEN::Effects::HDRLight::ForEachLight([&](const TEN::Effects::HDRLight::Definition& light)
+		{
+			if (visibleEffectCount >= TEN::Effects::HDRLight::MAX_VISIBLE_EFFECT_LAYERS ||
+				light.LightMode == TEN::Effects::HDRLight::Mode::LightOnly)
+			{
+				return;
+			}
+
+			const bool isRoomVisible = light.RoomNumber == NO_VALUE ||
+				std::any_of(view.RoomsToDraw.begin(), view.RoomsToDraw.end(), [&](const RendererRoom* room)
+				{
+					return room != nullptr && room->RoomNumber == light.RoomNumber;
+				});
+
+			if (!isRoomVisible)
+				return;
+
+			const float distance = Vector3::Distance(light.Position, view.Camera.WorldPosition);
+			const int effectCount = std::min((int)light.Effects.size(), TEN::Effects::HDRLight::MAX_EFFECT_LAYERS);
+			for (int effectIndex = 0; effectIndex < effectCount; effectIndex++)
+			{
+				if (visibleEffectCount >= TEN::Effects::HDRLight::MAX_VISIBLE_EFFECT_LAYERS)
+					break;
+
+				const auto& effect = light.Effects[effectIndex];
+				if (!effect.Enabled || effect.Intensity <= EPSILON || effect.Size.x <= EPSILON || effect.Size.y <= EPSILON)
+					continue;
+
+				float distanceFade = 1.0f;
+				if (effect.MaxDistance > EPSILON)
+				{
+					if (distance >= effect.MaxDistance)
+						continue;
+
+					const float fadeStart = effect.MaxDistance * 0.75f;
+					const float fadeRange = std::max(effect.MaxDistance - fadeStart, 1.0f);
+					distanceFade = 1.0f - std::clamp((distance - fadeStart) / fadeRange, 0.0f, 1.0f);
+				}
+
+				const float boundsRadius = std::max(effect.Size.x, effect.Size.y) * 0.75f;
+				if (!view.Camera.Frustum.SphereInFrustum(light.Position, boundsRadius))
+					continue;
+
+				const float intensity = effect.Intensity * distanceFade;
+				const auto color = Vector4(
+					light.Color.x * effect.ColorMultiplier.x * intensity,
+					light.Color.y * effect.ColorMultiplier.y * intensity,
+					light.Color.z * effect.ColorMultiplier.z * intensity,
+					1.0f);
+
+				auto sprite = RendererSpriteToDraw{};
+				sprite.Type = SpriteType::Billboard;
+				sprite.Sprite = &_whiteSprite;
+				sprite.Scale = 1.0f;
+				sprite.pos = light.Position;
+				sprite.Rotation = effect.Rotation;
+				sprite.Width = effect.Size.x;
+				sprite.Height = effect.Size.y;
+				sprite.BlendMode = BlendMode::Additive;
+				sprite.SoftParticle = effect.Occlusion;
+				sprite.c1 = color;
+				sprite.c2 = color;
+				sprite.c3 = color;
+				sprite.c4 = color;
+				sprite.color = color;
+				sprite.EffectParams = Vector4(
+					std::clamp(effect.Softness, 0.0f, 1.0f),
+					(float)std::clamp(effect.RayCount, 2, 16),
+					std::clamp(effect.PulseAmount, 0.0f, 1.0f),
+					std::max(effect.PulseSpeed, 0.0f));
+				sprite.renderType = GetHDRLightSpriteRenderType(effect.Type);
+
+				view.SpritesToDraw.push_back(sprite);
+				visibleEffectCount++;
+			}
+		});
+
 		if (view.SpritesToDraw.empty())
 		{
 			return;
@@ -291,6 +399,8 @@ namespace TEN::Renderer
 				wasGpuSet = true;
 			}
 
+			const bool isHDRLightBucket = IsHDRLightSpriteRenderType(spriteBucket.RenderType);
+
 			// Define sprite preparation logic.
 			auto prepareSprites = [&](int start, int end)
 			{
@@ -305,13 +415,32 @@ namespace TEN::Renderer
 					_stInstancedSpriteBuffer.Sprites[i].IsSoftParticle = spriteToDraw.SoftParticle ? 1.0f : 0.0f;
 					_stInstancedSpriteBuffer.Sprites[i].RenderType = (int)spriteToDraw.renderType;
 
+					if (isHDRLightBucket)
+						HDRSpriteEffectData.EffectParams[i] = spriteToDraw.EffectParams;
+
 					PackSpriteTextureCoordinates(i, spriteToDraw.Sprite);
 				}
 			};
 			g_Parallel.AddTasks((int)spriteBucket.SpritesToDraw.size(), prepareSprites).wait();
 
 			BindTexture(TextureRegister::ColorMap, spriteBucket.Sprite->Texture, SamplerStateRegister::LinearClamp);
-			UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
+			UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);
+
+			if (isHDRLightBucket)
+			{
+				if (!HDRSpriteEffectConstantBuffer.has_value() || HDRSpriteEffectDevice != _device.Get())
+				{
+					HDRSpriteEffectConstantBuffer.reset();
+					HDRSpriteEffectConstantBuffer.emplace(_device.Get());
+					HDRSpriteEffectDevice = _device.Get();
+				}
+
+				UpdateConstantBuffer(HDRSpriteEffectData, *HDRSpriteEffectConstantBuffer);
+				_context->PSSetConstantBuffers(
+					HDR_SPRITE_EFFECT_CONSTANT_BUFFER_SLOT,
+					1,
+					HDRSpriteEffectConstantBuffer->get());
+			}
 
 			// Draw sprites with instancing.
 			DrawInstancedTriangles(4, (int)spriteBucket.SpritesToDraw.size(), 0);
@@ -447,7 +576,7 @@ namespace TEN::Renderer
 
 		PackSpriteTextureCoordinates(0, object->Sprite->Sprite);
 
-		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
+		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);
 
 		BindTexture(TextureRegister::ColorMap, object->Sprite->Sprite->Texture, SamplerStateRegister::LinearClamp);
 		
@@ -528,7 +657,7 @@ namespace TEN::Renderer
 
 		PackSpriteTextureCoordinates(0, objectInfo->Sprite->Sprite);
 
-		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);;
+		UpdateConstantBuffer(_stInstancedSpriteBuffer, _cbInstancedSpriteBuffer);
 
 		SetDepthState(DepthState::Read);
 		SetCullMode(CullMode::None);

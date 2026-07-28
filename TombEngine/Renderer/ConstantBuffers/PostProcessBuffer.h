@@ -24,7 +24,7 @@ namespace TEN::Renderer::ConstantBuffers
 		//--
 		ShaderLensFlare LensFlares[MAX_LENS_FLARES_DRAW];
 		//--
-		int NumLensFlares; 
+		int NumLensFlares;
 		float DownscaleFactor;
 		Vector2 Padding3;
 		//--
@@ -35,5 +35,18 @@ namespace TEN::Renderer::ConstantBuffers
 		int BlurRadius;
 		float GlowIntensity;
 		int GlowSoftAdd;
+		//--
+		float HDRExposure;
+		float HDRStrength;
+		float BloomThreshold;
+		float BloomStrength;
+		//--
+		float GlareStrength;
+		float GlareLength;
+		int EnableHDR;
+		int EnableBloom;
+		//--
+		float DisplayBrightness;
+		Vector3 Padding4;
 	};
 }
